@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "945455108126",
+    "project_id": "joev-fintess",
+    "storage_bucket": "joev-fintess.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945455108126:android:da0354a7fb8e12a75c9e0f",
+        "android_client_info": {
+          "package_name": "com.example.jove_client"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945455108126:android:17124a8b9b8a567e5c9e0f",
+        "android_client_info": {
+          "package_name": "com.example.jove_trainer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
