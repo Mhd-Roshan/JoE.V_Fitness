@@ -1,42 +1,20 @@
 import { useState } from "react";
+import type { FormEvent } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../lib/firebase";
+import "../styles/login.css";
+
+import documentFrom1 from "../assets/Document from محمد روشان.png";
 
 export default function Login() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [error, setError] = useState<string | null>(null);
+    const [rememberMe, setRememberMe] = useState(false);
+    const [statusMessage, setStatusMessage] = useState("");
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
-
-    async function handleLogin(e: React.FormEvent) {
-        e.preventDefault();
-        setError(null);
-        setLoading(true);
-
-        try {
-            const cred = await signInWithEmailAndPassword(auth, email, password);
-
-            // Verify this account is actually an admin — not a trainer account
-            // that somehow got the wrong login URL
-            const userDoc = await getDoc(doc(db, "users", cred.user.uid));
-            const role = userDoc.data()?.role;
-
-            if (role !== "admin") {
-                await auth.signOut();
-                setError("This account is not authorized for admin access.");
-                setLoading(false);
-                return;
-            }
-
-            navigate("/");
-        } catch (err: any) {
-            setError(mapAuthError(err.code));
-            setLoading(false);
-        }
-    }
 
     function mapAuthError(code: string) {
         switch (code) {
@@ -52,79 +30,125 @@ export default function Login() {
         }
     }
 
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        setStatusMessage("");
+
+        if (!email || !password) {
+            setStatusMessage("Please enter your email and password.");
+            return;
+        }
+
+        setLoading(true);
+
+        try {
+            const cred = await signInWithEmailAndPassword(auth, email, password);
+
+            const userDoc = await getDoc(doc(db, "users", cred.user.uid));
+            const role = userDoc.data()?.role;
+
+            if (role !== "admin") {
+                await auth.signOut();
+                setStatusMessage("This account is not authorized for admin access.");
+                setLoading(false);
+                return;
+            }
+
+            navigate("/");
+        } catch (err: any) {
+            setStatusMessage(mapAuthError(err.code));
+            setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = () => {
+        setStatusMessage("Password recovery is not available yet.");
+    };
+
     return (
-        <div style={styles.page}>
-            <form style={styles.card} onSubmit={handleLogin}>
-                <h1 style={styles.title}>JoE.V Fitness Admin</h1>
-                <p style={styles.subtitle}>Sign in to manage the platform</p>
+        <main className="login-page">
+            <div className="login-card-wrap">
+                <img className="document-from" alt="JoE.V" src={documentFrom1} />
 
-                <label style={styles.label}>Email</label>
-                <input
-                    style={styles.input}
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                />
+                <form className="rectangle" onSubmit={handleSubmit} noValidate={false}>
+                    <div className="field-group">
+                        <label className="text-wrapper-2" htmlFor="email">
+                            Email
+                        </label>
+                        <input
+                            id="email"
+                            name="email"
+                            type="email"
+                            autoComplete="email"
+                            required
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                            placeholder="Enter Your Email"
+                            className="div"
+                        />
+                    </div>
 
-                <label style={styles.label}>Password</label>
-                <input
-                    style={styles.input}
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                />
+                    <div className="field-group">
+                        <label className="text-wrapper-3" htmlFor="password">
+                            Password
+                        </label>
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            autoComplete="current-password"
+                            required
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            placeholder="Enter Your Password"
+                            className="rectangle-2"
+                        />
+                    </div>
 
-                {error && <div style={styles.error}>{error}</div>}
+                    <div className="remember-row">
+                        <div className="remember-left">
+                            <input
+                                type="checkbox"
+                                name="rememberMe"
+                                checked={rememberMe}
+                                onChange={(event) => setRememberMe(event.target.checked)}
+                                className="rectangle-3"
+                                id="rememberMe"
+                            />
+                            <label className="text-wrapper-4" htmlFor="rememberMe">
+                                Remember me
+                            </label>
+                        </div>
 
-                <button style={styles.button} type="submit" disabled={loading}>
-                    {loading ? "Signing in..." : "Sign In"}
-                </button>
-            </form>
-        </div>
+                        <button
+                            type="button"
+                            className="text-wrapper-6"
+                            onClick={handleForgotPassword}
+                        >
+                            Forgot password?
+                        </button>
+                    </div>
+
+                    <button type="submit" className="rectangle-4" disabled={loading}>
+                        <span className="text-wrapper-5">
+                            {loading ? "Logging in..." : "Login"}
+                        </span>
+                    </button>
+
+                    <p className="status-message" aria-live="polite">
+                        {statusMessage}
+                    </p>
+                </form>
+            </div>
+        </main>
     );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-    page: {
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#f5f7fa",
-    },
-    card: {
-        background: "#fff",
-        padding: "40px",
-        borderRadius: "16px",
-        width: "360px",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
-    },
-    title: { color: "#00225D", margin: 0, fontSize: "22px" },
-    subtitle: { color: "#666", marginTop: "4px", marginBottom: "24px", fontSize: "14px" },
-    label: { fontSize: "13px", fontWeight: 600, color: "#00225D", marginBottom: "4px", display: "block" },
-    input: {
-        width: "100%",
-        padding: "10px 12px",
-        marginBottom: "16px",
-        borderRadius: "8px",
-        border: "1px solid #ddd",
-        fontSize: "14px",
-        boxSizing: "border-box",
-    },
-    error: { color: "#ff0000", fontSize: "13px", marginBottom: "12px" },
-    button: {
-        width: "100%",
-        padding: "12px",
-        background: "#ff0000",
-        color: "#fff",
-        border: "none",
-        borderRadius: "999px",
-        fontWeight: 700,
-        fontSize: "15px",
-        cursor: "pointer",
-    },
-};
+/*
+  NOTE on "Remember me": to make this functional, import
+  { setPersistence, browserLocalPersistence, browserSessionPersistence }
+  from "firebase/auth" and call setPersistence(auth, rememberMe
+    ? browserLocalPersistence
+    : browserSessionPersistence)
+  BEFORE calling signInWithEmailAndPassword.
+*/
