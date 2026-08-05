@@ -1,0 +1,280 @@
+.pay-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.pay-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.pay-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+    margin-top: 4px;
+    max-width: 480px;
+}
+
+.pay-export-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #ffffff;
+    border: 1px solid #00225d;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.pay-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.pay-stat-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.pay-stat-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.pay-stat-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #00225d;
+}
+
+.pay-stat-icon {
+    color: #01bce3;
+    font-size: 18px;
+}
+
+.pay-stat-value-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.pay-stat-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.pay-stat-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.pay-stat-pill.up {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.pay-stat-pill.down {
+    background-color: #ffdad6;
+    color: #bb0013;
+}
+
+.pay-stat-baseline {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+}
+
+.pay-stat-footnote {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+    margin-top: 4px;
+}
+
+.pay-chart-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.pay-chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.pay-chart-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 18px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.pay-chart-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #808080;
+    margin-top: 2px;
+}
+
+.pay-range-tabs {
+    display: flex;
+    gap: 4px;
+    background-color: #f7f9fb;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 4px;
+}
+
+.pay-range-btn {
+    background: none;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.pay-range-btn.active {
+    background-color: #00225d;
+    color: #ffffff;
+}
+
+.pay-peak-note {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #545454;
+    margin-top: 8px;
+}
+
+.pay-transactions-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.pay-transactions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #c0c0c0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.pay-transactions-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 16px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.pay-transactions-note {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+}
+
+.pay-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pay-table th {
+    text-align: left;
+    background-color: #f7f9fb;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 12px 24px;
+    border-bottom: 1px solid #c0c0c0;
+}
+
+.pay-table td {
+    padding: 12px 24px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #191c1e;
+    border-bottom: 1px solid #eee;
+}
+
+.pay-client-name {
+    font-weight: 700;
+}
+
+.pay-plan-pill {
+    background-color: #dae1ff;
+    color: #2c4481;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 8px;
+}
+
+.pay-mono {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #545454;
+}
+
+.pay-status-pill {
+    display: inline-block;
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.pay-status-pill.status-completed {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.pay-status-pill.status-pending {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.pay-status-pill.status-failed {
+    background-color: #ffdad6;
+    color: #bb0013;
+}

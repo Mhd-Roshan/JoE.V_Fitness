@@ -1,0 +1,561 @@
+.cdt-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.cdt-header-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.cdt-save-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cdt-cancel-btn {
+    background: none;
+    border: 1px solid #bb0013;
+    color: #bb0013;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cdt-save-btn:disabled,
+.cdt-cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.cdt-save-error {
+    background-color: #ffdad6;
+    color: #bb0013;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.cdt-macro-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.cdt-macro-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    z-index: 1;
+}
+
+.cdt-macro-text {
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
+}
+
+.cdt-macro-icon {
+    font-size: 22px;
+}
+
+.cdt-macro-icon.red {
+    color: #bb0013;
+}
+
+.cdt-macro-icon.blue {
+    color: #2c4481;
+}
+
+.cdt-macro-icon.cyan {
+    color: #01bce3;
+}
+
+.cdt-macro-icon.green {
+    color: #17cc1a;
+}
+
+.cdt-macro-input {
+    display: block;
+    width: 90px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: text;
+    position: relative;
+    z-index: 3;
+    pointer-events: auto;
+}
+
+.cdt-macro-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    color: #808080;
+}
+
+.cdt-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .cdt-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.cdt-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.cdt-name-card,
+.cdt-side-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.cdt-label {
+    display: block;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #808080;
+    margin-bottom: 6px;
+}
+
+.cdt-name-input,
+.cdt-hydration-note {
+    width: 100%;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+}
+
+.cdt-template-photo-upload {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    height: 100px;
+    border: 2px dashed #c0c0c0;
+    border-radius: 8px;
+    color: #808080;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.cdt-template-photo-upload i {
+    font-size: 26px;
+}
+
+.cdt-template-photo-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cdt-side-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 12px;
+}
+
+.cdt-hydration-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.cdt-hydration-input {
+    width: 60px;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #01bce3;
+}
+
+.cdt-prohibition-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #191c1e;
+    padding: 4px 0;
+}
+
+.cdt-prohibition-row button {
+    background: none;
+    border: none;
+    color: #bb0013;
+    cursor: pointer;
+}
+
+.cdt-add-prohibition-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.cdt-add-prohibition-row input {
+    flex: 1;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+}
+
+.cdt-add-prohibition-row button {
+    background-color: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 0 10px;
+    cursor: pointer;
+}
+
+.cdt-meal-header {
+    margin-bottom: 12px;
+}
+
+.cdt-meal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 18px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.cdt-meal-count-badge {
+    background-color: #dae1ff;
+    color: #2c4481;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.cdt-add-meal-slot-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    background-color: #f7f9fb;
+    border: 2px dashed #c0c0c0;
+    border-radius: 10px;
+    padding: 14px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+    margin-bottom: 16px;
+}
+
+.cdt-meal-form-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.cdt-meal-form-row {
+    display: flex;
+    gap: 16px;
+}
+
+.cdt-meal-photo-upload {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100px;
+    height: 100px;
+    border: 2px dashed #c0c0c0;
+    border-radius: 8px;
+    color: #808080;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    text-align: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 8px;
+    overflow: hidden;
+}
+
+.cdt-meal-photo-upload i {
+    font-size: 22px;
+}
+
+.cdt-meal-photo-filename {
+    font-size: 9px;
+    word-break: break-all;
+}
+
+.cdt-meal-photo-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cdt-meal-form-fields {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cdt-meal-time-input {
+    width: 140px;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+}
+
+.cdt-meal-name-label {
+    display: block;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    color: #808080;
+    margin-bottom: 4px;
+}
+
+.cdt-meal-name-input {
+    width: 100%;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+}
+
+.cdt-ingredients-textarea {
+    width: 100%;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    resize: vertical;
+}
+
+.cdt-meal-macro-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.cdt-meal-macro-input {
+    width: 100%;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+}
+
+.cdt-meal-form-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.cdt-meal-cancel-btn {
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 8px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    color: #545454;
+    cursor: pointer;
+}
+
+.cdt-meal-add-btn {
+    background-color: #bb0013;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 24px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cdt-meal-add-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cdt-meal-photo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.cdt-meal-photo-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.cdt-meal-order-badge {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #bb0013;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.cdt-meal-photo-thumb {
+    width: 90px;
+    height: 90px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background-color: #f2f4f6;
+}
+
+.cdt-meal-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cdt-meal-photo-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c0c0c0;
+    font-size: 26px;
+}
+
+.cdt-meal-photo-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.cdt-meal-photo-time {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #bb0013;
+    margin-bottom: 2px;
+}
+
+.cdt-meal-photo-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 4px;
+}
+
+.cdt-meal-photo-desc {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cdt-meal-photo-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.cdt-meal-photo-actions button {
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    padding: 6px 8px;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.cdt-meal-photo-actions button:last-child {
+    color: #bb0013;
+}

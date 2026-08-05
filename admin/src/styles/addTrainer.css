@@ -1,0 +1,1596 @@
+.step-indicator-card {
+    display: flex;
+    align-items: center;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 24px 29px;
+    margin-bottom: 24px;
+    box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.step-indicator-item {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.step-indicator-node {
+    width: 32px;
+    height: 32px;
+    border-radius: 12px;
+    background-color: #e6e8ea;
+    color: #00225d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.step-indicator-node.active {
+    background-color: #00225d;
+    color: #ffffff;
+}
+
+.step-indicator-node.done {
+    background-color: #17cb1a;
+    color: #ffffff;
+}
+
+.step-indicator-label {
+    margin-left: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #00225d;
+    opacity: 0.6;
+    white-space: nowrap;
+}
+
+.step-indicator-label.active {
+    font-weight: 700;
+    opacity: 1;
+}
+
+.step-indicator-line {
+    flex: 1;
+    height: 1px;
+    background-color: #c0c0c0;
+    margin: 0 16px;
+}
+
+.add-trainer-layout {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .add-trainer-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.add-trainer-form-panel {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 32px;
+    box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.form-panel-header {
+    border-bottom: 1px solid #c0c0c0;
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+}
+
+.form-panel-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 6px;
+}
+
+.form-panel-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #545454;
+}
+
+.form-field {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #808080;
+    margin-bottom: 8px;
+}
+
+.input-with-icon {
+    position: relative;
+}
+
+.input-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #808080;
+    font-size: 18px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 10px 16px 10px 44px;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #191c1e;
+}
+
+.form-input::placeholder {
+    color: #6b7280;
+}
+
+.form-input.input-error {
+    border-color: #bb0013;
+    background-color: rgba(187, 0, 19, 0.04);
+}
+
+.form-error-text {
+    display: block;
+    margin-top: 6px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #bb0013;
+}
+
+.photo-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 24px 16px;
+    background-color: #f2f4f6;
+    border: 2px dashed #c0c0c0;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.photo-dropzone-icon {
+    font-size: 32px;
+    color: #916f6b;
+    margin-bottom: 4px;
+}
+
+.photo-dropzone-text {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #191c1e;
+}
+
+.photo-dropzone-hint {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #808080;
+    margin-bottom: 8px;
+}
+
+.photo-choose-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: #808080;
+}
+
+.form-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #c0c0c0;
+    padding-top: 24px;
+    margin-top: 8px;
+}
+
+.form-btn-cancel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    color: #bb0013;
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 8px 24px;
+}
+
+.form-btn-continue {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #bb0013;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 8px 32px;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.add-trainer-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.tip-card {
+    background-color: rgba(163, 186, 255, 0.3);
+    border: 1px solid rgba(69, 92, 154, 0.2);
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.tip-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(48, 72, 134, 0.9);
+    margin-bottom: 8px;
+}
+
+.tip-card-text {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: rgba(48, 72, 134, 0.9);
+    line-height: 1.5;
+}
+
+.resource-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.resource-card-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #191c1e;
+    margin-bottom: 16px;
+}
+
+.resource-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    letter-spacing: 0.6px;
+    color: #00225d;
+    padding: 6px 0;
+}
+
+.resource-item.dim {
+    opacity: 0.5;
+}
+
+.resource-icon {
+    font-size: 16px;
+    color: #c0c0c0;
+}
+
+.resource-icon.done {
+    color: #16a34a;
+}
+
+.network-status-card {
+    background-color: #00225d;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0px 8px 25px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.network-status-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 16px;
+}
+
+.network-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.network-status-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    color: #ffffff;
+    opacity: 0.7;
+}
+
+.network-status-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.network-status-note {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #ffffff;
+    opacity: 0.6;
+}
+
+/* ===== Step 2: Professional Details ===== */
+
+.form-row {
+    display: flex;
+    gap: 24px;
+}
+
+@media (max-width: 600px) {
+    .form-row {
+        flex-direction: column;
+    }
+}
+
+.form-select,
+.form-input-plain {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #c0c0c0;
+    border-radius: 5px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #191c1e;
+    background-color: #ffffff;
+}
+
+.form-select {
+    color: #191c1e;
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.spec-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 16px;
+    border-radius: 12px;
+    border: none;
+    background-color: #e6e8ea;
+    color: #00225d;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.spec-chip.selected {
+    background-color: #00225d;
+    color: #ffffff;
+}
+
+.spec-chip-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 16px;
+    border-radius: 12px;
+    border: 1px solid #808080;
+    background: none;
+    color: #808080;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.spec-chip-input-wrap {
+    display: inline-flex;
+}
+
+.spec-chip-input {
+    padding: 4px 12px;
+    border-radius: 12px;
+    border: 1px solid #00225d;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    width: 110px;
+}
+
+.form-textarea {
+    width: 100%;
+    padding: 16px;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #191c1e;
+    resize: vertical;
+}
+
+.form-textarea::placeholder {
+    color: #6b7280;
+}
+
+.cert-upload-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.cert-upload-hint {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+}
+
+.cert-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 32px;
+    border: 2px solid #c0c0c0;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: center;
+}
+
+.cert-dropzone-icon {
+    font-size: 32px;
+    color: #c0c0c0;
+    margin-bottom: 8px;
+}
+
+.cert-dropzone-text {
+    font-family: "Inter", Helvetica;
+    font-size: 16px;
+    font-weight: 700;
+    color: #191c1e;
+}
+
+.cert-dropzone-hint {
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    color: #5c3f3d;
+    margin-bottom: 8px;
+}
+
+.cert-browse-btn {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 8px 24px;
+    background-color: #c0c0c0;
+    color: #ffffff;
+    border-radius: 4px;
+    font-family: "Inter", Helvetica;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.cert-file-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.cert-file-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background-color: #f2f4f6;
+    border: 1px solid #c0c0c0;
+    border-radius: 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #191c1e;
+}
+
+.cert-file-pill i {
+    cursor: pointer;
+    color: #bb0013;
+}
+
+.cert-body-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.cert-body-chip {
+    padding: 8px;
+    width: 22%;
+    min-width: 90px;
+    background-color: #f2f4f6;
+    border: 1px solid #808080;
+    border-radius: 2px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 500;
+    color: #191c1e;
+    cursor: pointer;
+}
+
+.cert-body-chip.selected {
+    background-color: #00225d;
+    color: #ffffff;
+    border-color: #00225d;
+}
+
+.draft-profile-card {
+    background-color: #ffffff;
+    border: 1px solid #808080;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.draft-profile-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.draft-profile-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 4px;
+    background-color: #e0e3e5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Work Sans", Helvetica;
+    font-weight: 700;
+    color: #00225d;
+    flex-shrink: 0;
+}
+
+.draft-profile-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.draft-profile-completion {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #545454;
+    margin: 4px 0 8px;
+}
+
+.draft-profile-pct {
+    color: #bb0013;
+}
+
+.draft-progress-track {
+    background-color: #e6e8ea;
+    border-radius: 12px;
+    height: 6px;
+    overflow: hidden;
+    width: 140px;
+}
+
+.draft-progress-fill {
+    background-color: #900f0f;
+    height: 100%;
+}
+
+.draft-profile-divider {
+    border-top: 1px solid #c0c0c0;
+    margin: 16px 0;
+}
+
+.draft-profile-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 0;
+}
+
+.draft-profile-label {
+    font-family: "Inter", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #00225d;
+    flex-shrink: 0;
+}
+
+.draft-profile-value {
+    font-family: "Inter", Helvetica;
+    font-size: 12px;
+    color: #191c1e;
+    text-align: right;
+}
+
+.draft-profile-value.dim {
+    opacity: 0.6;
+}
+
+.security-badge {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background-color: rgba(242, 244, 246, 0.5);
+    border: 1px solid #808080;
+    border-radius: 4px;
+}
+
+.security-badge-icon {
+    font-size: 24px;
+    color: #004a69;
+    flex-shrink: 0;
+}
+
+.security-badge-text {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #5c3f3d;
+}
+
+/* ===== Phone input with +91 country code ===== */
+
+.phone-input-group {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.phone-country-code {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background-color: #f2f4f6;
+    border-right: 1px solid #c0c0c0;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 600;
+    color: #191c1e;
+    flex-shrink: 0;
+}
+
+.phone-country-code i {
+    color: #808080;
+    font-size: 16px;
+}
+
+.form-input-phone {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    outline: none;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #191c1e;
+}
+
+.form-input-phone::placeholder {
+    color: #6b7280;
+}
+
+.phone-input-group.input-error,
+.form-input-phone.input-error {
+    border-color: #bb0013;
+}
+
+.phone-input-group:has(.form-input-phone.input-error) {
+    border-color: #bb0013;
+    background-color: rgba(187, 0, 19, 0.04);
+}
+
+/* ===== Step 3: Availability ===== */
+
+.timezone-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background-color: #f2f4f6;
+    border: 1px solid #c0c0c0;
+    border-radius: 11px;
+    margin-bottom: 24px;
+}
+
+.timezone-icon {
+    font-size: 20px;
+    color: #00225d;
+    flex-shrink: 0;
+}
+
+.timezone-field {
+    flex: 1;
+}
+
+.timezone-select {
+    width: 100%;
+    padding: 8px 0;
+    border: none;
+    background: none;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.availability-block {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.availability-heading {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: #00225d;
+    text-transform: uppercase;
+}
+
+.day-row {
+    display: flex;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #c0c0c0;
+}
+
+.day-row-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100px;
+    flex-shrink: 0;
+    padding-top: 4px;
+}
+
+.day-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background-color: #00225d;
+    color: #ffffff;
+    border-radius: 2px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.day-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.day-row-slots {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.day-row-empty {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+    padding: 6px 0;
+}
+
+.slot-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.slot-time-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #e6e8ea;
+    border: 1px solid #c0c0c0;
+    border-radius: 2px;
+    padding: 4px 8px;
+}
+
+.slot-time-input {
+    border: none;
+    background: none;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: #00225d;
+}
+
+.slot-to {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+}
+
+.slot-remove-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #bb0013;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+}
+
+.add-slot-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    align-self: flex-start;
+    background: none;
+    border: none;
+    color: #545454;
+    font-family: "Inter", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 0;
+}
+
+/* ===== Sidebar: Draft Profile v2 (Step 3+) ===== */
+
+.draft-profile-card-v2 {
+    background-color: rgba(255, 255, 255, 0.8);
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 24px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.draft-profile-v2-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.draft-profile-v2-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 20px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.draft-status-pill {
+    background-color: #ffdad6;
+    color: #bb0013;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.draft-profile-v2-identity {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.draft-photo-frame {
+    width: 64px;
+    height: 64px;
+    border: 2px solid #90000f;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.draft-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.draft-photo-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e0e3e5;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.draft-profile-v2-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 20px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.draft-profile-v2-role {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #545454;
+}
+
+.draft-profile-v2-section {
+    margin-bottom: 12px;
+}
+
+.draft-profile-v2-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #5c3f3d;
+    margin-bottom: 6px;
+}
+
+.draft-spec-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.draft-spec-pill {
+    background-color: #dae1ff;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 2px;
+}
+
+.draft-profile-v2-value {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #191c1e;
+}
+
+.draft-profile-v2-empty {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+}
+
+.edit-previous-btn {
+    width: 100%;
+    padding: 4px 0;
+    border: 1px solid #c0c0c0;
+    border-radius: 5px;
+    background: none;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+    margin-top: 8px;
+}
+
+.tip-card-v2 {
+    display: flex;
+    gap: 16px;
+    padding: 24px;
+    background-color: rgba(169, 220, 255, 0.3);
+    border: 1px solid rgba(0, 74, 105, 0.2);
+    border-radius: 8px;
+}
+
+.tip-v2-icon {
+    font-size: 20px;
+    color: #00225d;
+    flex-shrink: 0;
+}
+
+.tip-v2-title {
+    font-family: "Inter", Helvetica;
+    font-size: 16px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 4px;
+}
+
+.tip-v2-text {
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    color: #00225d;
+    line-height: 1.6;
+}
+
+.capacity-card {
+    background-color: #e0e3e5;
+    border: 1px solid #808080;
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.capacity-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    color: #545454;
+    margin-bottom: 8px;
+}
+
+.capacity-value-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.capacity-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 40px;
+    font-weight: 700;
+    color: #00225d;
+    line-height: 1;
+}
+
+.capacity-unit {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #545454;
+    padding-bottom: 4px;
+}
+
+.capacity-track {
+    background-color: #ffffff;
+    border-radius: 12px;
+    height: 6px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.capacity-fill {
+    background-color: #bb0013;
+    height: 100%;
+}
+
+.capacity-note {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #545454;
+    line-height: 1.5;
+}
+
+/* ===== Step 4: Review ===== */
+
+.review-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+}
+
+.review-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.review-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.review-card-title i {
+    font-size: 18px;
+}
+
+.edit-section-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.review-personal-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.review-photo-frame {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.review-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.review-photo-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e0e3e5;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-weight: 700;
+    font-size: 18px;
+}
+
+.review-personal-name-block {
+    min-width: 140px;
+}
+
+.review-personal-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 4px;
+}
+
+.review-personal-role {
+    display: inline-block;
+    background-color: #e6e8ea;
+    color: #545454;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.review-contact-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.review-contact-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #00225d;
+}
+
+.review-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 600px) {
+    .review-two-col {
+        grid-template-columns: 1fr;
+    }
+}
+
+.review-subheading {
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #5c3f3d;
+    margin-bottom: 8px;
+}
+
+.review-spec-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.review-spec-pill {
+    background-color: #dae1ff;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 2px;
+}
+
+.review-experience-text {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #191c1e;
+    line-height: 1.5;
+}
+
+.review-cert-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.review-cert-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #191c1e;
+}
+
+.review-cert-item i {
+    color: #16a34a;
+    font-size: 16px;
+}
+
+.review-empty {
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #808080;
+}
+
+.review-day-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.review-day-cell {
+    background-color: #f2f4f6;
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
+.review-day-cell.off {
+    opacity: 0.5;
+}
+
+.review-day-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #545454;
+    margin-bottom: 4px;
+}
+
+.review-day-time {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.review-day-cell.off .review-day-time {
+    color: #808080;
+    font-weight: 500;
+}
+
+/* ===== Sidebar: Directory preview + Finalize (Step 4) ===== */
+
+.directory-preview-card {
+    background-color: #00225d;
+    border-radius: 8px;
+    padding: 20px;
+    color: #ffffff;
+}
+
+.directory-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    margin-bottom: 12px;
+}
+
+.live-preview-pill {
+    background-color: #bb0013;
+    color: #ffffff;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.directory-preview-banner {
+    display: none;
+}
+
+.directory-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 16px;
+    color: #191c1e;
+}
+
+.directory-card-photo {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin: 0 auto 12px;
+    border: 3px solid #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.directory-card-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.directory-card-avatar-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #e0e3e5;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-weight: 700;
+}
+
+.directory-card-name {
+    text-align: center;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.directory-card-role {
+    text-align: center;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #545454;
+    margin-bottom: 8px;
+}
+
+.directory-card-bio {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #545454;
+    text-align: center;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.directory-card-tags {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.directory-card-tag {
+    background-color: #f2f4f6;
+    color: #545454;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 10px;
+}
+
+.directory-card-rating {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    color: #808080;
+}
+
+.directory-preview-footnote {
+    text-align: center;
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 12px;
+}
+
+.finalize-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 24px;
+}
+
+.finalize-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 16px;
+}
+
+.finalize-checkbox-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #191c1e;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+.finalize-checkbox-row input {
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+
+.finalize-link {
+    color: #bb0013;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.complete-onboarding-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: #bb0013;
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 12px;
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 10px;
+}
+
+.complete-onboarding-btn:disabled {
+    background-color: #e6c9cc;
+    cursor: not-allowed;
+}
+
+.back-to-step-btn {
+    width: 100%;
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    padding: 12px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+    margin-bottom: 16px;
+}
+
+.finalize-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background-color: #ffdad6;
+    border-radius: 6px;
+    padding: 12px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #bb0013;
+    line-height: 1.5;
+}
+
+.finalize-warning i {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+/* ===== Step 1: Password fields ===== */
+
+.password-toggle-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #808080;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.password-hint-text {
+    display: block;
+    margin-top: 6px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+}

@@ -1,0 +1,344 @@
+.dm-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.dm-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.dm-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+    margin-top: 4px;
+    max-width: 520px;
+}
+
+.dm-header-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dm-browse-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #ffffff;
+    border: 1px solid #00225d;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.dm-create-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.dm-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.dm-stat-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.dm-stat-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.dm-stat-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #00225d;
+}
+
+.dm-stat-icon {
+    color: #01bce3;
+    font-size: 18px;
+}
+
+.dm-stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background-color: #dcfce7;
+    color: #15803d;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.dm-stat-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.dm-stat-value.green {
+    color: #15803d;
+}
+
+.dm-stat-footnote {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+    margin-top: 4px;
+}
+
+.dm-section-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 18px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 16px;
+}
+
+.dm-featured-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.dm-featured-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.dm-featured-image {
+    width: 100%;
+    height: 130px;
+    background-color: #f2f4f6;
+}
+
+.dm-featured-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.dm-featured-image-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #c0c0c0;
+    font-size: 32px;
+}
+
+.dm-featured-body {
+    padding: 16px;
+}
+
+.dm-featured-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 4px;
+}
+
+.dm-featured-desc {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.dm-featured-macro-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.dm-featured-macro-cell {
+    text-align: center;
+    background-color: #f2f4f6;
+    border-radius: 6px;
+    padding: 6px 4px;
+}
+
+.dm-featured-macro-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.dm-featured-macro-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 9px;
+    color: #808080;
+}
+
+.dm-featured-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.dm-featured-link {
+    flex: 1;
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 8px 0;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.dm-featured-link.filled {
+    background-color: #bb0013;
+    border: none;
+    color: #ffffff;
+}
+
+.dm-assignments-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dm-assignments-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #c0c0c0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.dm-view-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: #bb0013;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.dm-assignments-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.dm-assignments-table th {
+    text-align: left;
+    background-color: #f7f9fb;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 12px 24px;
+    border-bottom: 1px solid #c0c0c0;
+}
+
+.dm-assignments-table td {
+    padding: 12px 24px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #191c1e;
+    border-bottom: 1px solid #eee;
+}
+
+.dm-client-name {
+    font-weight: 700;
+}
+
+.dm-protocol-pill {
+    background-color: #dae1ff;
+    color: #2c4481;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 8px;
+}
+
+.dm-mono {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #545454;
+}
+
+.dm-status-pill {
+    display: inline-block;
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.dm-status-pill.status-active {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.dm-status-pill.status-completed {
+    background-color: #dae1ff;
+    color: #2c4481;
+}
+
+.dm-status-pill.status-paused {
+    background-color: #fef3c7;
+    color: #b45309;
+}

@@ -1,0 +1,331 @@
+.subs-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.subs-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.subs-subtitle {
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    color: #545454;
+    margin-top: 4px;
+}
+
+.subs-header-actions {
+    display: flex;
+    gap: 16px;
+}
+
+.subs-filter-btn,
+.subs-export-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.subs-table-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+
+.subs-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.subs-table th {
+    text-align: left;
+    background-color: #ffffff;
+    border-bottom: 1px solid #c0c0c0;
+    color: #00225d;
+    font-family: "Inter", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 16px 24px;
+}
+
+.subs-table td {
+    padding: 16px 24px;
+    border-top: 1px solid #c0c0c0;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #00225d;
+}
+
+.subs-client-cell {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.subs-client-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #a3baff;
+    color: #30487f;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.subs-client-name {
+    font-family: "Inter", Helvetica;
+    font-size: 16px;
+    font-weight: 700;
+    color: #191c1e;
+}
+
+.subs-package-pill {
+    background-color: #e6e8ea;
+    border: 1px solid #c0c0c0;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.subs-mono {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+}
+
+.subs-status-pill {
+    display: inline-block;
+    border-radius: 5px;
+    padding: 3px 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    text-transform: uppercase;
+}
+
+.subs-status-pill.status-active {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.subs-status-pill.status-paused {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.subs-status-pill.status-expired,
+.subs-status-pill.status-pending {
+    background-color: #ffdad6;
+    color: #93000a;
+}
+
+.subs-actions-cell {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.subs-action-btn {
+    background: none;
+    border: none;
+    color: #00225d;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.subs-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid #c0c0c0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.subs-pagination-count {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+}
+
+.subs-pagination-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.subs-page-btn {
+    width: 32px;
+    height: 32px;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 2px;
+    color: #191c1e;
+    cursor: pointer;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+}
+
+.subs-page-btn.active {
+    background-color: #00225d;
+    border-color: #00225d;
+    color: #ffffff;
+}
+
+.subs-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.subs-stat-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.subs-stat-card.dark {
+    background-color: #00225d;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.subs-stat-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: #00225d;
+    margin-bottom: 8px;
+}
+
+.subs-stat-card.dark .subs-stat-label {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.subs-stat-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 40px;
+    font-weight: 500;
+    color: #00225d;
+}
+
+.subs-stat-value.danger {
+    color: #bb0013;
+}
+
+.subs-stat-card.dark .subs-stat-value {
+    color: #ffffff;
+}
+
+.subs-stat-footnote {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #00225d;
+    margin-top: 16px;
+}
+
+.subs-stat-footnote.success {
+    color: #16a34a;
+}
+
+.subs-stat-footnote.warning {
+    color: #d97706;
+}
+
+.subs-stat-card.dark .subs-stat-footnote {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.subs-analytics-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    background-color: #ffffff;
+    border: 1px solid #545454;
+    border-radius: 10px;
+    padding: 32px;
+    flex-wrap: wrap;
+}
+
+.subs-analytics-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.subs-analytics-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background-color: rgba(144, 0, 15, 0.1);
+    color: #90000f;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.subs-analytics-title {
+    font-family: "Hanken Grotesk", Helvetica;
+    font-size: 16px;
+    color: #191c1e;
+    font-weight: 700;
+}
+
+.subs-analytics-desc {
+    font-family: "Inter", Helvetica;
+    font-size: 16px;
+    color: #00225d;
+    margin-top: 2px;
+}
+
+.subs-analytics-btn {
+    background-color: #bb0013;
+    border: none;
+    border-radius: 4px;
+    color: #ffffff;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.6px;
+    padding: 16px 32px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+}

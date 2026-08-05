@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     collection,
     query,
@@ -23,6 +24,7 @@ interface UserRow {
 }
 
 export default function Users() {
+    const navigate = useNavigate();
     const [users, setUsers] = useState<UserRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
@@ -186,7 +188,11 @@ export default function Users() {
                                         </span>
                                     </td>
                                     <td>
-                                        <button className="users-view-btn" title="View profile">
+                                        <button
+                                            className="users-view-btn"
+                                            title="View profile"
+                                            onClick={() => navigate(`/users/${user.id}`)}
+                                        >
                                             <i className="bx bx-show" />
                                         </button>
                                     </td>

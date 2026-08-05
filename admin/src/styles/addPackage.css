@@ -1,0 +1,329 @@
+.add-pkg-header {
+    margin-bottom: 24px;
+}
+
+.add-pkg-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.add-pkg-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #545454;
+    margin-top: 4px;
+}
+
+.add-pkg-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 32px;
+    margin-bottom: 24px;
+}
+
+.add-pkg-card-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 24px;
+}
+
+.add-pkg-card-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.add-pkg-card-header-row .add-pkg-card-heading {
+    margin-bottom: 0;
+}
+
+.add-pkg-field {
+    margin-bottom: 20px;
+}
+
+.add-pkg-label {
+    display: block;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 8px;
+}
+
+.add-pkg-input {
+    width: 100%;
+    padding: 18px 16px;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 16px;
+    color: #191c1e;
+}
+
+.add-pkg-input::placeholder {
+    color: #6b7280;
+}
+
+.add-pkg-row {
+    display: flex;
+    gap: 24px;
+}
+
+@media (max-width: 600px) {
+    .add-pkg-row {
+        flex-direction: column;
+    }
+}
+
+.add-pkg-price-input-group {
+    display: flex;
+    align-items: center;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 0 16px;
+}
+
+.add-pkg-price-prefix {
+    font-family: "Inter", Helvetica;
+    font-size: 16px;
+    color: #5c3f3d;
+    margin-right: 8px;
+}
+
+.add-pkg-price-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 18px 0;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 16px;
+    color: #191c1e;
+}
+
+.add-pkg-cycle-row {
+    display: flex;
+    gap: 16px;
+}
+
+.add-pkg-cycle-btn {
+    flex: 1;
+    padding: 16px 0;
+    border-radius: 10px;
+    border: 1px solid #c0c0c0;
+    background: none;
+    font-family: "Work Sans", Helvetica;
+    font-size: 16px;
+    font-weight: 500;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.add-pkg-cycle-btn.active {
+    background-color: #00225d;
+    border-color: rgba(144, 184, 255, 0.3);
+    color: #ffffff;
+}
+
+.add-pkg-add-feature-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: #90000f;
+    font-family: "Work Sans", Helvetica;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.add-pkg-features-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+@media (max-width: 700px) {
+    .add-pkg-features-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.add-pkg-feature-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    background-color: #f2f4f6;
+    border-radius: 4px;
+    padding: 16px;
+}
+
+.add-pkg-feature-toggle {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 2px;
+    border: 1px solid #c0c0c0;
+    background-color: #ffffff;
+    color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.add-pkg-feature-toggle.included {
+    background-color: #17cc1a;
+    border-color: transparent;
+    color: #ffffff;
+}
+
+.add-pkg-feature-input {
+    flex: 1;
+    border: none;
+    background: none;
+    outline: none;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    color: #000000;
+}
+
+.add-pkg-feature-remove {
+    background: none;
+    border: none;
+    color: #808080;
+    cursor: pointer;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.add-pkg-highlight-section {
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 24px;
+}
+
+.add-pkg-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.add-pkg-toggle-row:last-child {
+    margin-bottom: 0;
+}
+
+.add-pkg-toggle-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 16px;
+    font-weight: 700;
+    color: #191c1e;
+}
+
+.add-pkg-toggle-desc {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #5c3f3d;
+    margin-top: 2px;
+    max-width: 420px;
+}
+
+.add-pkg-switch {
+    width: 44px;
+    height: 24px;
+    border-radius: 12px;
+    background-color: #e0e3e5;
+    border: 1px solid #d1d5db;
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.add-pkg-switch.on {
+    background-color: #00225d;
+}
+
+.add-pkg-switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    transition: left 0.15s ease;
+}
+
+.add-pkg-switch.on .add-pkg-switch-knob {
+    left: 22px;
+}
+
+.add-pkg-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    border-top: 1px solid rgba(230, 189, 185, 1);
+    padding-top: 24px;
+}
+
+.add-pkg-footer-actions {
+    display: flex;
+    gap: 16px;
+}
+
+.add-pkg-cancel-btn {
+    background: none;
+    border: none;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 16px 32px;
+    cursor: pointer;
+}
+
+.add-pkg-create-btn {
+    background-color: #bb0013;
+    border: none;
+    border-radius: 10px;
+    color: #ffffff;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    padding: 16px 32px;
+    cursor: pointer;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.add-pkg-create-btn:disabled,
+.add-pkg-cancel-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.add-pkg-error {
+    display: block;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #bb0013;
+    margin-top: 6px;
+}

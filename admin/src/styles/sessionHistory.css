@@ -1,0 +1,74 @@
+.session-header-card {
+    background-color: #00225d;
+    border-radius: 16px;
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.session-header-title {
+    color: #ffffff;
+    font-family: "Work Sans", Helvetica;
+    font-size: 20px;
+    font-weight: 800;
+    font-style: italic;
+}
+
+.session-header-count {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.session-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.session-table th {
+    color: #808080;
+    font-family: "Poppins", Helvetica;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+}
+
+.session-table td {
+    padding: 12px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.session-status-pill {
+    display: inline-block;
+    border-radius: 10px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.status-completed {
+    background-color: rgba(23, 203, 26, 0.15);
+    color: #17cb1a;
+}
+
+.status-scheduled {
+    background-color: rgba(1, 188, 227, 0.15);
+    color: #0198b8;
+}
+
+.status-cancelled {
+    background-color: rgba(187, 0, 19, 0.15);
+    color: #bb0013f0;
+}

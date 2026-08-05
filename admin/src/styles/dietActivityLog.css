@@ -1,0 +1,234 @@
+.activity-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+    margin-top: 16px;
+}
+
+.activity-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+    margin-bottom: 20px;
+}
+
+.activity-stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.activity-stat-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.activity-stat-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #808080;
+    margin-bottom: 6px;
+}
+
+.activity-stat-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.activity-stat-value.red {
+    color: #bb0013;
+}
+
+.activity-filters-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+}
+
+.activity-filters-left {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.activity-filter-select {
+    padding: 6px 10px;
+    border: 1px solid #c0c0c0;
+    border-radius: 6px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #00225d;
+    background-color: #ffffff;
+}
+
+.activity-export-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: #bb0013;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.activity-table-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.activity-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.activity-table th {
+    text-align: left;
+    background-color: #f7f9fb;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    border-bottom: 1px solid #c0c0c0;
+}
+
+.activity-table td {
+    padding: 12px 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #191c1e;
+    border-bottom: 1px solid #eee;
+}
+
+.activity-client-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.activity-client-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: #a3baff;
+    color: #30487f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.activity-client-name {
+    font-weight: 700;
+}
+
+.activity-protocol-pill {
+    background-color: #dae1ff;
+    color: #2c4481;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 8px;
+}
+
+.activity-mono {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #545454;
+}
+
+.activity-status-pill {
+    display: inline-block;
+    border-radius: 8px;
+    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.activity-status-pill.status-active {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.activity-status-pill.status-pending {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.activity-status-pill.status-completed {
+    background-color: #dae1ff;
+    color: #2c4481;
+}
+
+.activity-view-btn {
+    background: none;
+    border: none;
+    color: #00225d;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.activity-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 16px;
+    border-top: 1px solid #c0c0c0;
+}
+
+.activity-pagination-count {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #545454;
+}
+
+.activity-pagination-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.activity-page-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #c0c0c0;
+    background-color: #ffffff;
+    border-radius: 4px;
+    color: #191c1e;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.activity-page-btn.active {
+    background-color: #00225d;
+    border-color: #00225d;
+    color: #ffffff;
+}

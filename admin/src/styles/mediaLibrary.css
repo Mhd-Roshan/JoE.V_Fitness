@@ -1,0 +1,316 @@
+.media-lib-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 16px 0 24px;
+}
+
+.media-lib-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.media-lib-subtitle {
+    font-family: "Inter", Helvetica;
+    font-size: 16px;
+    color: #5c3f3d;
+    margin-top: 4px;
+}
+
+.media-lib-header-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.media-lib-download-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ffffff;
+    border: 1px solid #00225d;
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.media-lib-delete-selected-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ffdad6;
+    border: 1px solid rgba(186, 26, 26, 0.2);
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #bb0013;
+    cursor: pointer;
+}
+
+.media-lib-delete-selected-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.media-lib-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr 300px;
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .media-lib-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.media-lib-filter-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.media-lib-filter-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 16px;
+}
+
+.media-lib-filter-field {
+    margin-bottom: 16px;
+}
+
+.media-lib-filter-label {
+    display: block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #00225d;
+    margin-bottom: 8px;
+}
+
+.media-lib-filter-select,
+.media-lib-date-input {
+    width: 100%;
+    padding: 8px 12px;
+    background-color: #ecebee;
+    border: none;
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    color: #545454;
+}
+
+.media-lib-date-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.media-lib-reset-btn {
+    width: 100%;
+    background-color: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px;
+    font-family: "Inter", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.media-lib-table-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.media-lib-table-header,
+.media-lib-row {
+    display: grid;
+    grid-template-columns: 32px 2fr 0.8fr 1fr 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 24px;
+}
+
+.media-lib-table-header {
+    background-color: #ffffff;
+    border-bottom: 1px solid #c0c0c0;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    color: #00225d;
+    text-transform: uppercase;
+}
+
+.media-lib-row {
+    border-top: 1px solid #c0c0c0;
+}
+
+.media-lib-row.active {
+    background-color: rgba(0, 34, 93, 0.05);
+}
+
+.media-lib-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+}
+
+.media-lib-file-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background-color: rgba(144, 0, 15, 0.1);
+    border: 1px solid rgba(144, 0, 15, 0.2);
+    border-radius: 5px;
+    color: #90000f;
+    flex-shrink: 0;
+}
+
+.media-lib-file-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #000000;
+}
+
+.media-lib-file-sub {
+    font-family: "Inter", Helvetica;
+    font-size: 12px;
+    color: #92403d;
+}
+
+.media-lib-col-duration {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    color: #545454;
+    text-align: center;
+}
+
+.media-lib-col-date {
+    font-family: "Inter", Helvetica;
+    font-size: 14px;
+    color: #00225d;
+}
+
+.media-lib-col-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
+.media-lib-icon-btn {
+    background: none;
+    border: none;
+    padding: 8px;
+    border-radius: 12px;
+    color: #545454;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.media-lib-icon-btn.danger {
+    color: #bb0013;
+}
+
+.media-lib-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid #c0c0c0;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.media-lib-pagination-count {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #545454;
+}
+
+.media-lib-pagination-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.media-lib-page-btn {
+    width: 32px;
+    height: 32px;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    color: #92403d;
+    cursor: pointer;
+}
+
+.media-lib-page-btn.active {
+    background-color: #00225d;
+    border-color: #00225d;
+    color: #ffffff;
+}
+
+.media-lib-player-card {
+    background-color: #00225d;
+    border: 1px solid rgba(145, 111, 107, 0.2);
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.media-lib-player-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.media-lib-player-filetype {
+    background-color: #bb0013;
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.media-lib-player-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.media-lib-player-sub {
+    font-family: "Inter", Helvetica;
+    font-size: 12px;
+    color: #c0c0c0;
+}
+
+.media-lib-audio-player {
+    width: 100%;
+}

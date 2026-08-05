@@ -1,0 +1,151 @@
+.addons-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 16px 0 24px;
+}
+
+.addons-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.addons-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+    margin-top: 4px;
+}
+
+.addons-new-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.addons-form-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.addons-form-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 16px;
+}
+
+.addons-form-row {
+    display: flex;
+    gap: 16px;
+}
+
+.addons-form-field {
+    margin-bottom: 16px;
+    flex: 1;
+}
+
+.addons-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.addons-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.addons-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 16px 20px;
+}
+
+.addons-row-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.addons-row-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.addons-inactive-pill {
+    background-color: #e0e3e5;
+    color: #808080;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.addons-row-desc {
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #545454;
+    margin-top: 2px;
+}
+
+.addons-row-price {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #00225d;
+    flex-shrink: 0;
+}
+
+.addons-row-conv {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    color: #004a69;
+    flex-shrink: 0;
+}
+
+.addons-row-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.addons-icon-btn {
+    background: none;
+    border: none;
+    padding: 6px;
+    color: #545454;
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.addons-icon-btn.danger {
+    color: #bb0013;
+}

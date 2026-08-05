@@ -1,0 +1,266 @@
+.packages-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.packages-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 25px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.packages-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+    margin-top: 4px;
+    max-width: 480px;
+}
+
+.packages-header-actions {
+    display: flex;
+    gap: 16px;
+}
+
+.packages-manage-addons-btn {
+    background-color: #f7f9fb;
+    border: 1px solid #00225d;
+    border-radius: 5px;
+    padding: 8px 24px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.packages-add-btn {
+    background-color: #00225d;
+    border: none;
+    border-radius: 5px;
+    padding: 8px 24px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #ffffff;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.packages-stats-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.packages-stat-card {
+    flex: 1;
+    background-color: #ffffff;
+    border: 1px solid #808080;
+    border-radius: 10px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.packages-stat-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.packages-stat-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: #00225d;
+}
+
+.packages-stat-icon {
+    font-size: 20px;
+    color: #17cc1a;
+}
+
+.packages-stat-icon.cyan {
+    color: #01bce3;
+}
+
+.packages-stat-value-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.packages-stat-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.packages-stat-value.small {
+    font-size: 24px;
+    font-family: "Work Sans", Helvetica;
+}
+
+.packages-stat-conv {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #004a69;
+}
+
+.packages-stat-pill {
+    background-color: rgba(163, 186, 255, 0.3);
+    color: #30487f;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 2px;
+}
+
+.packages-stat-footnote {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #808080;
+    margin-top: 8px;
+}
+
+.packages-tiers-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.packages-tier-card {
+    position: relative;
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 32px;
+}
+
+.packages-tier-card.highlighted {
+    border: 4px solid #00225d;
+}
+
+.packages-most-popular-badge {
+    position: absolute;
+    top: -14px;
+    left: 32px;
+    background-color: #01bce3;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    padding: 4px 16px;
+    border-radius: 12px;
+}
+
+.packages-tier-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.packages-tier-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 24px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.packages-best-value-badge {
+    background-color: #004a69;
+    color: #ffffff;
+    font-family: "Work Sans", Helvetica;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.45px;
+    padding: 2px 8px;
+    border-radius: 2px;
+}
+
+.packages-tier-subtitle {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #92403d;
+    opacity: 0.7;
+    margin-top: 4px;
+}
+
+.packages-tier-price {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 48px;
+    font-weight: 700;
+    color: #00225d;
+    margin: 24px 0;
+}
+
+.packages-tier-price-suffix {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: normal;
+    color: #545454;
+}
+
+.packages-tier-features {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.packages-tier-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #000000;
+}
+
+.packages-tier-feature i {
+    color: #17cc1a;
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.packages-edit-plan-btn {
+    width: 100%;
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 10px;
+    padding: 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.packages-edit-plan-btn.filled {
+    background-color: #bb0013;
+    color: #ffffff;
+    border: none;
+}
+
+.packages-section-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 24px;
+    font-weight: 700;
+    color: #00225d;
+    padding-top: 15px;
+}

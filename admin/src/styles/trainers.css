@@ -1,0 +1,336 @@
+.trainers-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.trainers-page-subtitle {
+    color: #808080;
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 500;
+}
+
+.trainers-add-btn {
+    background-color: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.trainers-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.trainer-card {
+    background-color: #faffff;
+    border: 1.5px solid rgba(192, 192, 192, 1);
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.trainer-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.trainer-avatar-circle {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: #00225d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #faffff;
+    font-family: "Work Sans", Helvetica;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.trainer-status-pill {
+    border-radius: 10px;
+    padding: 4px 12px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: capitalize;
+}
+
+.status-active {
+    background-color: rgba(23, 204, 26, 0.29);
+    color: #138415;
+}
+
+.trainer-name {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #000000;
+}
+
+.trainer-designation {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 500;
+    color: #414141;
+    margin-bottom: 14px;
+}
+
+.trainer-stats-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.trainer-stat {
+    text-align: center;
+}
+
+.trainer-stat-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 15px;
+    font-weight: 700;
+    color: #000000;
+}
+
+.trainer-stat-label {
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    font-weight: 700;
+    color: #545454;
+}
+
+.trainer-progress-track {
+    background-color: #e0e3e5;
+    border-radius: 12px;
+    height: 6px;
+    margin-bottom: 14px;
+    overflow: hidden;
+}
+
+.trainer-progress-fill {
+    background-color: #900f0f;
+    height: 100%;
+    border-radius: 12px;
+}
+
+.trainer-card-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.trainer-action-btn {
+    flex: 1;
+    background-color: #faffff;
+    border: 1px solid rgba(192, 192, 192, 0.8);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00225d;
+    cursor: pointer;
+}
+
+.schedule-card {
+    background-color: #faffff;
+    border: 1.5px solid rgba(192, 192, 192, 0.5);
+    border-radius: 10px;
+    padding: 20px 24px;
+}
+
+.schedule-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.schedule-card-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 15px;
+    font-weight: 700;
+    color: #00225d;
+}
+
+.schedule-live-pill {
+    background-color: rgba(187, 0, 19, 0.3);
+    color: #bb0013f0;
+    border-radius: 10px;
+    padding: 4px 14px;
+    font-family: "Poppins", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.schedule-table th {
+    text-align: left;
+    color: #808080;
+    font-family: "Poppins", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(117, 117, 117, 0.3);
+}
+
+.schedule-table td {
+    padding: 12px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #000000;
+    border-bottom: 1px solid rgba(117, 117, 117, 0.2);
+}
+
+.schedule-client-name,
+.schedule-table td:nth-child(6) {
+    font-weight: 700;
+}
+
+.schedule-notes {
+    color: #545454;
+    font-size: 13px;
+}
+
+.schedule-status-pill {
+    border-radius: 10px;
+    padding: 4px 10px;
+    font-family: "Poppins", Helvetica;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.schedule-status-pill.status-completed {
+    background-color: rgba(23, 204, 26, 0.29);
+    color: #138415;
+}
+
+.schedule-status-pill.status-scheduled {
+    background-color: rgba(217, 217, 217, 0.49);
+    color: #808080;
+}
+
+/* ===== Delete trainer button + confirmation modal ===== */
+
+.trainer-delete-btn {
+    flex: 0 0 auto;
+    background-color: #faffff;
+    border: 1px solid rgba(187, 0, 19, 0.4);
+    border-radius: 10px;
+    padding: 8px 10px;
+    color: #bb0013f0;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.trainer-delete-btn:hover {
+    background-color: rgba(187, 0, 19, 0.08);
+}
+
+.delete-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 34, 93, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+}
+
+.delete-modal {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 28px;
+    width: 360px;
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+.delete-modal-icon {
+    font-size: 32px;
+    color: #bb0013f0;
+    margin-bottom: 12px;
+}
+
+.delete-modal-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 17px;
+    font-weight: 700;
+    color: #00225d;
+    margin-bottom: 8px;
+}
+
+.delete-modal-text {
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #545454;
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+.delete-modal-error {
+    font-family: "Work Sans", Helvetica;
+    font-size: 12px;
+    color: #bb0013;
+    margin-bottom: 12px;
+}
+
+.delete-modal-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.delete-modal-cancel {
+    flex: 1;
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    color: #545454;
+    cursor: pointer;
+}
+
+.delete-modal-confirm {
+    flex: 1;
+    background-color: #bb0013f0;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+    cursor: pointer;
+}
+
+.delete-modal-cancel:disabled,
+.delete-modal-confirm:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
+import { FirebaseError } from "firebase/app";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
@@ -30,7 +31,7 @@ export default function Login() {
         }
     }
 
-    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
         event.preventDefault();
         setStatusMessage("");
 
@@ -55,8 +56,12 @@ export default function Login() {
             }
 
             navigate("/");
-        } catch (err: any) {
-            setStatusMessage(mapAuthError(err.code));
+        } catch (err: unknown) {
+            if (err instanceof FirebaseError) {
+                setStatusMessage(mapAuthError(err.code));
+            } else {
+                setStatusMessage("Sign in failed. Please try again.");
+            }
             setLoading(false);
         }
     };

@@ -1,0 +1,249 @@
+.notif-layout {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 900px) {
+    .notif-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.notif-feed-card,
+.notif-composer-card {
+    background-color: #ffffff;
+    border: 1px solid #c0c0c0;
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.notif-feed-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.notif-feed-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notif-feed-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 17px;
+    font-weight: 700;
+    color: #191c1e;
+}
+
+.notif-new-badge {
+    background-color: #bb0013;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 12px;
+}
+
+.notif-feed-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.notif-read-all-btn {
+    background-color: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.notif-clear-btn {
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    font-weight: 700;
+    color: #bb0013;
+    cursor: pointer;
+}
+
+.notif-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.notif-item {
+    display: flex;
+    gap: 14px;
+}
+
+.notif-icon-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    font-size: 18px;
+}
+
+.notif-icon-badge.blue {
+    background-color: #dae1ff;
+    color: #2c4481;
+}
+
+.notif-icon-badge.green {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+.notif-icon-badge.purple {
+    background-color: #f3e8ff;
+    color: #7e22ce;
+}
+
+.notif-icon-badge.orange {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.notif-item-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.notif-item-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #191c1e;
+}
+
+.notif-unread-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #bb0013;
+}
+
+.notif-item-desc {
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    color: #545454;
+    margin-top: 2px;
+}
+
+.notif-item-time {
+    font-family: "Work Sans", Helvetica;
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+}
+
+.notif-composer-title {
+    font-family: "Work Sans", Helvetica;
+    font-size: 17px;
+    font-weight: 700;
+    color: #191c1e;
+    margin-bottom: 20px;
+}
+
+.notif-success-banner {
+    background-color: #dcfce7;
+    color: #15803d;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.notif-error-banner {
+    background-color: #ffdad6;
+    color: #bb0013;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+
+.notif-field {
+    margin-bottom: 18px;
+}
+
+.notif-label {
+    display: block;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #545454;
+    margin-bottom: 6px;
+}
+
+.notif-select,
+.notif-input,
+.notif-textarea {
+    width: 100%;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    color: #191c1e;
+}
+
+.notif-textarea {
+    resize: vertical;
+}
+
+.notif-composer-footer {
+    display: flex;
+    gap: 12px;
+}
+
+.notif-send-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #bb0013;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.notif-send-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.notif-clear-form-btn {
+    background: none;
+    border: 1px solid #c0c0c0;
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-family: "Work Sans", Helvetica;
+    font-size: 14px;
+    font-weight: 700;
+    color: #191c1e;
+    cursor: pointer;
+}
