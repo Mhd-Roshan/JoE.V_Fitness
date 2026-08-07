@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
+import '../notes/trainer_notes_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
 
 class TrainerUsersScreen extends StatefulWidget {
@@ -567,11 +567,11 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+      (Icons.home_outlined, Icons.home, 'Home'), // 0
+      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'), // 1
+      (Icons.group_outlined, Icons.group, 'Users'), // 2
+      (Icons.description_outlined, Icons.description, 'Notes'), // 3
+      (Icons.person_outline, Icons.person, 'Profile'), // 4
     ];
 
     return Container(
@@ -617,6 +617,11 @@ class _BottomNav extends StatelessWidget {
           } else if (index == 1) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
+            );
+          } else if (index == 3) {
+            // ---> Added navigation for Notes Screen! <---
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
           }
           // Do nothing if index == 2 because we are already on Users

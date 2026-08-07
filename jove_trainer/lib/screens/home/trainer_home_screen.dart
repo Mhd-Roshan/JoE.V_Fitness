@@ -2,8 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../schedules/trainer_schedules_screen.dart';
 import '../users/trainer_users_screen.dart';
+import '../notes/trainer_notes_screen.dart';
 
 class TrainerHomeScreen extends StatefulWidget {
   const TrainerHomeScreen({super.key});
@@ -43,10 +45,8 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   static const Color darkBlue = Color(0xFF00225D);
   static const Color primaryRed = Color(0xFFBB0013);
   static const Color cyanAccent = Color(0xFF01BCE3);
-  static const Color headerBlue = Color(0xFF003AA3); // Top Nav Bar color
-  static const Color navBlue = Color(
-    0xFF003AA3,
-  ); // Bottom Nav Bar color updated to match
+  static const Color headerBlue = Color(0xFF003AA3);
+  static const Color navBlue = Color(0xFF003AA3);
   static const Color bgGrey = Color(0xFFFFFFFF);
 
   @override
@@ -65,7 +65,9 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   Future<void> _loadData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+      });
       return;
     }
 
@@ -109,13 +111,14 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
           time: parsedTime,
           amPm: parsedAmPm,
           area: data['area'] ?? '—',
-          status:
-              data['status']?.toString().toLowerCase() ??
-              'future', // 'live', 'completed', 'future'
+          status: data['status']?.toString().toLowerCase() ?? 'future',
         );
-      }).toList()..sort((a, b) => a.time.compareTo(b.time)); // Basic time sort
+      }).toList()..sort((a, b) => a.time.compareTo(b.time));
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _trainerName = userSnap.data()?['fullName'] ?? 'Trainer';
         if (trainerSnap.docs.isNotEmpty) {
@@ -131,14 +134,20 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
       });
     } catch (e) {
       debugPrint('Trainer home load error: $e');
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
 
   // Dynamically generate initials from the trainer's name
   String get _initials {
     final parts = _trainerName.trim().split(' ');
-    if (parts.isEmpty || parts.first.isEmpty) return '—';
+    if (parts.isEmpty || parts.first.isEmpty) {
+      return '—';
+    }
     final first = parts.first[0];
     final second = parts.length > 1 && parts.last.isNotEmpty
         ? parts.last[0]
@@ -147,7 +156,9 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   }
 
   void _logout() async {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -163,7 +174,9 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
               Navigator.pop(dialogContext);
               try {
                 await FirebaseAuth.instance.signOut();
-                if (!mounted) return;
+                if (!mounted) {
+                  return;
+                }
                 Navigator.of(
                   context,
                 ).pushNamedAndRemoveUntil('/login', (route) => false);
@@ -300,20 +313,30 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       clipBehavior: Clip.none,
-                      children: const [
-                        _QuickActionCard(
+                      children: [
+                        const _QuickActionCard(
                           label: 'Record Session',
                           icon: Icons.mic_none_outlined,
                           isRed: true,
                         ),
-                        SizedBox(width: 16),
-                        _QuickActionCard(
-                          label: 'Add Notes',
-                          icon: Icons.chat_outlined,
-                          isRed: false,
+                        const SizedBox(width: 16),
+                        GestureDetector(
+                          onTap: () {
+                            // Let Quick Action also navigate to Notes!
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(
+                                builder: (_) => const TrainerNotesScreen(),
+                              ),
+                            );
+                          },
+                          child: const _QuickActionCard(
+                            label: 'Add Notes',
+                            icon: Icons.chat_outlined,
+                            isRed: false,
+                          ),
                         ),
-                        SizedBox(width: 16),
-                        _QuickActionCard(
+                        const SizedBox(width: 16),
+                        const _QuickActionCard(
                           label: 'Health Info',
                           icon: Icons.favorite_border_rounded,
                           isRed: false,
@@ -464,9 +487,7 @@ class _TopHeaderBand extends StatelessWidget {
                     baseline: TextBaseline.alphabetic,
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 2),
-                      child: _KettlebellIcon(
-                        size: 18,
-                      ), // Increased size and adjusted alignment
+                      child: _KettlebellIcon(size: 18),
                     ),
                   ),
                   TextSpan(text: 'V ', style: whiteTitleStyle),
@@ -653,7 +674,6 @@ class _HeroSessionCard extends StatelessWidget {
               GestureDetector(
                 onTap: () {
                   // In the future: Add logic to open Google Maps
-                  // e.g. launchUrl(Uri.parse('google.navigation:q=${session.lat},${session.lng}'));
                 },
                 child: Container(
                   width: 90,
@@ -662,8 +682,6 @@ class _HeroSessionCard extends StatelessWidget {
                     color: Colors.grey[200], // Fallback color
                     borderRadius: BorderRadius.circular(4),
                     image: const DecorationImage(
-                      // Using an open-source static map tile as a visual placeholder
-                      // to perfectly match the design without needing an API key right now.
                       image: NetworkImage(
                         'https://tile.openstreetmap.org/13/1310/3165.png',
                       ),
@@ -708,7 +726,14 @@ class _HeroSessionCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    // Navigate to notes from the live session button too!
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => const TrainerNotesScreen(),
+                      ),
+                    );
+                  },
                   icon: const Icon(
                     Icons.description_outlined,
                     size: 18,
@@ -827,10 +852,7 @@ class _SessionRow extends StatelessWidget {
             ? [
                 const BoxShadow(
                   color: _TrainerHomeScreenState.primaryRed,
-                  offset: Offset(
-                    6,
-                    0,
-                  ), // Creates the thick right border effect perfectly
+                  offset: Offset(6, 0),
                 ),
               ]
             : null,
@@ -961,7 +983,7 @@ class _BottomNav extends StatelessWidget {
       child: BottomNavigationBar(
         currentIndex: currentIndex,
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.transparent, // Let container color show
+        backgroundColor: Colors.transparent,
         elevation: 0,
         selectedItemColor: _TrainerHomeScreenState.cyanAccent,
         unselectedItemColor: Colors.white,
@@ -989,15 +1011,20 @@ class _BottomNav extends StatelessWidget {
         ],
         onTap: (index) {
           if (index == 1) {
-            Navigator.of(context).push(
+            Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
             );
           } else if (index == 2) {
-            Navigator.of(context).push(
+            Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
             );
+          } else if (index == 3) {
+            // --> NAVIGATE TO NOTES SCREEN <--
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
+            );
           }
-          // Notes/Profile navigation still pending
+          // Profile navigation still pending
         },
       ),
     );
