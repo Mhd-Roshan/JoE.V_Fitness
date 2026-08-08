@@ -2,8 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../home/trainer_home_screen.dart';
 import '../users/trainer_users_screen.dart';
+import '../notes/trainer_notes_screen.dart';
+import '../profile/trainer_profile_screen.dart';
+import '../notifications/trainer_notifications_screen.dart';
 
 class TrainerSchedulesScreen extends StatefulWidget {
   const TrainerSchedulesScreen({super.key});
@@ -36,9 +40,15 @@ class _ScheduleSession {
 
 class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
   late DateTime _selectedDate;
-  late List<DateTime> _weekDates;
+  late List<DateTime> _scrollableDates;
+  late ScrollController _scrollController;
+
   bool _loading = true;
   List<_ScheduleSession> _sessions = [];
+
+  // Define how many days back and forward you want in the scrollable list
+  final int _pastDays = 90;
+  final int _futureDays = 90;
 
   // Colors based on the design
   static const Color darkBlue = Color(0xFF00225D);
@@ -51,16 +61,71 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
   void initState() {
     super.initState();
     _selectedDate = DateTime.now();
-    _weekDates = _buildWeekDates(_selectedDate);
+    _scrollableDates = _buildDateRange(_selectedDate);
+    _scrollController = ScrollController();
     _loadSessions();
+
+    // Auto-scroll to center "Today" when the screen first builds
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToDateCenter(_selectedDate, animate: false);
+    });
   }
 
-  // Starts the list exactly from the provided date (which will be today)
-  List<DateTime> _buildWeekDates(DateTime startDate) {
-    return List.generate(
-      7, // Adjust this number if you want more than 7 days
-      (i) => DateTime(startDate.year, startDate.month, startDate.day + i),
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // Generates a list of dates (e.g. 90 days before today to 90 days after)
+  List<DateTime> _buildDateRange(DateTime baseDate) {
+    return List.generate(_pastDays + _futureDays + 1, (index) {
+      return DateTime(
+        baseDate.year,
+        baseDate.month,
+        baseDate.day + (index - _pastDays),
+      );
+    });
+  }
+
+  // Smoothly scrolls the tapped/initial date to the center of the screen
+  void _scrollToDateCenter(DateTime date, {bool animate = true}) {
+    if (!_scrollController.hasClients) return;
+
+    final index = _scrollableDates.indexWhere((d) => _isSameDay(d, date));
+    if (index == -1) return;
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    const itemWidth = 65.0; // matches container width
+    const spacing = 12.0; // matches separator width
+    const leftPadding = 24.0; // matches listview padding
+
+    // Calculate exact pixel offset to center the selected item
+    final offset =
+        leftPadding +
+        (index * (itemWidth + spacing)) -
+        (screenWidth / 2) +
+        (itemWidth / 2);
+    final clampedOffset = offset.clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
     );
+
+    if (animate) {
+      _scrollController.animateTo(
+        clampedOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      _scrollController.jumpTo(clampedOffset);
+    }
+  }
+
+  void _selectDate(DateTime date) {
+    setState(() => _selectedDate = date);
+    _scrollToDateCenter(date, animate: true);
+    _loadSessions();
   }
 
   // Helper to dynamically get the right day string
@@ -174,11 +239,6 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
     }
   }
 
-  void _selectDate(DateTime date) {
-    setState(() => _selectedDate = date);
-    _loadSessions();
-  }
-
   @override
   Widget build(BuildContext context) {
     int completedCount = _sessions.where((s) => s.status == 'done').length;
@@ -212,16 +272,17 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
 
           const SizedBox(height: 16),
 
-          // Date Selector Strip
+          // Scrollable Date Selector Strip
           SizedBox(
             height: 75,
             child: ListView.separated(
+              controller: _scrollController, // Attach scroll controller here!
               padding: const EdgeInsets.symmetric(horizontal: 24),
               scrollDirection: Axis.horizontal,
-              itemCount: _weekDates.length,
+              itemCount: _scrollableDates.length,
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, i) {
-                final date = _weekDates[i];
+                final date = _scrollableDates[i];
                 final selected = _isSameDay(date, _selectedDate);
 
                 return GestureDetector(
@@ -704,6 +765,8 @@ class _TopHeaderBand extends StatelessWidget {
       shadows: [textShadow],
     );
 
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
@@ -754,20 +817,65 @@ class _TopHeaderBand extends StatelessWidget {
             ),
           ),
 
-          // Right: Notification Icon
+          // Right: Notification Icon (WIRED WITH RED DOT!)
           Align(
             alignment: Alignment.centerRight,
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_none_rounded,
-                color: Color(0xFF00225D),
-                size: 20,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrainerNotificationsScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.notifications_none_rounded,
+                      color: Color(0xFF00225D),
+                      size: 20,
+                    ),
+                    // Only fetch notifications if user is logged in
+                    if (uid != null)
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('notifications')
+                            .where('trainerId', isEqualTo: uid)
+                            .where(
+                              'isRead',
+                              isEqualTo: false,
+                            ) // Check for unread
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData &&
+                              snapshot.data!.docs.isNotEmpty) {
+                            return Positioned(
+                              top: 8,
+                              right: 10,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFC7001A), // Primary Red
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink(); // No unread
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -830,12 +938,12 @@ class _BottomNav extends StatelessWidget {
         ],
         onTap: (index) {
           if (index == 0) {
-            // FIX: Added navigation for index 0 (Home)
-            Navigator.of(context).pushReplacement(
+            // FIX: Using pushAndRemoveUntil to clean stack to prevent freezing
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
+              (route) => false,
             );
           } else if (index == 1) {
-            // We are already on Schedules, no need to push anything
             if (currentIndex != 1) {
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(
@@ -844,12 +952,18 @@ class _BottomNav extends StatelessWidget {
               );
             }
           } else if (index == 2) {
-            // FIX: Changed from push() to pushReplacement() so screens don't infinitely stack
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
             );
+          } else if (index == 3) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
+            );
+          } else if (index == 4) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
+            );
           }
-          // Notes/Profile navigation still pending until those screens are built.
         },
       ),
     );

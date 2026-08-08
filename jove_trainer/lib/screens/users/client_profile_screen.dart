@@ -6,6 +6,9 @@ import 'session_history_tab.dart';
 import 'health_info_tab.dart';
 import '../schedules/trainer_schedules_screen.dart';
 import 'trainer_users_screen.dart';
+import '../notes/trainer_notes_screen.dart';
+import '../notifications/trainer_notifications_screen.dart';
+import '../profile/trainer_profile_screen.dart';
 
 class TrainerUserProfileScreen extends StatefulWidget {
   final String clientId;
@@ -1112,9 +1115,26 @@ class _BottomNav extends StatelessWidget {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
             );
-          } else if (index == 2) {
+          } else if (index == 4) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
+            );
+          } else if (index == 5) {
+            // --> NAVIGATE TO PROFILE SCREEN <--
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
+            );
+          } else if (index == 3) {
+            // --> NAVIGATE TO NOTES SCREEN <--
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
+            );
+          } else if (index == 2) {
+            // --> NAVIGATE TO NOTIFICATION SCREEN <--
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => const TrainerNotificationsScreen(),
+              ),
             );
           }
         },

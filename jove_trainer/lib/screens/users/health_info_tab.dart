@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class HealthInfoTab extends StatefulWidget {
   const HealthInfoTab({super.key, required this.clientId});
@@ -10,10 +11,19 @@ class HealthInfoTab extends StatefulWidget {
 }
 
 class _Procedure {
+  final String id;
   final String name;
-  final String? date;
+  final String? date; // Formatted date string
+  final String? rawDate; // Raw ISO string for editing
   final String? recoveryStatus;
-  _Procedure({required this.name, this.date, this.recoveryStatus});
+
+  _Procedure({
+    required this.id,
+    required this.name,
+    this.date,
+    this.rawDate,
+    this.recoveryStatus,
+  });
 }
 
 class _HealthCondition {
@@ -22,10 +32,16 @@ class _HealthCondition {
   _HealthCondition({required this.id, required this.name});
 }
 
+class _Medication {
+  final String id;
+  final String name;
+  _Medication({required this.id, required this.name});
+}
+
 class _HealthInfoTabState extends State<HealthInfoTab> {
   bool _loading = true;
   List<_Procedure> _procedures = [];
-  List<String> _medications = [];
+  List<_Medication> _medications = [];
   List<_HealthCondition> _conditions = [];
 
   static const _months = [
@@ -50,11 +66,9 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
     _loadData();
   }
 
-  // Real Firestore reads only, mirroring the same subcollections used
-  // in the admin panel (proceduresSurgeries, medications,
-  // healthConditions). No fallback/sample data.
   Future<void> _loadData() async {
     try {
+      // 1. Fetch Procedures
       final proceduresSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.clientId)
@@ -72,34 +86,39 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
           }
         }
         return _Procedure(
+          id: d.id,
           name: data['procedureName'] ?? 'Procedure',
           date: dateLabel,
+          rawDate: dateStr,
           recoveryStatus: data['recoveryStatus'],
         );
       }).toList();
 
+      // 2. Fetch Medications
       final medsSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.clientId)
           .collection('medications')
           .get();
-      final medications = medsSnap.docs
-          .map((d) => (d.data()['name'] as String?) ?? 'Medication')
-          .toList();
+      final medications = medsSnap.docs.map((d) {
+        return _Medication(
+          id: d.id,
+          name: (d.data()['name'] as String?) ?? 'Medication',
+        );
+      }).toList();
 
+      // 3. Fetch Conditions
       final conditionsSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.clientId)
           .collection('healthConditions')
           .get();
-      final conditions = conditionsSnap.docs
-          .map(
-            (d) => _HealthCondition(
-              id: d.id,
-              name: (d.data()['conditionName'] as String?) ?? 'Condition',
-            ),
-          )
-          .toList();
+      final conditions = conditionsSnap.docs.map((d) {
+        return _HealthCondition(
+          id: d.id,
+          name: (d.data()['conditionName'] as String?) ?? 'Condition',
+        );
+      }).toList();
 
       if (!mounted) return;
       setState(() {
@@ -114,10 +133,223 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
     }
   }
 
+  // --- ADD / MANAGE METHODS ---
+
+  Future<void> _addProcedure() async {
+    final nameCtrl = TextEditingController();
+    final statusCtrl = TextEditingController();
+    DateTime? selectedDate;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: Text(
+              'Add Procedure',
+              style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Procedure Name',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: statusCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Recovery Status',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    selectedDate == null
+                        ? 'Select Date'
+                        : '${selectedDate!.month}/${selectedDate!.year}',
+                  ),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(1900),
+                      lastDate: DateTime.now(),
+                    );
+                    if (d != null) {
+                      setStateDialog(() => selectedDate = d);
+                    }
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (nameCtrl.text.trim().isEmpty) return;
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(widget.clientId)
+                      .collection('proceduresSurgeries')
+                      .add({
+                        'procedureName': nameCtrl.text.trim(),
+                        'recoveryStatus': statusCtrl.text.trim(),
+                        'procedureDate': selectedDate?.toIso8601String(),
+                      });
+                  if (context.mounted) Navigator.pop(ctx);
+                  _loadData();
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _addMedication() async {
+    final ctrl = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Add Medication',
+          style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: 'e.g. Ibuprofen'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (ctrl.text.trim().isEmpty) return;
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(widget.clientId)
+                  .collection('medications')
+                  .add({'name': ctrl.text.trim()});
+              if (context.mounted) Navigator.pop(ctx);
+              _loadData();
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addCondition() async {
+    final ctrl = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Add Condition',
+          style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
+        ),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: 'e.g. Hypertension'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (ctrl.text.trim().isEmpty) return;
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(widget.clientId)
+                  .collection('healthConditions')
+                  .add({'conditionName': ctrl.text.trim()});
+              if (context.mounted) Navigator.pop(ctx);
+              _loadData();
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteItem(String collection, String docId) async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.clientId)
+        .collection(collection)
+        .doc(docId)
+        .delete();
+    _loadData();
+  }
+
+  void _manageCondition(_HealthCondition condition) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Manage: ${condition.name}',
+                  style: GoogleFonts.workSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: Text(
+                    'Delete Condition',
+                    style: GoogleFonts.workSans(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _deleteItem('healthConditions', condition.id);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.close),
+                  title: Text('Cancel', style: GoogleFonts.workSans()),
+                  onTap: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF00225D)),
+      );
     }
 
     final hasAnything =
@@ -135,17 +367,22 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top Header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               color: const Color(0xFF00225D),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.favorite, color: Color(0xFFBB0013), size: 18),
-                  SizedBox(width: 8),
+                  const Icon(
+                    Icons.favorite,
+                    color: Color(0xFFBB0013),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     'Physical Conditions Profile',
-                    style: TextStyle(
+                    style: GoogleFonts.workSans(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -154,58 +391,87 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                 ],
               ),
             ),
+
+            // Content Area
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               color: const Color(0xFF00225D),
-              child: !hasAnything
-                  ? const Text(
-                      'No health information recorded yet.',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionLabel('Procedures & Surgeries'),
-                        const SizedBox(height: 8),
-                        if (_procedures.isEmpty)
-                          const _EmptyNote('None recorded.')
-                        else
-                          ..._procedures.map(
-                            (p) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _ProcedureCard(procedure: p),
-                            ),
-                          ),
-
-                        const SizedBox(height: 18),
-                        _SectionLabel('Medications (Physical)'),
-                        const SizedBox(height: 8),
-                        if (_medications.isEmpty)
-                          const _EmptyNote('None recorded.')
-                        else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _medications
-                                .map((m) => _Pill(text: m))
-                                .toList(),
-                          ),
-
-                        const SizedBox(height: 18),
-                        _SectionLabel('Health Conditions'),
-                        const SizedBox(height: 8),
-                        if (_conditions.isEmpty)
-                          const _EmptyNote('None recorded.')
-                        else
-                          ..._conditions.map(
-                            (c) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: _ConditionRow(condition: c),
-                            ),
-                          ),
-                      ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!hasAnything)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 20),
+                      child: Text(
+                        'No health information recorded yet.',
+                        style: GoogleFonts.workSans(
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
+
+                  // 1. Procedures
+                  _SectionLabel('Procedures & Surgeries', onAdd: _addProcedure),
+                  const SizedBox(height: 8),
+                  if (_procedures.isEmpty)
+                    const _EmptyNote('None recorded.')
+                  else
+                    ..._procedures.map(
+                      (p) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _ProcedureCard(
+                          procedure: p,
+                          onDelete: () =>
+                              _deleteItem('proceduresSurgeries', p.id),
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 18),
+
+                  // 2. Medications
+                  _SectionLabel(
+                    'Medications (Physical)',
+                    onAdd: _addMedication,
+                  ),
+                  const SizedBox(height: 8),
+                  if (_medications.isEmpty)
+                    const _EmptyNote('None recorded.')
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _medications
+                          .map(
+                            (m) => _Pill(
+                              text: m.name,
+                              onDelete: () => _deleteItem('medications', m.id),
+                            ),
+                          )
+                          .toList(),
+                    ),
+
+                  const SizedBox(height: 18),
+
+                  // 3. Conditions
+                  _SectionLabel('Health Conditions', onAdd: _addCondition),
+                  const SizedBox(height: 8),
+                  if (_conditions.isEmpty)
+                    const _EmptyNote('None recorded.')
+                  else
+                    ..._conditions.map(
+                      (c) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _ConditionRow(
+                          condition: c,
+                          onManage: () => _manageCondition(c),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ],
         ),
@@ -214,9 +480,14 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   }
 }
 
+// ---------------------------------------------------------
+// HELPER WIDGETS
+// ---------------------------------------------------------
+
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
+  const _SectionLabel(this.text, {required this.onAdd});
   final String text;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -231,12 +502,38 @@ class _SectionLabel extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.workSans(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: onAdd,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.add, color: Colors.white, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  'Add',
+                  style: GoogleFonts.workSans(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -252,14 +549,15 @@ class _EmptyNote extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(color: Colors.white54, fontSize: 12),
+      style: GoogleFonts.workSans(color: Colors.white54, fontSize: 12),
     );
   }
 }
 
 class _ProcedureCard extends StatelessWidget {
-  const _ProcedureCard({required this.procedure});
+  const _ProcedureCard({required this.procedure, required this.onDelete});
   final _Procedure procedure;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -270,28 +568,45 @@ class _ProcedureCard extends StatelessWidget {
         color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text(
-            procedure.name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  procedure.name,
+                  style: GoogleFonts.workSans(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (procedure.date != null ||
+                    procedure.recoveryStatus != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (procedure.date != null) 'Date: ${procedure.date}',
+                      if (procedure.recoveryStatus != null &&
+                          procedure.recoveryStatus!.isNotEmpty)
+                        'Recovery: ${procedure.recoveryStatus}',
+                    ].join(' • '),
+                    style: GoogleFonts.workSans(
+                      color: Colors.white60,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (procedure.date != null || procedure.recoveryStatus != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              [
-                if (procedure.date != null) 'Date: ${procedure.date}',
-                if (procedure.recoveryStatus != null)
-                  'Recovery: ${procedure.recoveryStatus}',
-              ].join(' • '),
-              style: const TextStyle(color: Colors.white60, fontSize: 11),
-            ),
-          ],
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+            onPressed: onDelete,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
         ],
       ),
     );
@@ -299,32 +614,44 @@ class _ProcedureCard extends StatelessWidget {
 }
 
 class _Pill extends StatelessWidget {
-  const _Pill({required this.text});
+  const _Pill({required this.text, required this.onDelete});
   final String text;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.only(left: 14, right: 8, top: 6, bottom: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            text,
+            style: GoogleFonts.workSans(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onDelete,
+            child: const Icon(Icons.cancel, color: Colors.white54, size: 16),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _ConditionRow extends StatelessWidget {
-  const _ConditionRow({required this.condition});
+  const _ConditionRow({required this.condition, required this.onManage});
   final _HealthCondition condition;
+  final VoidCallback onManage;
 
   @override
   Widget build(BuildContext context) {
@@ -339,7 +666,7 @@ class _ConditionRow extends StatelessWidget {
           Expanded(
             child: Text(
               condition.name,
-              style: const TextStyle(
+              style: GoogleFonts.workSans(
                 color: Colors.white,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -347,10 +674,7 @@ class _ConditionRow extends StatelessWidget {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              // A "manage condition" edit sheet will be wired here once that
-              // flow is built.
-            },
+            onPressed: onManage,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF17CC1A),
               shape: RoundedRectangleBorder(
@@ -360,9 +684,9 @@ class _ConditionRow extends StatelessWidget {
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text(
+            child: Text(
               'Manage',
-              style: TextStyle(
+              style: GoogleFonts.workSans(
                 color: Colors.white,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,

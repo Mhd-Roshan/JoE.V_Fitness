@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../schedules/trainer_schedules_screen.dart';
 import '../users/trainer_users_screen.dart';
 import '../notes/trainer_notes_screen.dart';
+import '../profile/trainer_profile_screen.dart';
+import '../notifications/trainer_notifications_screen.dart';
 
 class TrainerHomeScreen extends StatefulWidget {
   const TrainerHomeScreen({super.key});
@@ -155,42 +157,6 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
     return (first + second).toUpperCase();
   }
 
-  void _logout() async {
-    if (!mounted) {
-      return;
-    }
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              try {
-                await FirebaseAuth.instance.signOut();
-                if (!mounted) {
-                  return;
-                }
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/login', (route) => false);
-              } catch (e) {
-                debugPrint('Logout error: $e');
-              }
-            },
-            child: const Text('Logout', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     // Find the live session for the Hero card
@@ -209,7 +175,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _TopHeaderBand(onLogout: _logout),
+                  const _TopHeaderBand(),
 
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -322,7 +288,6 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                         const SizedBox(width: 16),
                         GestureDetector(
                           onTap: () {
-                            // Let Quick Action also navigate to Notes!
                             Navigator.of(context).pushReplacement(
                               MaterialPageRoute(
                                 builder: (_) => const TrainerNotesScreen(),
@@ -420,8 +385,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
 // ---------------------------------------------------------
 
 class _TopHeaderBand extends StatelessWidget {
-  const _TopHeaderBand({required this.onLogout});
-  final VoidCallback onLogout;
+  const _TopHeaderBand();
 
   @override
   Widget build(BuildContext context) {
@@ -449,6 +413,8 @@ class _TopHeaderBand extends StatelessWidget {
       height: 1,
       shadows: [textShadow],
     );
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Container(
       width: double.infinity,
@@ -497,24 +463,64 @@ class _TopHeaderBand extends StatelessWidget {
             ),
           ),
 
-          // Right-aligned Logout / Notification Icon
+          // Right-aligned Notification Icon (with unread badge logic)
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: onLogout,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrainerNotificationsScreen(),
+                  ),
+                );
+              },
               child: Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(
-                    alpha: 0.3,
-                  ), // Lighter circle background
+                  color: Colors.white.withValues(alpha: 0.3),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.notifications_none_rounded,
-                  color: Color(0xFF00225D), // Dark blue icon as requested
-                  size: 20,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.notifications_none_rounded,
+                      color: Color(0xFF00225D), // Dark blue icon as requested
+                      size: 20,
+                    ),
+                    // Only fetch notifications if user is logged in
+                    if (uid != null)
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('notifications')
+                            .where('trainerId', isEqualTo: uid)
+                            .where(
+                              'isRead',
+                              isEqualTo: false,
+                            ) // Check for unread
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData &&
+                              snapshot.data!.docs.isNotEmpty) {
+                            return Positioned(
+                              top: 8,
+                              right: 10,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFC7001A), // Primary Red
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink(); // No unread
+                        },
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -1019,12 +1025,14 @@ class _BottomNav extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
             );
           } else if (index == 3) {
-            // --> NAVIGATE TO NOTES SCREEN <--
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
+          } else if (index == 4) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
+            );
           }
-          // Profile navigation still pending
         },
       ),
     );

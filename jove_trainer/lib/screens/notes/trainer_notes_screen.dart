@@ -2,12 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:jove_trainer/screens/profile/trainer_profile_screen.dart';
 
 // Import your other screens for the bottom navigation to work
 import '../home/trainer_home_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
 import '../users/trainer_users_screen.dart';
-
 // Import the sub-screens for adding and editing notes
 import 'add_visit_note_screen.dart';
 import 'edit_visit_note_screen.dart';
@@ -911,8 +911,11 @@ class _BottomNav extends StatelessWidget {
             );
           } else if (index == 3) {
             // Already on Notes
+          } else if (index == 4) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
+            );
           }
-          // Profile navigation pending.
         },
       ),
     );

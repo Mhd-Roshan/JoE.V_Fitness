@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart'; // <-- ADDED GOOGLE FONTS IMPORT
 import 'package:just_audio/just_audio.dart';
 
 class SessionHistoryTab extends StatefulWidget {
@@ -116,13 +117,19 @@ class _SessionHistoryTabState extends State<SessionHistoryTab> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF00225D)),
+      );
     }
     if (_sessions.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           'No sessions recorded yet.',
-          style: TextStyle(color: Color(0xFF808080)),
+          style: GoogleFonts.workSans(
+            color: const Color(0xFF808080),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       );
     }
@@ -210,17 +217,21 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Time',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF808080)),
+                    style: GoogleFonts.workSans(
+                      fontSize: 11,
+                      color: const Color(0xFF808080),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     s.time,
-                    style: const TextStyle(
+                    style: GoogleFonts.workSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF00225D),
+                      color: const Color(0xFF00225D),
                     ),
                   ),
                 ],
@@ -233,17 +244,17 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                     children: [
                       Text(
                         s.dateLabel,
-                        style: const TextStyle(
+                        style: GoogleFonts.workSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF00225D),
+                          color: const Color(0xFF00225D),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 3,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
                           color: isDone
@@ -256,7 +267,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                               ? 'Done'
                               : s.status[0].toUpperCase() +
                                     s.status.substring(1),
-                          style: TextStyle(
+                          style: GoogleFonts.workSans(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: isDone
@@ -278,9 +289,10 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                       const SizedBox(width: 3),
                       Text(
                         s.area,
-                        style: const TextStyle(
+                        style: GoogleFonts.workSans(
                           fontSize: 12,
-                          color: Color(0xFF808080),
+                          color: const Color(0xFF808080),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -292,9 +304,10 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                       const SizedBox(width: 3),
                       Text(
                         s.serviceType,
-                        style: const TextStyle(
+                        style: GoogleFonts.workSans(
                           fontSize: 12,
-                          color: Color(0xFF808080),
+                          color: const Color(0xFF808080),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -307,14 +320,18 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
                 border: Border.all(color: const Color(0xFFE6E8EA)),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 s.notes!,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF00225D)),
+                style: GoogleFonts.workSans(
+                  fontSize: 12,
+                  color: const Color(0xFF00225D),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ],
@@ -361,10 +378,10 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                         const SizedBox(height: 4),
                         Text(
                           'Recorded Note',
-                          style: const TextStyle(
+                          style: GoogleFonts.workSans(
                             fontSize: 11,
-                            color: Color(0xFF00225D),
-                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF00225D),
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -374,9 +391,10 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                     const SizedBox(width: 8),
                     Text(
                       s.recordingDuration!,
-                      style: const TextStyle(
+                      style: GoogleFonts.workSans(
                         fontSize: 11,
-                        color: Color(0xFF808080),
+                        color: const Color(0xFF808080),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],

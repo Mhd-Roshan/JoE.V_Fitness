@@ -2,8 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+// --- ADDED IMPORT BACK TO FIX THE ERROR ---
+import '../home/trainer_home_screen.dart';
 import '../notes/trainer_notes_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
+import '../profile/trainer_profile_screen.dart';
+import '../notifications/trainer_notifications_screen.dart';
 
 class TrainerUsersScreen extends StatefulWidget {
   const TrainerUsersScreen({super.key});
@@ -14,6 +19,7 @@ class TrainerUsersScreen extends StatefulWidget {
 
 // Data Model to represent the UI in the image
 class _ClientData {
+  final String id;
   final String name;
   final String initials;
   final String details;
@@ -22,6 +28,7 @@ class _ClientData {
   final String status;
 
   _ClientData({
+    required this.id,
     required this.name,
     required this.initials,
     required this.details,
@@ -34,6 +41,8 @@ class _ClientData {
 class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
   bool _loading = true;
   List<_ClientData> _users = [];
+  List<_ClientData> _filteredUsers = []; // <-- Added for Search functionality
+  final TextEditingController _searchController = TextEditingController();
 
   // Colors based on the design
   static const Color darkBlue = Color(0xFF00225D);
@@ -45,14 +54,18 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
 
   static const Color activeBg = Color(0xFFC6F6D5);
   static const Color activeText = Color(0xFF22543D);
-  static const Color warningText = Color(
-    0xFFB48A28,
-  ); // Brown/Yellow for medical
+  static const Color warningText = Color(0xFFB48A28);
 
   @override
   void initState() {
     super.initState();
     _fetchUsers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUsers() async {
@@ -63,8 +76,6 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
     }
 
     try {
-      // Query users where this trainer is assigned.
-      // NOTE: Adjust 'trainerId' if your database uses a different field name (e.g., 'assignedTrainerId')
       final snap = await FirebaseFirestore.instance
           .collection('users')
           .where('trainerId', isEqualTo: uid)
@@ -89,13 +100,13 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
           }
         }
 
-        // Build details string (e.g. "Package 1 · Weight loss · Vytilla")
+        // Build details string
         final package = data['package']?.toString() ?? 'Standard';
         final goal = data['goal']?.toString() ?? 'Fitness';
         final area = data['area']?.toString() ?? 'Location';
         final details = '$package · $goal · $area';
 
-        // Calculate progress percentage safely
+        // Calculate progress percentage
         final completed = data['completedSessions'] ?? 0;
         final total = data['totalSessions'] ?? 10;
         int progress = 0;
@@ -104,13 +115,14 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
           if (progress > 100) progress = 100;
         }
 
-        // Extract optional medical warning
+        // Extract medical warning
         String? medical = data['medicalWarning']?.toString();
         if (medical != null && medical.trim().isEmpty) {
-          medical = null; // Treat empty strings as no warning
+          medical = null;
         }
 
         return _ClientData(
+          id: doc.id,
           name: name,
           initials: initials.toUpperCase(),
           details: details,
@@ -123,6 +135,7 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
       if (!mounted) return;
       setState(() {
         _users = loadedUsers;
+        _filteredUsers = loadedUsers; // Initialize filtered list
         _loading = false;
       });
     } catch (e) {
@@ -130,6 +143,21 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
       if (!mounted) return;
       setState(() {
         _loading = false;
+      });
+    }
+  }
+
+  // --- Search Logic ---
+  void _filterUsers(String query) {
+    if (query.isEmpty) {
+      setState(() {
+        _filteredUsers = _users;
+      });
+    } else {
+      setState(() {
+        _filteredUsers = _users
+            .where((user) => user.name.toLowerCase().contains(query.toLowerCase()))
+            .toList();
       });
     }
   }
@@ -172,8 +200,10 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                   child: SizedBox(
                     height: 48,
                     child: TextField(
+                      controller: _searchController,
+                      onChanged: _filterUsers, 
                       decoration: InputDecoration(
-                        hintText: 'Search  people....',
+                        hintText: 'Search people....',
                         hintStyle: GoogleFonts.workSans(
                           color: const Color(0xFF9CA3AF),
                           fontSize: 14,
@@ -208,15 +238,22 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                 const SizedBox(width: 12),
 
                 // Filter Button
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderGrey, width: 1.5),
+                GestureDetector(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Filter options coming soon!')),
+                    );
+                  },
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: borderGrey, width: 1.5),
+                    ),
+                    child: const Icon(Icons.tune, color: Color(0xFF6B7280)),
                   ),
-                  child: const Icon(Icons.tune, color: Color(0xFF6B7280)),
                 ),
               ],
             ),
@@ -230,10 +267,12 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                 ? const Center(
                     child: CircularProgressIndicator(color: darkBlue),
                   )
-                : _users.isEmpty
+                : _filteredUsers.isEmpty
                 ? Center(
                     child: Text(
-                      'No users assigned yet.',
+                      _searchController.text.isNotEmpty 
+                          ? 'No users match your search.'
+                          : 'No users assigned yet.',
                       style: GoogleFonts.workSans(
                         color: const Color(0xFF6B7280),
                         fontSize: 14,
@@ -243,11 +282,11 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    itemCount: _users.length,
+                    itemCount: _filteredUsers.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 16),
                     itemBuilder: (context, index) {
-                      return _UserCard(user: _users[index]);
+                      return _UserCard(user: _filteredUsers[index]);
                     },
                   ),
           ),
@@ -427,7 +466,11 @@ class _UserCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                   SnackBar(content: Text('Opening profile for ${user.name}...')),
+                );
+              },
               icon: const Icon(Icons.person_outline, size: 18),
               label: Text(
                 'View Profile',
@@ -456,7 +499,7 @@ class _UserCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------
-// HEADER AND NAVIGATION WIDGETS (Reusable components)
+// HEADER AND NAVIGATION WIDGETS
 // ---------------------------------------------------------
 
 class _TopHeaderBand extends StatelessWidget {
@@ -487,6 +530,8 @@ class _TopHeaderBand extends StatelessWidget {
       height: 1,
       shadows: [textShadow],
     );
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Container(
       width: double.infinity,
@@ -540,17 +585,58 @@ class _TopHeaderBand extends StatelessWidget {
           // Right: Notification Icon
           Align(
             alignment: Alignment.centerRight,
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_none_rounded,
-                color: Color(0xFF00225D),
-                size: 20,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrainerNotificationsScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.notifications_none_rounded,
+                      color: Color(0xFF00225D),
+                      size: 20,
+                    ),
+                    if (uid != null)
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('notifications')
+                            .where('trainerId', isEqualTo: uid)
+                            .where('isRead', isEqualTo: false)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData &&
+                              snapshot.data!.docs.isNotEmpty) {
+                            return Positioned(
+                              top: 8,
+                              right: 10,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFC7001A),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -567,11 +653,11 @@ class _BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      (Icons.home_outlined, Icons.home, 'Home'), // 0
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'), // 1
-      (Icons.group_outlined, Icons.group, 'Users'), // 2
-      (Icons.description_outlined, Icons.description, 'Notes'), // 3
-      (Icons.person_outline, Icons.person, 'Profile'), // 4
+      (Icons.home_outlined, Icons.home, 'Home'), 
+      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
+      (Icons.group_outlined, Icons.group, 'Users'),
+      (Icons.description_outlined, Icons.description, 'Notes'),
+      (Icons.person_outline, Icons.person, 'Profile'),
     ];
 
     return Container(
@@ -613,18 +699,24 @@ class _BottomNav extends StatelessWidget {
         ],
         onTap: (index) {
           if (index == 0) {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            // FIX: Guaranteed to clean stack and return to home page!
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
+              (route) => false,
+            );
           } else if (index == 1) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
             );
           } else if (index == 3) {
-            // ---> Added navigation for Notes Screen! <---
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
+          } else if (index == 4) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
+            );
           }
-          // Do nothing if index == 2 because we are already on Users
         },
       ),
     );
