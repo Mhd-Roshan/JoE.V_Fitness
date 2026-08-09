@@ -89,6 +89,69 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
     ]);
 }
 
+// ==============================================================
+// IMAGE COMPRESSION HELPER FUNCTION (Native HTML5 Canvas)
+// ==============================================================
+async function compressImage(file: File): Promise<File> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height = Math.round(height * (MAX_WIDTH / width));
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width = Math.round(width * (MAX_HEIGHT / height));
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+
+                if (!ctx) return reject(new Error("Canvas context failed"));
+
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(0, 0, width, height);
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob(
+                    (blob) => {
+                        if (blob) {
+                            const newFileName = file.name.replace(/\.[^/.]+$/, ".jpg");
+                            const newFile = new File([blob], newFileName, {
+                                type: "image/jpeg",
+                                lastModified: Date.now(),
+                            });
+                            resolve(newFile);
+                        } else {
+                            reject(new Error("Canvas to Blob failed"));
+                        }
+                    },
+                    "image/jpeg",
+                    0.7
+                );
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+}
+// ==============================================================
+
 export default function AddTrainer() {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
@@ -99,6 +162,8 @@ export default function AddTrainer() {
     const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [showPassword, setShowPassword] = useState(false);
+    const [isCompressing, setIsCompressing] = useState(false);
+
     const [form, setForm] = useState<TrainerFormData>({
         photoFile: null,
         fullName: "",
@@ -142,9 +207,23 @@ export default function AddTrainer() {
         }
     }
 
-    function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0] ?? null;
-        update("photoFile", file);
+        if (!file) {
+            update("photoFile", null);
+            return;
+        }
+
+        setIsCompressing(true);
+        try {
+            const compressedFile = await compressImage(file);
+            update("photoFile", compressedFile);
+        } catch (error) {
+            console.error("Image compression failed:", error);
+            update("photoFile", file);
+        } finally {
+            setIsCompressing(false);
+        }
     }
 
     function toggleSpecialization(spec: string) {
@@ -345,6 +424,8 @@ export default function AddTrainer() {
 
         try {
             console.log("[onboarding] creating auth account...");
+
+            // Uses the password typed into the input field!
             const credential = await withTimeout(
                 createUserWithEmailAndPassword(secondaryAuth, form.email, form.password),
                 15000,
@@ -502,12 +583,14 @@ export default function AddTrainer() {
                                 <label className="photo-dropzone">
                                     <i className="bx bx-user-circle photo-dropzone-icon" />
                                     <div className="photo-dropzone-text">
-                                        {form.photoFile
-                                            ? form.photoFile.name
-                                            : "CLICK TO UPLOAD OR DRAG AND DROP"}
+                                        {isCompressing
+                                            ? "Compressing image..."
+                                            : form.photoFile
+                                                ? form.photoFile.name
+                                                : "CLICK TO UPLOAD OR DRAG AND DROP"}
                                     </div>
                                     <div className="photo-dropzone-hint">
-                                        SVG, PNG, JPG OR GIF (MAX. 800X800PX)
+                                        SVG, PNG, JPG OR GIF (Images are auto-compressed)
                                     </div>
                                     <span className="photo-choose-btn">
                                         <i className="bx bx-upload" /> Choose File
@@ -517,6 +600,7 @@ export default function AddTrainer() {
                                         accept="image/*"
                                         onChange={handlePhotoChange}
                                         style={{ display: "none" }}
+                                        disabled={isCompressing}
                                     />
                                 </label>
                             </div>
@@ -595,6 +679,7 @@ export default function AddTrainer() {
                                 )}
                             </div>
 
+                            {/* RESTORED PASSWORD FIELDS */}
                             <div className="form-field">
                                 <label className="form-label">LOGIN PASSWORD</label>
                                 <div className="input-with-icon">

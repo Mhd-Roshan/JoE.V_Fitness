@@ -10,6 +10,10 @@ import '../users/trainer_users_screen.dart';
 import '../notes/trainer_notes_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
 
+// --- IMPORT THE SUB-SCREENS ---
+import 'contact_admin_screen.dart';
+import 'app_settings_screen.dart'; // <-- ADDED APP SETTINGS IMPORT
+
 class TrainerProfileScreen extends StatefulWidget {
   const TrainerProfileScreen({super.key});
 
@@ -274,7 +278,13 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                                 title: 'Contact admin',
                                 subtitle: 'Report issue or request leave',
                                 onTap: () {
-                                  // Action for contact admin
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const ContactAdminScreen(),
+                                    ),
+                                  );
                                 },
                               ),
                               const SizedBox(height: 12),
@@ -283,7 +293,13 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                                 title: 'App setting',
                                 subtitle: 'Language, notifications',
                                 onTap: () {
-                                  // Action for app settings
+                                  // ---> WIRED UP TO SETTINGS PAGE <---
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const AppSettingsScreen(),
+                                    ),
+                                  );
                                 },
                               ),
                             ],
@@ -772,6 +788,9 @@ class _TopHeaderBand extends StatelessWidget {
       offset: const Offset(1.5, 1.5),
       blurRadius: 3,
     );
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
@@ -847,17 +866,58 @@ class _TopHeaderBand extends StatelessWidget {
           ),
           Align(
             alignment: Alignment.centerRight,
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_none_rounded,
-                color: Color(0xFF00225D),
-                size: 20,
+            child: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrainerNotificationsScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  shape: BoxShape.circle,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    const Icon(
+                      Icons.notifications_none_rounded,
+                      color: Color(0xFF00225D),
+                      size: 20,
+                    ),
+                    if (uid != null)
+                      StreamBuilder<QuerySnapshot>(
+                        stream: FirebaseFirestore.instance
+                            .collection('notifications')
+                            .where('trainerId', isEqualTo: uid)
+                            .where('isRead', isEqualTo: false)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData &&
+                              snapshot.data!.docs.isNotEmpty) {
+                            return Positioned(
+                              top: 8,
+                              right: 10,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFC7001A),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -920,8 +980,9 @@ class _BottomNav extends StatelessWidget {
         ],
         onTap: (index) {
           if (index == 0) {
-            Navigator.of(context).pushReplacement(
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
+              (route) => false,
             );
           } else if (index == 1) {
             Navigator.of(context).pushReplacement(
@@ -935,14 +996,8 @@ class _BottomNav extends StatelessWidget {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
-          } else if (index == 5) {
-            // --> NAVIGATE TO NOTIFICATION SCREEN <--
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => const TrainerNotificationsScreen(),
-              ),
-            );
           }
+          // index 4 is Profile, so if tapped, do nothing since we are already here.
         },
       ),
     );

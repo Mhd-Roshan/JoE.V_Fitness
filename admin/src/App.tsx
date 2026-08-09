@@ -3,7 +3,6 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Users from "./pages/Users";
 import UserProfile from "./pages/UserProfile";
-import SessionHistory from "./pages/SessionHistory";
 import AssignDietPlan from "./pages/AssignDietPlan";
 import Trainers from "./pages/Trainers";
 import AddTrainer from "./pages/AddTrainer";
@@ -25,6 +24,8 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
 import RequireAuth from "./components/RequireAuth";
+import TrainerProfile from "./pages/TrainerProfile";
+import AssignDuties from "./pages/AssignDuties";
 
 function App() {
   return (
@@ -34,7 +35,6 @@ function App() {
         <Route path="/" element={<RequireAuth> <Dashboard /> </RequireAuth>} />
         <Route path="/users" element={<RequireAuth> <Users /> </RequireAuth>} />
         <Route path="/users/:id" element={<RequireAuth> <UserProfile /> </RequireAuth>} />
-        <Route path="/users/:id/sessions" element={<RequireAuth> <SessionHistory /> </RequireAuth>} />
         <Route path="/users/:id/diet-plan" element={<RequireAuth> <AssignDietPlan /> </RequireAuth>} />
         <Route path="/trainers" element={<RequireAuth> <Trainers /> </RequireAuth>} />
         <Route path="/trainers/add" element={<RequireAuth> <AddTrainer /> </RequireAuth>} />
@@ -56,6 +56,9 @@ function App() {
         <Route path="/settings" element={<RequireAuth> <Settings /> </RequireAuth>} />
         <Route path="/payments" element={<RequireAuth> <Payments /> </RequireAuth>} />
         <Route path="/notifications" element={<RequireAuth> <Notifications /> </RequireAuth>} />
+        <Route path="/trainers/:id" element={<RequireAuth> <TrainerProfile /> </RequireAuth>} />
+        <Route path="/trainers/assign" element={<RequireAuth> <AssignDuties /> </RequireAuth>} />
+
 
 
         <Route path="*" element={<Navigate to="/" replace />} />

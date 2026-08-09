@@ -31,6 +31,59 @@ function makeId() {
     return Math.random().toString(36).slice(2, 9);
 }
 
+// ==========================================
+// IMAGE COMPRESSION UTILITY
+// ==========================================
+const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<File> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let { width, height } = img;
+
+                // Scale down if width is greater than maxWidth
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+
+                if (!ctx) {
+                    resolve(file); // Fallback to original if canvas fails
+                    return;
+                }
+
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Compress to JPEG
+                canvas.toBlob(
+                    (blob) => {
+                        if (!blob) {
+                            resolve(file); // Fallback to original
+                            return;
+                        }
+                        const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpeg", {
+                            type: "image/jpeg",
+                        });
+                        resolve(newFile);
+                    },
+                    "image/jpeg",
+                    quality
+                );
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};
+
 export default function CreateDietTemplate() {
     const navigate = useNavigate();
     const { id } = useParams<{ id: string }>();
@@ -59,7 +112,7 @@ export default function CreateDietTemplate() {
     const [originalMealIds, setOriginalMealIds] = useState<Set<string>>(new Set());
     const [deletedMealIds, setDeletedMealIds] = useState<string[]>([]);
 
-    // Meal form (used for both add and edit)
+    // Meal form
     const [showMealForm, setShowMealForm] = useState(false);
     const [editingMealId, setEditingMealId] = useState<string | null>(null);
     const [mealTime, setMealTime] = useState("");
@@ -118,6 +171,32 @@ export default function CreateDietTemplate() {
         }
         load();
     }, [id]);
+
+    // --- Compression Handlers ---
+    const handleTemplatePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const compressed = await compressImage(file);
+            setTemplateImageFile(compressed);
+        } catch (err) {
+            console.error("Compression error:", err);
+            setTemplateImageFile(file); // Fallback to original
+        }
+    };
+
+    const handleMealPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const compressed = await compressImage(file);
+            setMealImage(compressed);
+        } catch (err) {
+            console.error("Compression error:", err);
+            setMealImage(file); // Fallback to original
+        }
+    };
+    // ----------------------------
 
     function addProhibition() {
         const trimmed = newProhibition.trim();
@@ -282,8 +361,6 @@ export default function CreateDietTemplate() {
                 );
             }
 
-            // Actually delete meals removed during this edit session — otherwise
-            // they stay orphaned in Firestore and reappear on next load.
             for (const deletedId of deletedMealIds) {
                 await deleteDoc(
                     doc(db, "dietPlanTemplates", templateId!, "meals", deletedId)
@@ -412,9 +489,7 @@ export default function CreateDietTemplate() {
                                 type="file"
                                 accept="image/*"
                                 style={{ display: "none" }}
-                                onChange={(e) =>
-                                    setTemplateImageFile(e.target.files?.[0] ?? null)
-                                }
+                                onChange={handleTemplatePhotoUpload}
                             />
                         </label>
 
@@ -515,9 +590,7 @@ export default function CreateDietTemplate() {
                                         type="file"
                                         accept="image/*"
                                         style={{ display: "none" }}
-                                        onChange={(e) =>
-                                            setMealImage(e.target.files?.[0] ?? null)
-                                        }
+                                        onChange={handleMealPhotoUpload}
                                     />
                                 </label>
 

@@ -1,52 +1,83 @@
+/* =========================================
+   PAGE HEADER
+========================================= */
 .trainers-page-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 24px;
     flex-wrap: wrap;
     gap: 12px;
 }
 
+.trainers-page-title {
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 24px;
+    font-weight: 800;
+    color: #00225d;
+    margin: 0 0 4px 0;
+}
+
 .trainers-page-subtitle {
     color: #808080;
-    font-family: "Work Sans", Helvetica;
-    font-size: 15px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
     font-weight: 500;
+    margin: 0;
 }
 
 .trainers-add-btn {
     background-color: #00225d;
     color: #ffffff;
     border: none;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 10px 20px;
-    font-family: "Work Sans", Helvetica;
+    font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.2s;
 }
 
+.trainers-add-btn:hover {
+    background-color: #001740;
+}
+
+/* =========================================
+   TRAINERS GRID & CARDS
+========================================= */
 .trainers-card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
     gap: 20px;
-    margin-bottom: 24px;
+    margin-bottom: 30px;
 }
 
 .trainer-card {
-    background-color: #faffff;
-    border: 1.5px solid rgba(192, 192, 192, 1);
-    border-radius: 10px;
-    padding: 18px 20px;
-    box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.08);
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
 }
 
+/* Card Top: Avatar, Name, Status */
 .trainer-card-top {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 10px;
+}
+
+.trainer-profile-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
 }
 
 .trainer-avatar-circle {
@@ -57,196 +88,266 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #faffff;
-    font-family: "Work Sans", Helvetica;
+    color: #ffffff;
+    font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 18px;
     font-weight: 700;
 }
 
-.trainer-status-pill {
-    border-radius: 10px;
-    padding: 4px 12px;
-    font-family: "Work Sans", Helvetica;
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: capitalize;
-}
-
-.status-active {
-    background-color: rgba(23, 204, 26, 0.29);
-    color: #138415;
+.trainer-info {
+    display: flex;
+    flex-direction: column;
 }
 
 .trainer-name {
-    font-family: "Work Sans", Helvetica;
-    font-size: 15px;
-    font-weight: 700;
-    color: #000000;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: #111827;
 }
 
 .trainer-designation {
-    font-family: "Work Sans", Helvetica;
+    font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 12px;
     font-weight: 500;
-    color: #414141;
-    margin-bottom: 14px;
+    color: #6b7280;
+    margin-top: 4px;
 }
 
-.trainer-stats-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-}
-
-.trainer-stat {
-    text-align: center;
-}
-
-.trainer-stat-value {
-    font-family: "JetBrains Mono", monospace;
-    font-size: 15px;
-    font-weight: 700;
-    color: #000000;
-}
-
-.trainer-stat-label {
-    font-family: "Work Sans", Helvetica;
+.trainer-status-pill {
+    background-color: rgba(23, 204, 26, 0.2);
+    color: #138415;
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 11px;
     font-weight: 700;
-    color: #545454;
+}
+
+/* Card Middle: Stats List (Matches Figma exactly) */
+.trainer-stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.trainer-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stat-label {
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.stat-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 14px;
+    font-weight: 800;
+    color: #111827;
+}
+
+.stat-progress-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .trainer-progress-track {
-    background-color: #e0e3e5;
-    border-radius: 12px;
+    width: 70px;
     height: 6px;
-    margin-bottom: 14px;
+    background-color: #e5e7eb;
+    border-radius: 12px;
     overflow: hidden;
 }
 
 .trainer-progress-fill {
-    background-color: #900f0f;
+    background-color: #bb0013;
+    /* Red from the screenshot */
     height: 100%;
     border-radius: 12px;
 }
 
+/* Card Bottom: Action Buttons */
 .trainer-card-actions {
     display: flex;
-    gap: 8px;
+    gap: 12px;
 }
 
-.trainer-action-btn {
+.trainer-action-btn-outline {
     flex: 1;
-    background-color: #faffff;
-    border: 1px solid rgba(192, 192, 192, 0.8);
-    border-radius: 10px;
-    padding: 8px 10px;
-    font-family: "Work Sans", Helvetica;
-    font-size: 12px;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 10px 0;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 13px;
     font-weight: 700;
     color: #00225d;
     cursor: pointer;
-}
-
-.schedule-card {
-    background-color: #faffff;
-    border: 1.5px solid rgba(192, 192, 192, 0.5);
-    border-radius: 10px;
-    padding: 20px 24px;
-}
-
-.schedule-card-header {
     display: flex;
     align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s;
+}
+
+.trainer-action-btn-outline i {
+    font-size: 16px;
+}
+
+.trainer-action-btn-outline:hover {
+    border-color: #00225d;
+    background-color: #f8fafc;
+}
+
+/* =========================================
+   SCHEDULE SECTION
+========================================= */
+.schedule-section {
+    margin-top: 30px;
+}
+
+.schedule-header {
+    display: flex;
     justify-content: space-between;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
 }
 
-.schedule-card-title {
-    font-family: "Work Sans", Helvetica;
-    font-size: 15px;
-    font-weight: 700;
+.schedule-title {
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 16px;
+    font-weight: 800;
     color: #00225d;
+    margin: 0;
 }
 
-.schedule-live-pill {
-    background-color: rgba(187, 0, 19, 0.3);
-    color: #bb0013f0;
-    border-radius: 10px;
-    padding: 4px 14px;
-    font-family: "Poppins", Helvetica;
-    font-size: 12px;
+.schedule-all-btn {
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    color: #111827;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 13px;
     font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.schedule-all-btn:hover {
+    background-color: #f9fafb;
+}
+
+/* Table */
+.schedule-table-container {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 .schedule-table {
     width: 100%;
     border-collapse: collapse;
+    text-align: left;
 }
 
 .schedule-table th {
-    text-align: left;
-    color: #808080;
-    font-family: "Poppins", Helvetica;
-    font-size: 13px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
     font-weight: 700;
-    padding: 10px 12px;
-    border-bottom: 1px solid rgba(117, 117, 117, 0.3);
+    color: #6b7280;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .schedule-table td {
-    padding: 12px;
-    font-family: "Work Sans", Helvetica;
+    font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 14px;
-    color: #000000;
-    border-bottom: 1px solid rgba(117, 117, 117, 0.2);
+    color: #374151;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: middle;
 }
 
-.schedule-client-name,
-.schedule-table td:nth-child(6) {
-    font-weight: 700;
+.schedule-table tr:last-child td {
+    border-bottom: none;
 }
 
-.schedule-notes {
-    color: #545454;
+/* Table Text Utilities */
+.fw-500 {
+    font-weight: 500;
+}
+
+.fw-700 {
+    font-weight: 800;
+}
+
+.text-dark {
+    color: #111827;
+}
+
+.schedule-notes-text {
+    color: #6b7280;
     font-size: 13px;
+    max-width: 250px;
 }
 
-.schedule-status-pill {
-    border-radius: 10px;
-    padding: 4px 10px;
-    font-family: "Poppins", Helvetica;
+.empty-line {
+    display: inline-block;
+    width: 50px;
+    height: 1.5px;
+    background-color: #9ca3af;
+    vertical-align: middle;
+}
+
+/* Table Status Pills */
+.table-status-pill {
+    padding: 6px 14px;
+    border-radius: 20px;
     font-size: 12px;
     font-weight: 700;
+    display: inline-block;
+    text-align: center;
 }
 
-.schedule-status-pill.status-completed {
-    background-color: rgba(23, 204, 26, 0.29);
+.status-done {
+    background-color: rgba(23, 204, 26, 0.2);
     color: #138415;
 }
 
-.schedule-status-pill.status-scheduled {
-    background-color: rgba(217, 217, 217, 0.49);
-    color: #808080;
+.status-upcoming {
+    background-color: #f3f4f6;
+    color: #6b7280;
 }
 
-/* ===== Delete trainer button + confirmation modal ===== */
-
+/* =========================================
+   DELETE MODAL (Preserved from your code)
+========================================= */
 .trainer-delete-btn {
     flex: 0 0 auto;
-    background-color: #faffff;
+    background-color: #ffffff;
     border: 1px solid rgba(187, 0, 19, 0.4);
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 8px 10px;
-    color: #bb0013f0;
-    font-size: 14px;
+    color: #bb0013;
+    font-size: 16px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .trainer-delete-btn:hover {
-    background-color: rgba(187, 0, 19, 0.08);
+    background-color: rgba(187, 0, 19, 0.05);
 }
 
 .delete-modal-overlay {
@@ -271,59 +372,59 @@
 
 .delete-modal-icon {
     font-size: 32px;
-    color: #bb0013f0;
+    color: #bb0013;
     margin-bottom: 12px;
 }
 
 .delete-modal-title {
-    font-family: "Work Sans", Helvetica;
-    font-size: 17px;
-    font-weight: 700;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 18px;
+    font-weight: 800;
     color: #00225d;
     margin-bottom: 8px;
 }
 
 .delete-modal-text {
-    font-family: "Work Sans", Helvetica;
-    font-size: 13px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
     color: #545454;
     line-height: 1.5;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
 }
 
 .delete-modal-error {
-    font-family: "Work Sans", Helvetica;
-    font-size: 12px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 13px;
     color: #bb0013;
     margin-bottom: 12px;
 }
 
 .delete-modal-actions {
     display: flex;
-    gap: 10px;
+    gap: 12px;
 }
 
 .delete-modal-cancel {
     flex: 1;
-    background: none;
-    border: 1px solid #c0c0c0;
+    background: transparent;
+    border: 1px solid #d1d5db;
     border-radius: 8px;
     padding: 10px;
-    font-family: "Work Sans", Helvetica;
-    font-size: 13px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
     font-weight: 700;
-    color: #545454;
+    color: #4b5563;
     cursor: pointer;
 }
 
 .delete-modal-confirm {
     flex: 1;
-    background-color: #bb0013f0;
+    background-color: #bb0013;
     border: none;
     border-radius: 8px;
     padding: 10px;
-    font-family: "Work Sans", Helvetica;
-    font-size: 13px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
     font-weight: 700;
     color: #ffffff;
     cursor: pointer;

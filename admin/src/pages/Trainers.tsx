@@ -51,11 +51,13 @@ export default function Trainers() {
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
     useEffect(() => {
+        let isMounted = true; // Prevents memory leaks if component unmounts early
+
         async function load() {
             try {
                 const today = todayDateStr();
 
-                // Trainer profiles
+                // 1. Fetch Trainer profiles
                 const usersSnap = await getDocs(
                     query(collection(db, "users"), where("role", "==", "trainer"))
                 );
@@ -66,10 +68,7 @@ export default function Trainers() {
                         const trainerId = u.id;
 
                         const trainerDoc = await getDocs(
-                            query(
-                                collection(db, "trainers"),
-                                where("trainerId", "==", trainerId)
-                            )
+                            query(collection(db, "trainers"), where("trainerId", "==", trainerId))
                         );
                         const trainerData = trainerDoc.docs[0]?.data() ?? {};
 
@@ -98,32 +97,20 @@ export default function Trainers() {
                         return {
                             id: trainerId,
                             fullName: name,
-                            initials: name
-                                .split(" ")
-                                .map((p: string) => p[0])
-                                .join("")
-                                .slice(0, 2)
-                                .toUpperCase(),
-                            designation: trainerData.designation ?? "Trainer",
-                            yearsExperience: trainerData.yearsExperience ?? 0,
-                            status: trainerData.status ?? "active",
+                            initials: name.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase(),
+                            designation: trainerData.designation ?? "Senior Trainer",
+                            yearsExperience: trainerData.yearsExperience ?? 4,
+                            status: trainerData.status ?? "Active",
                             clientCount: clientCountSnap.data().count,
                             todaySessions: todayCount,
-                            completionPct:
-                                todayCount === 0
-                                    ? 0
-                                    : Math.round((completedCount / todayCount) * 100),
+                            completionPct: todayCount === 0 ? 0 : Math.round((completedCount / todayCount) * 100),
                         };
                     })
                 );
-                setTrainers(trainerRows);
 
-                // Today's full schedule across all trainers
+                // 2. Fetch Today's full schedule across all trainers
                 const sessionsSnap = await getDocs(
-                    query(
-                        collection(db, "sessions"),
-                        where("scheduledDate", "==", today)
-                    )
+                    query(collection(db, "sessions"), where("scheduledDate", "==", today))
                 );
 
                 const scheduleRows = await Promise.all(
@@ -131,9 +118,7 @@ export default function Trainers() {
                         const data = d.data();
                         let clientName = data.clientName;
                         if (!clientName && data.clientId) {
-                            const clientMatch = usersSnap.docs.find(
-                                (u) => u.id === data.clientId
-                            );
+                            const clientMatch = usersSnap.docs.find((u) => u.id === data.clientId);
                             if (clientMatch) {
                                 clientName = clientMatch.data().fullName;
                             } else {
@@ -144,9 +129,7 @@ export default function Trainers() {
 
                         let trainerName = data.trainerName;
                         if (!trainerName && data.trainerId) {
-                            const trainerMatch = usersSnap.docs.find(
-                                (u) => u.id === data.trainerId
-                            );
+                            const trainerMatch = usersSnap.docs.find((u) => u.id === data.trainerId);
                             if (trainerMatch) {
                                 trainerName = trainerMatch.data().fullName;
                             } else {
@@ -167,17 +150,23 @@ export default function Trainers() {
                         };
                     })
                 );
-                setSchedule(
-                    scheduleRows.sort((a, b) => a.time.localeCompare(b.time))
-                );
+
+                if (isMounted) {
+                    setTrainers(trainerRows);
+                    setSchedule(scheduleRows.sort((a, b) => a.time.localeCompare(b.time)));
+                }
             } catch (err) {
                 console.error("Trainers load error:", err);
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         }
 
         load();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     async function handleConfirmDelete() {
@@ -186,7 +175,6 @@ export default function Trainers() {
         setDeleteError(null);
 
         try {
-            // Delete the availability subcollection docs first.
             const availSnap = await getDocs(
                 collection(db, "trainers", deleteTarget.id, "availability")
             );
@@ -209,76 +197,96 @@ export default function Trainers() {
         }
     }
 
+    const formattedDate = new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+    });
+
     if (loading) {
         return (
-            <Layout title="Trainers Management">
-                <p style={{ color: "#999" }}>Loading trainers...</p>
+            <Layout title="Trainers">
+                <p style={{ color: "#999", padding: "20px" }}>Loading trainers...</p>
             </Layout>
         );
     }
 
     return (
-        <Layout title="Trainers Management">
+        <Layout title="Trainers">
+            {/* PAGE HEADER */}
             <div className="trainers-page-header">
                 <div>
+                    <h1 className="trainers-page-title">Trainers Management</h1>
                     <p className="trainers-page-subtitle">
                         Add trainers and view the details to their scheduling.
                     </p>
                 </div>
                 <button className="trainers-add-btn" onClick={() => navigate("/trainers/add")}>
-                    + Add Trainers
+                    <i className="bx bx-plus" style={{ marginRight: '5px' }}></i> Add Trainers
                 </button>
             </div>
 
+            {/* TRAINERS GRID */}
             {trainers.length === 0 ? (
                 <div className="profile-empty">No trainers added yet.</div>
             ) : (
                 <div className="trainers-card-grid">
                     {trainers.map((t) => (
                         <div key={t.id} className="trainer-card">
+
                             <div className="trainer-card-top">
-                                <div className="trainer-avatar-circle">{t.initials}</div>
-                                <span className={`trainer-status-pill status-${t.status}`}>
-                                    {t.status}
-                                </span>
-                            </div>
-                            <div className="trainer-name">{t.fullName}</div>
-                            <div className="trainer-designation">
-                                {t.designation} · {t.yearsExperience} yrs
-                            </div>
-
-                            <div className="trainer-stats-row">
-                                <div className="trainer-stat">
-                                    <div className="trainer-stat-value">{t.clientCount}</div>
-                                    <div className="trainer-stat-label">Client</div>
-                                </div>
-                                <div className="trainer-stat">
-                                    <div className="trainer-stat-value">
-                                        {String(t.todaySessions).padStart(2, "0")}
+                                <div className="trainer-profile-section">
+                                    <div className="trainer-avatar-circle">{t.initials}</div>
+                                    <div className="trainer-info">
+                                        <div className="trainer-name">{t.fullName}</div>
+                                        <div className="trainer-designation">
+                                            {t.designation} . {t.yearsExperience} yrs
+                                        </div>
                                     </div>
-                                    <div className="trainer-stat-label">Today's sessions</div>
                                 </div>
-                                <div className="trainer-stat">
-                                    <div className="trainer-stat-value">{t.completionPct}%</div>
-                                    <div className="trainer-stat-label">Completion</div>
-                                </div>
+                                <span className="trainer-status-pill">{t.status}</span>
                             </div>
 
-                            <div className="trainer-progress-track">
-                                <div
-                                    className="trainer-progress-fill"
-                                    style={{ width: `${t.completionPct}%` }}
-                                />
+                            <div className="trainer-stats-list">
+                                <div className="trainer-stat-row">
+                                    <span className="stat-label">Client</span>
+                                    <span className="stat-value">{String(t.clientCount).padStart(2, '0')}</span>
+                                </div>
+                                <div className="trainer-stat-row">
+                                    <span className="stat-label">Today's sessions</span>
+                                    <span className="stat-value">{String(t.todaySessions).padStart(2, '0')}</span>
+                                </div>
+                                <div className="trainer-stat-row">
+                                    <span className="stat-label">Completion</span>
+                                    <div className="stat-progress-wrapper">
+                                        <div className="trainer-progress-track">
+                                            <div
+                                                className="trainer-progress-fill"
+                                                style={{ width: `${t.completionPct}%` }}
+                                            />
+                                        </div>
+                                        <span className="stat-value">{t.completionPct}%</span>
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="trainer-card-actions">
-                                <button className="trainer-action-btn">Assign</button>
+                                {/* GOES TO TRAINER PROFILE -> /trainers/:id */}
                                 <button
-                                    className="trainer-action-btn"
-                                    onClick={() => navigate(`/trainers/${t.id}/schedule`)}
+                                    className="trainer-action-btn-outline"
+                                    onClick={() => navigate(`/trainers/${t.id}`)}
                                 >
-                                    View Schedule
+                                    <i className="bx bx-user-circle"></i> View Profile
                                 </button>
+
+                                {/* GOES TO ASSIGN DUTIES -> /trainers/assign */}
+                                <button
+                                    className="trainer-action-btn-outline"
+                                    onClick={() => navigate("/trainers/assign")}
+                                >
+                                    <i className="bx bx-user-plus"></i> Assign
+                                </button>
+
                                 <button
                                     className="trainer-delete-btn"
                                     onClick={() =>
@@ -294,55 +302,58 @@ export default function Trainers() {
                 </div>
             )}
 
-            <div className="schedule-card">
-                <div className="schedule-card-header">
-                    <div className="schedule-card-title">
-                        Full Schedule — Today,{" "}
-                        {new Date().toLocaleDateString("en-US", {
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric",
-                        })}
-                    </div>
-                    <span className="schedule-live-pill">Live</span>
+            {/* SCHEDULE SECTION */}
+            <div className="schedule-section">
+                <div className="schedule-header">
+                    <h2 className="schedule-title">
+                        Full Schedule - Today, {formattedDate}
+                    </h2>
+                    <button className="schedule-all-btn">
+                        <i className="bx bx-calendar"></i> All Sessions
+                    </button>
                 </div>
 
                 {schedule.length === 0 ? (
                     <div className="profile-empty">No sessions scheduled for today.</div>
                 ) : (
-                    <table className="schedule-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Client</th>
-                                <th>Area</th>
-                                <th>Service</th>
-                                <th>Notes</th>
-                                <th>Trainer</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {schedule.map((s) => (
-                                <tr key={s.id}>
-                                    <td>{s.time}</td>
-                                    <td className="schedule-client-name">{s.clientName}</td>
-                                    <td>{s.area}</td>
-                                    <td>{s.service}</td>
-                                    <td className="schedule-notes">{s.notes || "—"}</td>
-                                    <td>{s.trainerName}</td>
-                                    <td>
-                                        <span className={`schedule-status-pill status-${s.status}`}>
-                                            {s.status === "completed" ? "Done" : "Upcoming"}
-                                        </span>
-                                    </td>
+                    <div className="schedule-table-container">
+                        <table className="schedule-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Trainer</th>
+                                    <th>Users</th>
+                                    <th>Area</th>
+                                    <th>Service</th>
+                                    <th>Status</th>
+                                    <th>Notes</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {schedule.map((s) => (
+                                    <tr key={s.id}>
+                                        <td className="fw-500">{s.time}</td>
+                                        <td className="fw-700 text-dark">{s.trainerName}</td>
+                                        <td>{s.clientName}</td>
+                                        <td>{s.area}</td>
+                                        <td>{s.service}</td>
+                                        <td>
+                                            <span className={`table-status-pill ${s.status === 'completed' ? 'status-done' : 'status-upcoming'}`}>
+                                                {s.status === "completed" ? "Complete" : "Incomplete"}
+                                            </span>
+                                        </td>
+                                        <td className="schedule-notes-text">
+                                            {s.notes ? s.notes : <span className="empty-line"></span>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
 
+            {/* DELETE CONFIRMATION MODAL */}
             {deleteTarget && (
                 <div
                     className="delete-modal-overlay"

@@ -1,166 +1,70 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-    collection,
-    query,
-    where,
-    getDocs,
-} from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
-import "../styles/sessions.css";
+import "../styles/subscriptions.css";
 
-interface SessionRow {
+interface SubRow {
     id: string;
-    time: string;
-    trainerName: string;
     clientName: string;
-    serviceType: string;
-    status: string;
-    hasMedia: boolean;
+    clientInitials: string;
+    packageName: string;
+    startDate: string;
+    endDate: string;
+    renewalType: "auto" | "manual";
+    status: "active" | "paused" | "expired" | "pending";
+    monthlyPrice: number;
 }
 
-interface MediaCard {
-    id: string;
-    title: string;
-    trainerInitials: string;
-    trainerName: string;
-    duration: string;
-    fileType: string;
-    ago: string;
+const PAGE_SIZE = 5;
+
+function fmtDate(v: unknown): string {
+    if (!v) return "—";
+    const d =
+        typeof v === "object" && v !== null && "toDate" in v
+            ? (v as { toDate: () => Date }).toDate()
+            : new Date(v as string);
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-interface RawSessionDoc {
-    scheduledTime?: string;
-    scheduledDate?: string;
-    trainerName?: string;
-    clientName?: string;
-    serviceType?: string;
-    status?: string;
-    recordingUrl?: string;
-    recordingDuration?: string;
-    recordingFileType?: string;
-    recordedAt?: { toDate: () => Date };
-}
-
-type TabKey = "today" | "week" | "rescheduled";
-
-function todayStr() {
-    return new Date().toISOString().slice(0, 10);
-}
-
-function weekAgoStr() {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().slice(0, 10);
-}
-
-function timeAgo(date: Date): string {
-    const mins = Math.floor((Date.now() - date.getTime()) / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
-}
-
-export default function Sessions() {
+export default function Subscriptions() {
     const navigate = useNavigate();
-    const [tab, setTab] = useState<TabKey>("today");
-    const [sessions, setSessions] = useState<SessionRow[]>([]);
-    const [totalCount, setTotalCount] = useState(0);
-    const [completionPct, setCompletionPct] = useState(0);
-    const [mediaCount, setMediaCount] = useState(0);
-    const [mediaCards, setMediaCards] = useState<MediaCard[]>([]);
+    const [subs, setSubs] = useState<SubRow[]>([]);
     const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
         let cancelled = false;
 
         async function load() {
-            setLoading(true);
             try {
-                const today = todayStr();
-
-                let sessionsQuery;
-                if (tab === "today") {
-                    sessionsQuery = query(
-                        collection(db, "sessions"),
-                        where("scheduledDate", "==", today)
-                    );
-                } else if (tab === "week") {
-                    sessionsQuery = query(
-                        collection(db, "sessions"),
-                        where("scheduledDate", ">=", weekAgoStr()),
-                        where("scheduledDate", "<=", today)
-                    );
-                } else {
-                    sessionsQuery = query(
-                        collection(db, "sessions"),
-                        where("status", "==", "rescheduled")
-                    );
-                }
-
-                const snap = await getDocs(sessionsQuery);
+                const snap = await getDocs(collection(db, "subscriptions"));
                 if (cancelled) return;
 
-                const rows: SessionRow[] = snap.docs.map((d) => {
-                    const data = d.data() as RawSessionDoc;
+                const rows: SubRow[] = snap.docs.map((d) => {
+                    const data = d.data();
+                    const name: string = data.clientName ?? "Unknown Client";
                     return {
                         id: d.id,
-                        time: data.scheduledTime ?? "—",
-                        trainerName: data.trainerName ?? "—",
-                        clientName: data.clientName ?? "—",
-                        serviceType: data.serviceType ?? "—",
-                        status: data.status ?? "scheduled",
-                        hasMedia: Boolean(data.recordingUrl),
+                        clientName: name,
+                        clientInitials: name
+                            .split(" ")
+                            .map((p: string) => p[0])
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase(),
+                        packageName: data.packageName ?? "—",
+                        startDate: fmtDate(data.startDate),
+                        endDate: fmtDate(data.endDate),
+                        renewalType: data.renewalType ?? "manual",
+                        status: data.status ?? "active",
+                        monthlyPrice: data.monthlyPrice ?? 0,
                     };
                 });
-                rows.sort((a, b) => a.time.localeCompare(b.time));
-                setSessions(rows);
-                setTotalCount(rows.length);
-
-                const completed = rows.filter((r) => r.status === "completed").length;
-                setCompletionPct(
-                    rows.length === 0 ? 0 : Math.round((completed / rows.length) * 1000) / 10
-                );
-
-                const withMedia = rows.filter((r) => r.hasMedia).length;
-                setMediaCount(withMedia);
-
-                // Recent audio sessions (most recently recorded, across all sessions)
-                const mediaSnap = await getDocs(
-                    query(collection(db, "sessions"), where("recordingUrl", "!=", null))
-                );
-                if (cancelled) return;
-
-                const media = mediaSnap.docs
-                    .map((d) => {
-                        const data = d.data() as RawSessionDoc;
-                        const recordedAt = data.recordedAt?.toDate
-                            ? data.recordedAt.toDate()
-                            : null;
-                        return {
-                            id: d.id,
-                            title: `${data.serviceType ?? "Session"} - ${data.clientName ?? "Client"
-                                }`,
-                            trainerInitials: (data.trainerName ?? "—")
-                                .split(" ")
-                                .map((p: string) => p[0])
-                                .join("")
-                                .slice(0, 2)
-                                .toUpperCase(),
-                            trainerName: data.trainerName ?? "—",
-                            duration: data.recordingDuration ?? "—",
-                            fileType: (data.recordingFileType ?? "audio").toUpperCase(),
-                            ago: recordedAt ? timeAgo(recordedAt) : "",
-                            _sortDate: recordedAt?.getTime() ?? 0,
-                        };
-                    })
-                    .sort((a, b) => b._sortDate - a._sortDate)
-                    .slice(0, 3);
-                setMediaCards(media);
+                setSubs(rows);
             } catch (err) {
-                console.error("Sessions load error:", err);
+                console.error("Subscriptions load error:", err);
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -170,172 +74,220 @@ export default function Sessions() {
         return () => {
             cancelled = true;
         };
-    }, [tab]);
+    }, []);
+
+    const activeCount = subs.filter((s) => s.status === "active").length;
+    const pendingCount = subs.filter((s) => s.status === "pending").length;
+    const monthlyRevenue = subs
+        .filter((s) => s.status === "active")
+        .reduce((sum, s) => sum + s.monthlyPrice, 0);
+
+    const totalPages = Math.max(1, Math.ceil(subs.length / PAGE_SIZE));
+    const pageRows = subs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    function handleExportCsv() {
+        const header = [
+            "Client Name",
+            "Package",
+            "Start Date",
+            "End Date",
+            "Renewal",
+            "Status",
+            "Monthly Price",
+        ];
+        const rows = subs.map((s) => [
+            s.clientName,
+            s.packageName,
+            s.startDate,
+            s.endDate,
+            s.renewalType,
+            s.status,
+            String(s.monthlyPrice),
+        ]);
+        const csv = [header, ...rows]
+            .map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
+            .join("\n");
+
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `subscriptions-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
 
     if (loading) {
         return (
-            <Layout title="All Sessions">
-                <p style={{ color: "#999" }}>Loading sessions...</p>
+            <Layout title="Subscription">
+                <p style={{ color: "#999", padding: "24px" }}>Loading subscriptions...</p>
             </Layout>
         );
     }
 
     return (
-        <Layout title="All Sessions">
-            <div className="sessions-header">
+        <Layout title="Subscription">
+            {/* HEADER */}
+            <div className="subs-header">
                 <div>
-                    <div className="sessions-title">Sessions Management</div>
-                    <div className="sessions-subtitle">
-                        Monitor real-time training activity and session media.
+                    <div className="subs-title">Subscription Manage</div>
+                    <div className="subs-subtitle">
+                        Manage active and historical client subscriptions.
                     </div>
                 </div>
-                <div className="sessions-tabs">
-                    {(["today", "week", "rescheduled"] as TabKey[]).map((k) => (
-                        <button
-                            key={k}
-                            className={`sessions-tab-btn ${tab === k ? "active" : ""}`}
-                            onClick={() => setTab(k)}
-                        >
-                            {k === "today" ? "Today" : k === "week" ? "This Week" : "Rescheduled"}
-                        </button>
-                    ))}
+                <div className="subs-header-actions">
+                    <button className="subs-filter-btn">
+                        <i className="bx bx-filter-alt" /> Filter
+                    </button>
+                    <button className="subs-export-btn" onClick={handleExportCsv}>
+                        <i className="bx bx-download" /> Export CSV
+                    </button>
                 </div>
             </div>
 
-            <div className="sessions-metric-cards">
-                <div className="sessions-metric-card">
-                    <div className="sessions-metric-label">TOTAL SESSIONS TODAY</div>
-                    <div className="sessions-metric-value">{totalCount}</div>
+            {/* STATS ROW (3 Cards Up) */}
+            <div className="subs-stats-row">
+                <div className="subs-stat-card dark">
+                    <div className="subs-stat-label">MONTHLY REVENUE</div>
+                    <div className="subs-stat-value">
+                        ₹{monthlyRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="subs-stat-footnote">
+                        <i className="bx bx-up-arrow-alt" /> 12% from last month
+                    </div>
                 </div>
-                <div className="sessions-metric-card">
-                    <div className="sessions-metric-label">COMPLETION RATE (%)</div>
-                    <div className="sessions-metric-value">{completionPct}</div>
+
+                <div className="subs-stat-card">
+                    <div className="subs-stat-label">ACTIVE SUBSCRIPTIONS</div>
+                    <div className="subs-stat-value">{activeCount}</div>
+                    <div className="subs-stat-footnote success">
+                        <i className="bx bx-check-circle" /> Healthy retention rate (94%)
+                    </div>
                 </div>
-                <div className="sessions-metric-card">
-                    <div className="sessions-metric-label">SESSIONS WITH MEDIA</div>
-                    <div className="sessions-metric-value">{mediaCount}</div>
+
+                <div className="subs-stat-card">
+                    <div className="subs-stat-label">PENDING RENEWALS</div>
+                    <div className="subs-stat-value danger">{pendingCount}</div>
+                    <div className="subs-stat-footnote warning">
+                        <i className="bx bx-time-five" /> Requires manual approval
+                    </div>
                 </div>
             </div>
 
-            <div className="sessions-table-card">
-                <div className="sessions-table-header">
-                    <div className="sessions-table-title">All Sessions</div>
-                </div>
-
-                {sessions.length === 0 ? (
-                    <div className="profile-empty" style={{ padding: 24 }}>
-                        No sessions found for this view.
+            {/* TABLE SECTION (Table Down) */}
+            <div className="subs-table-card">
+                {subs.length === 0 ? (
+                    <div className="profile-empty" style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
+                        No subscriptions yet.
                     </div>
                 ) : (
                     <>
-                        <table className="sessions-table">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Trainer</th>
-                                    <th>Client</th>
-                                    <th>Service</th>
-                                    <th>Status</th>
-                                    <th>Media</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sessions.slice(0, 5).map((s) => (
-                                    <tr key={s.id}>
-                                        <td className="sessions-mono">{s.time}</td>
-                                        <td>{s.trainerName}</td>
-                                        <td className="sessions-bold">{s.clientName}</td>
-                                        <td>
-                                            <span className="sessions-service-pill">
-                                                {s.serviceType.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            {s.status === "live" ? (
-                                                <span className="sessions-status-pill live">
-                                                    <span className="live-dot" /> LIVE
-                                                </span>
-                                            ) : s.status === "completed" ? (
-                                                <span className="sessions-status-pill done">Done</span>
-                                            ) : (
-                                                <span className="sessions-status-pill upcoming">
-                                                    Upcoming
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {s.hasMedia ? (
-                                                <i className="bx bx-play-circle sessions-media-icon" />
-                                            ) : (
-                                                <span className="sessions-no-media">—</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <button className="sessions-action-btn">
-                                                <i className="bx bx-show" />
-                                            </button>
-                                            <button className="sessions-action-btn">
-                                                <i className="bx bx-edit" />
-                                            </button>
-                                        </td>
+                        <div style={{ overflowX: "auto" }}>
+                            <table className="subs-table">
+                                <thead>
+                                    <tr>
+                                        <th>CLIENT NAME</th>
+                                        <th>PACKAGE</th>
+                                        <th>START DATE</th>
+                                        <th>END DATE</th>
+                                        <th style={{ textAlign: "center" }}>RENEWAL</th>
+                                        <th style={{ textAlign: "center" }}>STATUS</th>
+                                        <th style={{ textAlign: "center" }}>ACTIONS</th>
                                     </tr>
+                                </thead>
+                                <tbody>
+                                    {pageRows.map((s) => (
+                                        <tr key={s.id}>
+                                            <td>
+                                                <div className="subs-client-cell">
+                                                    <span className="subs-client-avatar">
+                                                        {s.clientInitials}
+                                                    </span>
+                                                    <span className="subs-client-name">
+                                                        {s.clientName}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span className="subs-package-pill">
+                                                    {s.packageName}
+                                                </span>
+                                            </td>
+                                            <td className="subs-mono">{s.startDate}</td>
+                                            <td className="subs-mono">{s.endDate}</td>
+                                            <td style={{ textAlign: "center", fontWeight: 500 }}>
+                                                {s.renewalType === "auto" ? "Auto" : "Manual"}
+                                            </td>
+                                            <td style={{ textAlign: "center" }}>
+                                                <span className={`subs-status-pill status-${s.status}`}>
+                                                    {s.status.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div className="subs-actions-cell">
+                                                    <button
+                                                        className="subs-action-btn"
+                                                        onClick={() => navigate(`/subscriptions/${s.id}`)}
+                                                    >
+                                                        <i className="bx bx-dots-vertical-rounded" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* PAGINATION */}
+                        <div className="subs-pagination">
+                            <span className="subs-pagination-count">
+                                Showing {pageRows.length} of {subs.length} subscriptions
+                            </span>
+                            <div className="subs-pagination-controls">
+                                <button
+                                    className="subs-page-btn"
+                                    disabled={page === 1}
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                >
+                                    <i className="bx bx-chevron-left" />
+                                </button>
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                                    <button
+                                        key={p}
+                                        className={`subs-page-btn ${p === page ? "active" : ""}`}
+                                        onClick={() => setPage(p)}
+                                    >
+                                        {p}
+                                    </button>
                                 ))}
-                            </tbody>
-                        </table>
-                        <div className="sessions-table-footer">
-                            Showing {Math.min(5, sessions.length)} of {sessions.length} sessions
+                                <button
+                                    className="subs-page-btn"
+                                    disabled={page === totalPages}
+                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                >
+                                    <i className="bx bx-chevron-right" />
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
             </div>
 
-            <div className="sessions-media-section">
-                <div className="sessions-media-header">
-                    <div className="sessions-media-title">
-                        <span className="sessions-media-icon-badge">
-                            <i className="bx bx-microphone" />
-                        </span>
-                        Recent Audio Sessions
+            {/* ANALYTICS SECTION (Bottom) */}
+            <div className="subs-analytics-card">
+                <div className="subs-analytics-left">
+                    <span className="subs-analytics-icon">
+                        <i className="bx bx-line-chart" />
+                    </span>
+                    <div>
+                        <div className="subs-analytics-title">Subscription Analytics</div>
+                        <div className="subs-analytics-desc">
+                            Deep dive into churn rates, LTV, and package performance metrics.
+                        </div>
                     </div>
-                    <button
-                        className="sessions-media-library-btn"
-                        onClick={() => navigate("/sessions/media")}
-                    >
-                        Full Media Library <i className="bx bx-right-arrow-alt" />
-                    </button>
                 </div>
-
-                {mediaCards.length === 0 ? (
-                    <div className="profile-empty">No recorded sessions yet.</div>
-                ) : (
-                    <div className="sessions-media-grid">
-                        {mediaCards.map((m) => (
-                            <div key={m.id} className="media-card">
-                                <div className="media-card-waveform">
-                                    <span className="media-card-filetype">.{m.fileType}</span>
-                                    <span className="media-card-duration">{m.duration}</span>
-                                </div>
-                                <div className="media-card-body">
-                                    <div className="media-card-title">{m.title}</div>
-                                    <div className="media-card-footer">
-                                        <div className="media-card-trainer">
-                                            <span className="media-card-avatar">
-                                                {m.trainerInitials}
-                                            </span>
-                                            <span>
-                                                {m.trainerName} • {m.ago}
-                                            </span>
-                                        </div>
-                                        <button className="media-card-download">
-                                            <i className="bx bx-download" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                <button className="subs-analytics-btn">View Reports</button>
             </div>
         </Layout>
     );

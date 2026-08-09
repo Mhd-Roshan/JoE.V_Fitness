@@ -1,6 +1,9 @@
+/* =========================================
+   HEADER SECTION
+========================================= */
 .subs-header {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 16px;
@@ -8,16 +11,16 @@
 }
 
 .subs-title {
-    font-family: "Work Sans", Helvetica;
-    font-size: 25px;
-    font-weight: 700;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 24px;
+    font-weight: 800;
     color: #00225d;
 }
 
 .subs-subtitle {
-    font-family: "Inter", Helvetica;
+    font-family: "Inter", Helvetica, sans-serif;
     font-size: 14px;
-    color: #545454;
+    color: #6B7280;
     margin-top: 4px;
 }
 
@@ -32,202 +35,64 @@
     align-items: center;
     gap: 8px;
     background-color: #ffffff;
-    border: 1px solid #c0c0c0;
-    border-radius: 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
     padding: 8px 16px;
     font-family: "JetBrains Mono", monospace;
-    font-size: 12px;
-    color: #00225d;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111827;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.subs-table-card {
-    background-color: #ffffff;
-    border: 1px solid #c0c0c0;
-    border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
-    margin-bottom: 24px;
-}
-
-.subs-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.subs-table th {
-    text-align: left;
-    background-color: #ffffff;
-    border-bottom: 1px solid #c0c0c0;
-    color: #00225d;
-    font-family: "Inter", Helvetica;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    padding: 16px 24px;
-}
-
-.subs-table td {
-    padding: 16px 24px;
-    border-top: 1px solid #c0c0c0;
-    font-family: "Work Sans", Helvetica;
-    font-size: 14px;
-    color: #00225d;
-}
-
-.subs-client-cell {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.subs-client-avatar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background-color: #a3baff;
-    color: #30487f;
-    font-family: "Work Sans", Helvetica;
-    font-size: 12px;
-    font-weight: 700;
-    flex-shrink: 0;
-}
-
-.subs-client-name {
-    font-family: "Inter", Helvetica;
+.subs-filter-btn i,
+.subs-export-btn i {
     font-size: 16px;
-    font-weight: 700;
-    color: #191c1e;
+    color: #4b5563;
 }
 
-.subs-package-pill {
-    background-color: #e6e8ea;
-    border: 1px solid #c0c0c0;
-    border-radius: 5px;
-    padding: 3px 8px;
-    font-family: "Work Sans", Helvetica;
-    font-size: 12px;
-    font-weight: 700;
-    color: #00225d;
+.subs-filter-btn:hover,
+.subs-export-btn:hover {
+    background-color: #f9fafb;
+    border-color: #9ca3af;
 }
 
-.subs-mono {
-    font-family: "JetBrains Mono", monospace;
-    font-size: 12px;
-}
-
-.subs-status-pill {
-    display: inline-block;
-    border-radius: 5px;
-    padding: 3px 16px;
-    font-family: "Work Sans", Helvetica;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    text-transform: uppercase;
-}
-
-.subs-status-pill.status-active {
-    background-color: #dcfce7;
-    color: #15803d;
-}
-
-.subs-status-pill.status-paused {
-    background-color: #fef3c7;
-    color: #b45309;
-}
-
-.subs-status-pill.status-expired,
-.subs-status-pill.status-pending {
-    background-color: #ffdad6;
-    color: #93000a;
-}
-
-.subs-actions-cell {
-    display: flex;
-    justify-content: flex-end;
-}
-
-.subs-action-btn {
-    background: none;
-    border: none;
-    color: #00225d;
-    font-size: 16px;
-    cursor: pointer;
-    padding: 4px;
-}
-
-.subs-pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px 24px;
-    border-top: 1px solid #c0c0c0;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.subs-pagination-count {
-    font-family: "Work Sans", Helvetica;
-    font-size: 14px;
-    color: #545454;
-}
-
-.subs-pagination-controls {
-    display: flex;
-    gap: 4px;
-}
-
-.subs-page-btn {
-    width: 32px;
-    height: 32px;
-    background-color: #ffffff;
-    border: 1px solid #c0c0c0;
-    border-radius: 2px;
-    color: #191c1e;
-    cursor: pointer;
-    font-family: "JetBrains Mono", monospace;
-    font-size: 12px;
-}
-
-.subs-page-btn.active {
-    background-color: #00225d;
-    border-color: #00225d;
-    color: #ffffff;
-}
-
+/* =========================================
+   STATS ROW (Cards Up)
+========================================= */
 .subs-stats-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+    /* Space between stats and table */
 }
 
 .subs-stat-card {
     background-color: #ffffff;
-    border: 1px solid #c0c0c0;
+    border: 1px solid #d1d5db;
     border-radius: 10px;
     padding: 24px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .subs-stat-card.dark {
     background-color: #00225d;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    border: none;
 }
 
 .subs-stat-label {
-    font-family: "Work Sans", Helvetica;
+    font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 1.2px;
+    font-weight: 700;
+    letter-spacing: 1px;
     text-transform: uppercase;
     color: #00225d;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 .subs-stat-card.dark .subs-stat-label {
@@ -236,7 +101,7 @@
 
 .subs-stat-value {
     font-family: "JetBrains Mono", monospace;
-    font-size: 40px;
+    font-size: 36px;
     font-weight: 500;
     color: #00225d;
 }
@@ -252,11 +117,14 @@
 .subs-stat-footnote {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
     font-family: "JetBrains Mono", monospace;
     font-size: 12px;
-    color: #00225d;
     margin-top: 16px;
+}
+
+.subs-stat-footnote i {
+    font-size: 16px;
 }
 
 .subs-stat-footnote.success {
@@ -271,61 +139,296 @@
     color: rgba(255, 255, 255, 0.9);
 }
 
+/* =========================================
+   TABLE SECTION (Table Down)
+========================================= */
+.subs-table-card {
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Added responsive wrapper for smaller screens */
+.subs-table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.subs-table {
+    width: 100%;
+    border-collapse: collapse;
+    white-space: nowrap;
+    /* Prevents awkward text wrapping */
+}
+
+.subs-table th {
+    text-align: left;
+    background-color: #fcfcfd;
+    border-bottom: 1px solid #d1d5db;
+    color: #00225d;
+    font-family: "Inter", Helvetica, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 16px 24px;
+}
+
+.subs-table td {
+    padding: 16px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
+    color: #111827;
+    vertical-align: middle;
+}
+
+/* Added Table Row Hover Effect */
+.subs-table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.subs-table tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+.subs-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Added Empty State Styling */
+.subs-empty-state {
+    padding: 48px 24px;
+    text-align: center;
+    font-family: "Inter", Helvetica, sans-serif;
+    color: #6b7280;
+    font-size: 15px;
+}
+
+.subs-client-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.subs-client-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #a3baff;
+    color: #00225d;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.subs-client-name {
+    font-family: "Inter", Helvetica, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.subs-package-pill {
+    background-color: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.subs-mono {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.subs-status-pill {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.subs-status-pill.status-active {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.subs-status-pill.status-paused {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.subs-status-pill.status-expired,
+.subs-status-pill.status-pending {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.subs-actions-cell {
+    display: flex;
+    justify-content: center;
+}
+
+.subs-action-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.subs-action-btn:hover {
+    background-color: #f3f4f6;
+    color: #00225d;
+}
+
+/* =========================================
+   PAGINATION
+========================================= */
+.subs-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-top: 1px solid #d1d5db;
+    flex-wrap: wrap;
+    gap: 12px;
+    background-color: #ffffff;
+}
+
+.subs-pagination-count {
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.subs-pagination-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.subs-page-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background-color: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    color: #374151;
+    cursor: pointer;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.subs-page-btn i {
+    font-size: 18px;
+}
+
+.subs-page-btn:hover:not(:disabled) {
+    background-color: #f3f4f6;
+}
+
+.subs-page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: #f9fafb;
+}
+
+.subs-page-btn.active {
+    background-color: #00225d;
+    border-color: #00225d;
+    color: #ffffff;
+}
+
+/* =========================================
+   ANALYTICS SECTION (Bottom)
+========================================= */
 .subs-analytics-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 24px;
     background-color: #ffffff;
-    border: 1px solid #545454;
-    border-radius: 10px;
-    padding: 32px;
+    border: 1.5px dashed #d1d5db;
+    border-radius: 12px;
+    padding: 24px 32px;
     flex-wrap: wrap;
 }
 
 .subs-analytics-left {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 20px;
 }
 
 .subs-analytics-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
+    width: 56px;
+    height: 56px;
     border-radius: 12px;
-    background-color: rgba(144, 0, 15, 0.1);
-    color: #90000f;
-    font-size: 20px;
+    background-color: #fef2f2;
+    color: #b91c1c;
+    font-size: 28px;
     flex-shrink: 0;
 }
 
 .subs-analytics-title {
-    font-family: "Hanken Grotesk", Helvetica;
+    font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 16px;
-    color: #191c1e;
+    color: #111827;
     font-weight: 700;
 }
 
 .subs-analytics-desc {
-    font-family: "Inter", Helvetica;
-    font-size: 16px;
-    color: #00225d;
-    margin-top: 2px;
+    font-family: "Inter", Helvetica, sans-serif;
+    font-size: 14px;
+    color: #4b5563;
+    margin-top: 4px;
 }
 
 .subs-analytics-btn {
     background-color: #bb0013;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     color: #ffffff;
-    font-family: "Work Sans", Helvetica;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.6px;
-    padding: 16px 32px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    font-family: "Work Sans", Helvetica, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 24px;
     cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.subs-analytics-btn:hover {
+    background-color: #99000f;
+}
+
+.subs-analytics-btn:active {
+    transform: scale(0.98);
 }
