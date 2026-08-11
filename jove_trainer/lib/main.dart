@@ -5,6 +5,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 // --- ADDED THIS IMPORT FOR LOCALIZATION ---
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+// --- ADDED THESE IMPORTS FOR DARK MODE ---
+import 'package:provider/provider.dart';
+import 'theme/app_theme.dart';
+import 'theme/theme_provider.dart';
+
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 
@@ -15,7 +20,14 @@ import 'screens/auth/login_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const JoveTrainerApp());
+
+  // ---> WRAPPED APP IN MULTIPROVIDER FOR THEME STATE <---
+  runApp(
+    MultiProvider(
+      providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
+      child: const JoveTrainerApp(),
+    ),
+  );
 }
 
 // 1. STATEFUL WIDGET TO SUPPORT APP RESTART
@@ -48,6 +60,9 @@ class _JoveTrainerAppState extends State<JoveTrainerApp> {
 
   @override
   Widget build(BuildContext context) {
+    // ---> LISTEN TO THEME CHANGES <---
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return MaterialApp(
       key: _appKey,
       title: 'JoE.V Trainer',
@@ -67,15 +82,11 @@ class _JoveTrainerAppState extends State<JoveTrainerApp> {
       ],
 
       // ------------------------------------------------
-      theme: ThemeData(
-        primaryColor: const Color(0xFF00225D),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00225D),
-          primary: const Color(0xFF00225D),
-        ),
-        fontFamily: 'WorkSans',
-        useMaterial3: true,
-      ),
+      // ---> NEW DYNAMIC THEME SETTINGS <---
+      // ------------------------------------------------
+      themeMode: themeProvider.themeMode,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
 
       // 6. IF IT IS THE FIRST OPEN, SHOW SPLASH. OTHERWISE, GO STRAIGHT TO AUTH
       home: _isInitialLoad ? const SplashScreen() : const AuthWrapper(),

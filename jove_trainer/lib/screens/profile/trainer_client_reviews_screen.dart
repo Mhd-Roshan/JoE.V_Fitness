@@ -16,12 +16,8 @@ class TrainerClientReviewsScreen extends StatefulWidget {
 
 class _TrainerClientReviewsScreenState
     extends State<TrainerClientReviewsScreen> {
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color headerBlue = Color(0xFF003AA3);
+  // Keep brand red static
   static const Color primaryRed = Color(0xFFC7001A);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
-  static const Color textGrey = Color(0xFF6B7280);
 
   // ---> UPDATED: Now uses translated months! <---
   String _formatDate(DateTime date, Map<String, String> strings) {
@@ -63,12 +59,18 @@ class _TrainerClientReviewsScreenState
 
   @override
   Widget build(BuildContext context) {
-    // ---> Get Strings Here <---
     final strings = languageService.strings;
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+
     return Scaffold(
-      backgroundColor: bgGrey,
+      backgroundColor: bgColor,
       body: Column(
         children: [
           const _TopHeaderBand(),
@@ -78,7 +80,7 @@ class _TrainerClientReviewsScreenState
                     child: Text(
                       strings['authError'] ??
                           'Authentication error. Please log in again.',
-                      style: GoogleFonts.workSans(color: textGrey),
+                      style: GoogleFonts.workSans(color: subTextColor),
                     ),
                   )
                 : Column(
@@ -92,7 +94,7 @@ class _TrainerClientReviewsScreenState
                           style: GoogleFonts.workSans(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: darkBlue,
+                            color: textColor,
                           ),
                         ),
                       ),
@@ -107,9 +109,9 @@ class _TrainerClientReviewsScreenState
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==
                                 ConnectionState.waiting) {
-                              return const Center(
+                              return Center(
                                 child: CircularProgressIndicator(
-                                  color: darkBlue,
+                                  color: brandBlue,
                                 ),
                               );
                             }
@@ -119,10 +121,10 @@ class _TrainerClientReviewsScreenState
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.star_outline_rounded,
                                       size: 64,
-                                      color: borderGrey,
+                                      color: dividerColor,
                                     ),
                                     const SizedBox(height: 16),
                                     Text(
@@ -131,7 +133,7 @@ class _TrainerClientReviewsScreenState
                                       style: GoogleFonts.workSans(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w500,
-                                        color: textGrey,
+                                        color: subTextColor,
                                       ),
                                     ),
                                   ],
@@ -207,14 +209,16 @@ class _TrainerClientReviewsScreenState
         ? (strings['reviewWord'] ?? 'review')
         : (strings['reviewsWord'] ?? 'reviews');
 
+    final primaryColor = Theme.of(context).primaryColor;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
-        color: headerBlue,
+        color: primaryColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: headerBlue.withValues(alpha: 0.2),
+            color: primaryColor.withValues(alpha: 0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -268,6 +272,11 @@ class _TrainerClientReviewsScreenState
     Map<String, dynamic> feedback,
     Map<String, String> strings,
   ) {
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+
     final clientName =
         feedback['clientName']?.toString() ??
         strings['anonymous'] ??
@@ -278,7 +287,6 @@ class _TrainerClientReviewsScreenState
     final clientImage = feedback['clientImageUrl']?.toString() ?? '';
     final Timestamp? t = feedback['createdAt'];
 
-    // ---> UPDATED: Passing strings map to the formatter <---
     final String formattedDate = _formatDate(
       t?.toDate() ?? DateTime.now(),
       strings,
@@ -292,9 +300,9 @@ class _TrainerClientReviewsScreenState
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderGrey, width: 1.5),
+        border: Border.all(color: dividerColor, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -311,7 +319,7 @@ class _TrainerClientReviewsScreenState
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFFF3F4F6),
+                backgroundColor: dividerColor,
                 backgroundImage: clientImage.isNotEmpty
                     ? NetworkImage(clientImage)
                     : null,
@@ -320,7 +328,7 @@ class _TrainerClientReviewsScreenState
                         initial,
                         style: GoogleFonts.workSans(
                           fontSize: 16,
-                          color: darkBlue,
+                          color: textColor,
                           fontWeight: FontWeight.bold,
                         ),
                       )
@@ -336,7 +344,7 @@ class _TrainerClientReviewsScreenState
                       style: GoogleFonts.workSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: darkBlue,
+                        color: textColor,
                       ),
                     ),
                     Text(
@@ -344,7 +352,7 @@ class _TrainerClientReviewsScreenState
                       style: GoogleFonts.workSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF9CA3AF),
+                        color: subTextColor,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -356,14 +364,14 @@ class _TrainerClientReviewsScreenState
                 style: GoogleFonts.workSans(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: textGrey,
+                  color: subTextColor,
                 ),
               ),
             ],
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(color: borderGrey, thickness: 1, height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: dividerColor, thickness: 1, height: 1),
           ),
           Row(
             children: List.generate(
@@ -385,9 +393,7 @@ class _TrainerClientReviewsScreenState
             style: GoogleFonts.workSans(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: reviewText.isNotEmpty
-                  ? const Color(0xFF374151)
-                  : const Color(0xFF9CA3AF),
+              color: reviewText.isNotEmpty ? textColor : subTextColor,
               fontStyle: reviewText.isNotEmpty
                   ? FontStyle.normal
                   : FontStyle.italic,
@@ -417,9 +423,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Header Color
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -436,7 +442,8 @@ class _TopHeaderBand extends StatelessWidget {
                 color: Colors.transparent,
                 child: const Icon(
                   Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white,
+                  color: Colors
+                      .white, // Back icon stays white on the primary header
                   size: 22,
                 ),
               ),

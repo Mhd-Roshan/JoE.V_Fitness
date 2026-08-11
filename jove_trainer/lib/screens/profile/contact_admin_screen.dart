@@ -18,12 +18,8 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
   final TextEditingController _messageController = TextEditingController();
   bool _isSubmitting = false;
 
-  // App Colors
-  static const Color darkBlue = Color(0xFF00225D);
+  // Keep brand red static
   static const Color primaryRed = Color(0xFFBB0013);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
-  static const Color textGrey = Color(0xFF6B7280);
 
   @override
   void dispose() {
@@ -33,7 +29,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
   }
 
   Future<void> _sendMessage() async {
-    final strings = languageService.strings; // Get strings for snackbars
+    final strings = languageService.strings;
     final subject = _subjectController.text.trim();
     final message = _messageController.text.trim();
 
@@ -53,7 +49,6 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
 
-      // Fetch trainer name just to make it easier for the admin to read in the database
       String trainerName = strings['unknownTrainer'] ?? 'Unknown Trainer';
       if (uid != null) {
         final userDoc = await FirebaseFirestore.instance
@@ -68,19 +63,17 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
         }
       }
 
-      // Save the message to Firestore
       await FirebaseFirestore.instance.collection('support_messages').add({
         'trainerId': uid ?? 'unauthenticated',
         'trainerName': trainerName,
         'subject': subject,
         'message': message,
-        'status': 'unread', // Admin can mark this as 'resolved' later
+        'status': 'unread',
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
 
-      // Show success and go back
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -107,11 +100,18 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ---> Fetch translations <---
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
-      backgroundColor: bgGrey,
+      backgroundColor: bgColor,
       body: Column(
         children: [
           const _TopHeaderBand(),
@@ -127,9 +127,9 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                     children: [
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
-                        child: const Icon(
+                        child: Icon(
                           Icons.arrow_back,
-                          color: darkBlue,
+                          color: textColor,
                           size: 24,
                         ),
                       ),
@@ -139,7 +139,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                         style: GoogleFonts.workSans(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: darkBlue,
+                          color: textColor,
                         ),
                       ),
                     ],
@@ -147,20 +147,22 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
 
                   const SizedBox(height: 24),
 
-                  // Info Card
+                  // Info Card (Dynamically adapts to Dark/Light Mode)
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE0F2FE), // Light Blue
+                      color: brandBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFBAE6FD)),
+                      border: Border.all(
+                        color: brandBlue.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.support_agent_rounded,
-                          color: Color(0xFF0284C7),
+                          color: brandBlue,
                           size: 32,
                         ),
                         const SizedBox(width: 16),
@@ -173,7 +175,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                                 style: GoogleFonts.workSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF0369A1),
+                                  color: textColor,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -183,7 +185,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                                 style: GoogleFonts.workSans(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF0C4A6E),
+                                  color: subTextColor,
                                 ),
                               ),
                             ],
@@ -199,9 +201,9 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderGrey),
+                      border: Border.all(color: dividerColor),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,34 +214,37 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                           style: GoogleFonts.workSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: darkBlue,
+                            color: textColor,
                           ),
                         ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _subjectController,
+                          style: GoogleFonts.workSans(
+                            color: textColor,
+                          ), // Text color adapting to theme
                           decoration: InputDecoration(
                             hintText:
                                 strings['subjectHint'] ??
                                 'e.g. Schedule Issue, App Bug, Question',
                             hintStyle: GoogleFonts.workSans(
-                              color: textGrey,
+                              color: subTextColor,
                               fontSize: 13,
                             ),
                             filled: true,
-                            fillColor: bgGrey,
+                            fillColor: bgColor,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: borderGrey),
+                              borderSide: BorderSide(color: dividerColor),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: darkBlue,
+                              borderSide: BorderSide(
+                                color: brandBlue,
                                 width: 1.5,
                               ),
                             ),
@@ -254,35 +259,38 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                           style: GoogleFonts.workSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
-                            color: darkBlue,
+                            color: textColor,
                           ),
                         ),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _messageController,
                           maxLines: 6,
+                          style: GoogleFonts.workSans(
+                            color: textColor,
+                          ), // Text color adapting to theme
                           decoration: InputDecoration(
                             hintText:
                                 strings['messageHint'] ??
                                 'Describe your issue or question in detail...',
                             hintStyle: GoogleFonts.workSans(
-                              color: textGrey,
+                              color: subTextColor,
                               fontSize: 13,
                             ),
                             filled: true,
-                            fillColor: bgGrey,
+                            fillColor: bgColor,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: borderGrey),
+                              borderSide: BorderSide(color: dividerColor),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: darkBlue,
+                              borderSide: BorderSide(
+                                color: brandBlue,
                                 width: 1.5,
                               ),
                             ),
@@ -356,9 +364,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3), // Header Blue
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Header Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),

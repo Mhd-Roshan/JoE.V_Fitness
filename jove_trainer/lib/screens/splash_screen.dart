@@ -1,5 +1,5 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'auth/login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -10,140 +10,256 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with TickerProviderStateMixin {
-  late final AnimationController _logoController;
-  late final AnimationController _pulseController;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
 
-  late final Animation<double> _logoBlur;
-  late final Animation<double> _logoOpacity;
-  late final Animation<double> _logoScale;
+  // The Telegram Animation sequences for Logo (Center)
+  late final Animation<double> _scaleAnimation;
+  late final Animation<Offset> _positionAnimation;
+  late final Animation<double> _opacityAnimation;
+
+  // The Instagram Animation sequences for Text (Bottom)
+  late final Animation<double> _textOpacityAnimation;
+  late final Animation<Offset> _textSlideAnimation;
 
   @override
   void initState() {
     super.initState();
 
-    const revealDuration = Duration(milliseconds: 900);
-    const revealCurve = Curves.easeOutCubic;
-
-    _logoController = AnimationController(
+    // SPEED UPDATE: Cut from 2200ms to 1500ms (1.5 seconds)
+    _controller = AnimationController(
       vsync: this,
-      duration: revealDuration,
+      duration: const Duration(milliseconds: 1500),
     );
-    _logoBlur = Tween<double>(
-      begin: 10.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(parent: _logoController, curve: revealCurve));
-    _logoOpacity = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _logoController, curve: Curves.easeOut));
-    _logoScale = Tween<double>(
-      begin: 0.9,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _logoController, curve: revealCurve));
 
-    // Ambient breathing glow behind the logo.
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    )..repeat(reverse: true);
-
-    _logoController.forward();
-
-    _navigateToLogin();
-  }
-
-  Future<void> _navigateToLogin() async {
-    await Future.delayed(const Duration(milliseconds: 2600));
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            FadeTransition(opacity: animation, child: const LoginScreen()),
+    // ---------------------------------------------------------
+    // 1. CENTER LOGO: TELEGRAM TAKEOFF PHYSICS
+    // ---------------------------------------------------------
+    _scaleAnimation = TweenSequence<double>([
+      // Pop in with a quick bounce
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 30.0,
       ),
-    );
+      // Idle / Wait (to read text)
+      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 45.0),
+      // Anticipation Squeeze (whips back)
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 0.7,
+        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+        weight: 15.0,
+      ),
+      // Shrink as it flies off
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.7,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 10.0,
+      ),
+    ]).animate(_controller);
+
+    _positionAnimation = TweenSequence<Offset>([
+      // Stay centered
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(Offset.zero),
+        weight: 85.0,
+      ),
+      // Shoots aggressively up and to the right (lightning fast)
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(1.5, -2.0),
+        ).chain(CurveTween(curve: Curves.easeInBack)),
+        weight: 15.0,
+      ),
+    ]).animate(_controller);
+
+    _opacityAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 10.0,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 80.0),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 10.0,
+      ),
+    ]).animate(_controller);
+
+    // ---------------------------------------------------------
+    // 2. BOTTOM TEXT: INSTAGRAM FADE & SLIDE UP
+    // ---------------------------------------------------------
+    _textOpacityAnimation = TweenSequence<double>([
+      // Wait for logo to start popping in
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20.0),
+      // Fade in fast
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 15.0,
+      ),
+      // Stay visible
+      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 45.0),
+      // Fade out before logo flies away
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 10.0,
+      ),
+      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 10.0),
+    ]).animate(_controller);
+
+    _textSlideAnimation = TweenSequence<Offset>([
+      // Start slightly lower
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(const Offset(0.0, 0.5)),
+        weight: 20.0,
+      ),
+      // Slide up gently to default position
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0.0, 0.5),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 15.0,
+      ),
+      // Hold position
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(Offset.zero),
+        weight: 65.0,
+      ),
+    ]).animate(_controller);
+
+    // Start the animation and navigate to Login
+    _controller.forward().then((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          // Lightning-fast crossfade into the app (250ms)
+          transitionDuration: const Duration(milliseconds: 250),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const LoginScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      );
+    });
   }
 
   @override
   void dispose() {
-    _logoController.dispose();
-    _pulseController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: Stack(
         fit: StackFit.expand,
         children: [
+          // Subtle background gradient
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+                begin: Alignment.topRight,
+                end: Alignment.bottomLeft,
                 colors: [
-                  Color(0xFFB9CCF2),
+                  Color(0xFFE8F0FE),
                   Colors.white,
                   Colors.white,
-                  Color(0xFFF2C6CB),
+                  Color(0xFFFDE8EA),
                 ],
-                stops: [0.0, 0.35, 0.65, 1.0],
+                stops: [0.0, 0.4, 0.6, 1.0],
               ),
             ),
           ),
 
+          // 1. CENTER: The Telegram-style animated logo
           Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    final pulse = 0.5 + (_pulseController.value * 0.5);
-                    return Container(
-                      width: 220 * pulse,
-                      height: 220 * pulse,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            Colors.white.withValues(alpha: 0.9),
-                            Colors.white.withValues(alpha: 0.0),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                // Logo: blur-to-focus + fade + gentle scale settle.
-                AnimatedBuilder(
-                  animation: _logoController,
-                  builder: (context, child) {
-                    return Opacity(
-                      opacity: _logoOpacity.value,
-                      child: Transform.scale(
-                        scale: _logoScale.value,
-                        child: ImageFiltered(
-                          imageFilter: ImageFilter.blur(
-                            sigmaX: _logoBlur.value,
-                            sigmaY: _logoBlur.value,
-                          ),
-                          child: child,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Image.asset(
-                    'assets/images/landing_photo.png',
-                    width: 180,
-                    height: 180,
-                    fit: BoxFit.contain,
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return Opacity(
+                  opacity: _opacityAnimation.value,
+                  child: SlideTransition(
+                    position: _positionAnimation,
+                    child: Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: child,
+                    ),
                   ),
+                );
+              },
+              child: Image.asset(
+                'assets/images/landing_photo.png',
+                width: 140,
+                height: 140,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+
+          // 2. BOTTOM: The Instagram-style Tagline Text
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 50.0),
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _textOpacityAnimation.value,
+                    child: SlideTransition(
+                      position:
+                          _textSlideAnimation, // <--- FIXED TYPO HERE! No .value
+                      child: child,
+                    ),
+                  );
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Kerala's 1st",
+                      style: GoogleFonts.workSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFFC7001A), // Brand Red
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "HOME FITNESS",
+                      style: GoogleFonts.workSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF00225D), // Brand Blue
+                        letterSpacing: 3.0,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ],

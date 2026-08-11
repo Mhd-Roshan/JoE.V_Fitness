@@ -44,10 +44,8 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   bool _loading = true;
   List<_TrainerSession> _sessions = [];
 
-  // Removed the unused color variables!
-  static const Color darkBlue = Color(0xFF00225D);
+  // Keep brand red static
   static const Color primaryRed = Color(0xFFBB0013);
-  static const Color bgGrey = Color(0xFFFFFFFF);
 
   @override
   void initState() {
@@ -134,16 +132,24 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   Widget build(BuildContext context) {
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+    final primaryBlue = Theme.of(context).primaryColor;
+
     final heroSession = _sessions.cast<_TrainerSession?>().firstWhere(
       (s) => s?.status != 'completed',
       orElse: () => _sessions.isNotEmpty ? _sessions.first : null,
     );
 
     return Scaffold(
-      backgroundColor: bgGrey,
+      backgroundColor: bgColor,
       bottomNavigationBar: _BottomNav(currentIndex: 0, strings: strings),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: darkBlue))
+          ? Center(child: CircularProgressIndicator(color: primaryBlue))
           : SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 30),
               child: Column(
@@ -170,10 +176,10 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: cardColor,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(0xFFE5E7EB),
+                                color: dividerColor,
                                 width: 1.5,
                               ),
                             ),
@@ -181,7 +187,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                               strings['noSessionsScheduled'] ??
                                   'No sessions scheduled for today yet.',
                               style: GoogleFonts.workSans(
-                                color: const Color(0xFF6B7280),
+                                color: subTextColor,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -195,7 +201,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                           style: GoogleFonts.workSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
-                            color: darkBlue,
+                            color: textColor,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -263,7 +269,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                               style: GoogleFonts.workSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: darkBlue,
+                                color: textColor,
                                 letterSpacing: 0.5,
                               ),
                             ),
@@ -282,7 +288,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFDE8E9),
+                                  color: primaryRed.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
@@ -305,9 +311,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                             child: Text(
                               strings['noSessionsToday'] ??
                                   'No sessions today.',
-                              style: GoogleFonts.workSans(
-                                color: const Color(0xFF6B7280),
-                              ),
+                              style: GoogleFonts.workSans(color: subTextColor),
                             ),
                           )
                         else
@@ -366,9 +370,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -428,7 +432,8 @@ class _TopHeaderBand extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.notifications_none_rounded,
-                      color: Color(0xFF00225D),
+                      color:
+                          Colors.white, // Popped to white for better contrast
                       size: 20,
                     ),
                     if (uid != null)
@@ -483,6 +488,7 @@ class _HeroSessionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompleted = session.status == 'completed';
 
+    // We keep the static gradient here since it is the "Hero" element and looks beautiful in both modes
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -681,12 +687,17 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Red stays Red. Dark Blue adapts to Primary Theme Color.
+    final boxColor = isRed
+        ? const Color(0xFFBB0013)
+        : Theme.of(context).primaryColor;
+
     return Container(
       height: 95,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: isRed ? const Color(0xFFBB0013) : const Color(0xFF00225D),
+        color: boxColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -729,25 +740,30 @@ class _SessionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompleted = session.status == 'completed';
 
-    Color bgColor = isCompleted ? const Color(0xFFF3F4F6) : Colors.white;
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final primaryColor = Theme.of(context).primaryColor;
+
+    // Dynamic Row Styling
+    Color rowBgColor = isCompleted
+        ? Theme.of(context).scaffoldBackgroundColor
+        : cardColor;
     Color borderColor = isCompleted
-        ? const Color(0xFFE5E7EB)
-        : Colors.transparent;
-    Color timeBoxColor = isCompleted
-        ? const Color(0xFFD1D5DB)
-        : const Color(0xFF00225D);
-    Color timeTextColor = Colors.white;
-    Color titleColor = isCompleted
-        ? const Color(0xFF6B7280)
-        : const Color(0xFF00225D);
+        ? dividerColor
+        : dividerColor.withValues(alpha: 0.5);
+    Color timeBoxColor = isCompleted ? dividerColor : primaryColor;
+    Color timeTextColor = isCompleted ? textColor : Colors.white;
+    Color titleColor = isCompleted ? subTextColor : textColor;
     Color subtitleColor = isCompleted
-        ? const Color(0xFF9CA3AF)
-        : const Color(0xFF6B7280);
+        ? subTextColor.withValues(alpha: 0.6)
+        : subTextColor;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: rowBgColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor, width: 1.5),
       ),
@@ -815,7 +831,7 @@ class _SessionRow extends StatelessWidget {
               isCompleted
                   ? Icons.check_circle_rounded
                   : Icons.radio_button_unchecked_rounded,
-              color: isCompleted ? Colors.green : const Color(0xFF9CA3AF),
+              color: isCompleted ? Colors.green : subTextColor,
               size: 28,
             ),
           ),
@@ -850,9 +866,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -862,7 +878,9 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF01BCE3),
+        selectedItemColor: Theme.of(
+          context,
+        ).colorScheme.secondary, // Cyan accent
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,
@@ -887,7 +905,6 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          // Added required curly brackets for clean flow control
           if (index == 1) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),

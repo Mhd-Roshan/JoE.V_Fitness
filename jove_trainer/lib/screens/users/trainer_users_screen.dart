@@ -47,14 +47,8 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
   List<_ClientData> _filteredUsers = []; // <-- Added for Search functionality
   final TextEditingController _searchController = TextEditingController();
 
-  // Colors based on the design
-  static const Color darkBlue = Color(0xFF00225D);
+  // These colors stay the same in both themes (semantic colors)
   static const Color primaryRed = Color(0xFFBB0013);
-  static const Color cyanAccent = Color(0xFF01BCE3);
-  static const Color headerBlue = Color(0xFF003AA3);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
-
   static const Color activeBg = Color(0xFFC6F6D5);
   static const Color activeText = Color(0xFF22543D);
   static const Color warningText = Color(0xFFB48A28);
@@ -173,8 +167,16 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
   Widget build(BuildContext context) {
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
-      backgroundColor: bgGrey,
+      backgroundColor: bgColor,
       bottomNavigationBar: _BottomNav(
         currentIndex: 2,
         strings: strings,
@@ -194,7 +196,7 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
               style: GoogleFonts.workSans(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: darkBlue,
+                color: textColor, // Dynamic text color
               ),
             ),
           ),
@@ -212,33 +214,34 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                     child: TextField(
                       controller: _searchController,
                       onChanged: _filterUsers,
+                      style: TextStyle(color: textColor), // Dynamic input text
                       decoration: InputDecoration(
                         hintText:
                             strings['searchPeople'] ?? 'Search people....',
                         hintStyle: GoogleFonts.workSans(
-                          color: const Color(0xFF9CA3AF),
+                          color: subTextColor, // Dynamic hint color
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
-                        prefixIcon: const Icon(
+                        prefixIcon: Icon(
                           Icons.search,
-                          color: Color(0xFF9CA3AF),
+                          color: subTextColor,
                           size: 22,
                         ),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: cardColor, // Dynamic search bar background
                         contentPadding: const EdgeInsets.symmetric(vertical: 0),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: borderGrey,
+                          borderSide: BorderSide(
+                            color: dividerColor, // Dynamic border
                             width: 1.5,
                           ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: darkBlue,
+                          borderSide: BorderSide(
+                            color: brandBlue, // Highlights brand color on tap
                             width: 1.5,
                           ),
                         ),
@@ -264,11 +267,11 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor, // Dynamic button background
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: borderGrey, width: 1.5),
+                      border: Border.all(color: dividerColor, width: 1.5),
                     ),
-                    child: const Icon(Icons.tune, color: Color(0xFF6B7280)),
+                    child: Icon(Icons.tune, color: subTextColor),
                   ),
                 ),
               ],
@@ -280,9 +283,7 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
           // Users List
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: darkBlue),
-                  )
+                ? Center(child: CircularProgressIndicator(color: brandBlue))
                 : _filteredUsers.isEmpty
                 ? Center(
                     child: Text(
@@ -291,7 +292,7 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                                 'No users match your search.')
                           : (strings['noUsers'] ?? 'No users assigned yet.'),
                       style: GoogleFonts.workSans(
-                        color: const Color(0xFF6B7280),
+                        color: subTextColor,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -325,12 +326,19 @@ class _UserCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS FOR CARD <---
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+        border: Border.all(color: dividerColor, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -343,15 +351,15 @@ class _UserCard extends StatelessWidget {
               Container(
                 width: 46,
                 height: 46,
-                decoration: const BoxDecoration(
-                  color: _TrainerUsersScreenState.darkBlue,
+                decoration: BoxDecoration(
+                  color: brandBlue,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   user.initials,
                   style: GoogleFonts.workSans(
-                    color: Colors.white,
+                    color: Colors.white, // Initials stay white
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
                   ),
@@ -369,7 +377,7 @@ class _UserCard extends StatelessWidget {
                       style: GoogleFonts.workSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: _TrainerUsersScreenState.darkBlue,
+                        color: textColor, // Dynamic Name
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -378,7 +386,7 @@ class _UserCard extends StatelessWidget {
                       style: GoogleFonts.workSans(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFF6B7280),
+                        color: subTextColor, // Dynamic Subtitle
                       ),
                     ),
 
@@ -442,7 +450,7 @@ class _UserCard extends StatelessWidget {
             style: GoogleFonts.workSans(
               fontSize: 11,
               fontWeight: FontWeight.w800,
-              color: _TrainerUsersScreenState.darkBlue,
+              color: textColor,
             ),
           ),
           const SizedBox(height: 8),
@@ -452,7 +460,7 @@ class _UserCard extends StatelessWidget {
                 child: Container(
                   height: 6,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE5E7EB),
+                    color: dividerColor, // Track background
                     borderRadius: BorderRadius.circular(4),
                   ),
                   alignment: Alignment.centerLeft,
@@ -473,7 +481,7 @@ class _UserCard extends StatelessWidget {
                 style: GoogleFonts.workSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: _TrainerUsersScreenState.darkBlue,
+                  color: textColor,
                 ),
               ),
             ],
@@ -486,7 +494,6 @@ class _UserCard extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () {
-                // ---> FIXED: THIS NOW OPENS THE ACTUAL USER PROFILE INSTEAD OF A SNACKBAR <---
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
@@ -497,23 +504,24 @@ class _UserCard extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        TrainerUserProfileScreen(clientId: user.id),
+                    builder: (context) => TrainerUserProfileScreen(
+                      clientId: user.id,
+                    ), // Ensure this matches your screen name
                   ),
                 );
               },
-              icon: const Icon(Icons.person_outline, size: 18),
+              icon: Icon(Icons.person_outline, size: 18, color: brandBlue),
               label: Text(
                 strings['viewProfile'] ?? 'View Profile',
                 style: GoogleFonts.workSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
+                  color: brandBlue, // Dynamic Button Text
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: _TrainerUsersScreenState.darkBlue,
-                side: const BorderSide(
-                  color: _TrainerUsersScreenState.darkBlue,
+                side: BorderSide(
+                  color: brandBlue, // Dynamic Button Border
                   width: 1.2,
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -567,9 +575,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: _TrainerUsersScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Header Background
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -637,7 +645,7 @@ class _TopHeaderBand extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.notifications_none_rounded,
-                      color: Color(0xFF00225D),
+                      color: Colors.white, // Fixed white on header
                       size: 20,
                     ),
                     if (uid != null)
@@ -701,9 +709,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: _TrainerUsersScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Footer Background
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -713,7 +721,9 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: _TrainerUsersScreenState.cyanAccent,
+        selectedItemColor: Theme.of(
+          context,
+        ).colorScheme.secondary, // Dynamic cyan highlight
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,
@@ -739,7 +749,6 @@ class _BottomNav extends StatelessWidget {
         ],
         onTap: (index) {
           if (index == 0) {
-            // FIX: Guaranteed to clean stack and return to home page!
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
               (route) => false,

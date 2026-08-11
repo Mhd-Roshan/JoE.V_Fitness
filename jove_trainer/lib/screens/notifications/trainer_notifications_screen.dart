@@ -23,13 +23,8 @@ class TrainerNotificationsScreen extends StatefulWidget {
 
 class _TrainerNotificationsScreenState
     extends State<TrainerNotificationsScreen> {
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color headerBlue = Color(0xFF003AA3);
+  // Keep brand red static
   static const Color primaryRed = Color(0xFFC7001A);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
-  static const Color textGrey = Color(0xFF6B7280);
-  static const Color cyanAccent = Color(0xFF01BCE3);
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -70,12 +65,18 @@ class _TrainerNotificationsScreenState
 
   @override
   Widget build(BuildContext context) {
-    // ---> Fetch translations <---
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
-      backgroundColor: bgGrey,
-      // Pass strings to BottomNav
+      backgroundColor: bgColor,
       bottomNavigationBar: _BottomNav(currentIndex: 0, strings: strings),
       body: Column(
         children: [
@@ -87,6 +88,7 @@ class _TrainerNotificationsScreenState
                     child: Text(
                       strings['loginToViewNotifications'] ??
                           "Please log in to view notifications.",
+                      style: GoogleFonts.workSans(color: subTextColor),
                     ),
                   )
                 : StreamBuilder<QuerySnapshot>(
@@ -97,8 +99,8 @@ class _TrainerNotificationsScreenState
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: CircularProgressIndicator(color: darkBlue),
+                        return Center(
+                          child: CircularProgressIndicator(color: brandBlue),
                         );
                       }
 
@@ -120,9 +122,9 @@ class _TrainerNotificationsScreenState
                               children: [
                                 GestureDetector(
                                   onTap: () => Navigator.pop(context),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.arrow_back,
-                                    color: darkBlue,
+                                    color: textColor,
                                     size: 24,
                                   ),
                                 ),
@@ -133,7 +135,7 @@ class _TrainerNotificationsScreenState
                                   style: GoogleFonts.workSans(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w800,
-                                    color: darkBlue,
+                                    color: textColor,
                                   ),
                                 ),
                               ],
@@ -155,7 +157,9 @@ class _TrainerNotificationsScreenState
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFDE8E8), // Light Red
+                                    color: primaryRed.withValues(
+                                      alpha: 0.1,
+                                    ), // Dynamic Light Red
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
@@ -177,23 +181,23 @@ class _TrainerNotificationsScreenState
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      border: Border.all(color: borderGrey),
+                                      color: cardColor,
+                                      border: Border.all(color: dividerColor),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.check,
                                           size: 16,
-                                          color: darkBlue,
+                                          color: textColor,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
                                           strings['markAllRead'] ??
                                               'Mark all read',
                                           style: GoogleFonts.workSans(
-                                            color: darkBlue,
+                                            color: textColor,
                                             fontSize: 12,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -216,7 +220,7 @@ class _TrainerNotificationsScreenState
                                       strings['noNotificationsYet'] ??
                                           'No notifications yet.',
                                       style: GoogleFonts.workSans(
-                                        color: textGrey,
+                                        color: subTextColor,
                                       ),
                                     ),
                                   )
@@ -226,16 +230,16 @@ class _TrainerNotificationsScreenState
                                     ),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        color: Colors.white,
+                                        color: cardColor,
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(color: borderGrey),
+                                        border: Border.all(color: dividerColor),
                                       ),
                                       child: ListView.separated(
                                         padding: EdgeInsets.zero,
                                         itemCount: docs.length,
                                         separatorBuilder: (context, index) =>
-                                            const Divider(
-                                              color: borderGrey,
+                                            Divider(
+                                              color: dividerColor,
                                               height: 1,
                                             ),
                                         itemBuilder: (context, index) {
@@ -274,12 +278,16 @@ class _TrainerNotificationsScreenState
     final Timestamp? timestamp = data['createdAt'];
     final timeStr = timestamp != null ? _formatTime(timestamp.toDate()) : '';
 
-    // Styling based on notification type
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
+    // Styling based on notification type using dynamic opacities
     final isMedical = type == 'medical';
     final iconBgColor = isMedical
-        ? const Color(0xFFFDE8E8)
-        : const Color(0xFFE0F2FE);
-    final iconColor = isMedical ? primaryRed : const Color(0xFF2563EB);
+        ? primaryRed.withValues(alpha: 0.15)
+        : brandBlue.withValues(alpha: 0.15);
+    final iconColor = isMedical ? primaryRed : brandBlue;
     final iconData = isMedical
         ? Icons.warning_amber_rounded
         : Icons.calendar_today_outlined;
@@ -326,7 +334,7 @@ class _TrainerNotificationsScreenState
                   style: GoogleFonts.workSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: darkBlue,
+                    color: textColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -335,7 +343,7 @@ class _TrainerNotificationsScreenState
                   style: GoogleFonts.workSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: const Color(0xFF6B7280),
+                    color: subTextColor,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -344,7 +352,7 @@ class _TrainerNotificationsScreenState
                   style: GoogleFonts.workSans(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF9CA3AF),
+                    color: subTextColor,
                   ),
                 ),
               ],
@@ -373,9 +381,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: _TrainerNotificationsScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -449,8 +457,8 @@ class _TopHeaderBand extends StatelessWidget {
               width: 38,
               height: 38,
               // Light Cyan Background to show it is active
-              decoration: const BoxDecoration(
-                color: _TrainerNotificationsScreenState.cyanAccent,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.secondary,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -491,9 +499,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: _TrainerNotificationsScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -503,7 +511,9 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF01BCE3),
+        selectedItemColor: Theme.of(
+          context,
+        ).colorScheme.secondary, // Dynamic cyan
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,

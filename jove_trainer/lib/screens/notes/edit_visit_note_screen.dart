@@ -27,11 +27,8 @@ class EditVisitNoteScreen extends StatefulWidget {
 }
 
 class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color headerBlue = Color(0xFF003AA3);
+  // Keep brand red static
   static const Color primaryRed = Color(0xFFC7001A);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
 
   late TextEditingController _exercisesController;
   late TextEditingController _observationController;
@@ -148,8 +145,12 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ---> Fetch translations <---
     final strings = languageService.strings;
+
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final primaryBlue = Theme.of(context).primaryColor;
 
     final clientName =
         widget.noteData['clientName'] ??
@@ -161,11 +162,8 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
     final String formattedDate = _formatDate(createdAt);
 
     return Scaffold(
-      backgroundColor: bgGrey,
-      bottomNavigationBar: _BottomNav(
-        currentIndex: 3,
-        strings: strings,
-      ), // Passed strings
+      backgroundColor: bgColor,
+      bottomNavigationBar: _BottomNav(currentIndex: 3, strings: strings),
       body: Column(
         children: [
           const _TopHeaderBand(),
@@ -182,15 +180,15 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
                     style: GoogleFonts.workSans(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: darkBlue,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // Client Info Card (Blue with Red Strip)
+                  // Client Info Card (Primary Color with Red Strip)
                   Container(
                     decoration: BoxDecoration(
-                      color: headerBlue,
+                      color: primaryBlue,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: IntrinsicHeight(
@@ -355,6 +353,11 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
     required TextEditingController controller,
     int maxLines = 1,
   }) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -363,7 +366,7 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
           style: GoogleFonts.workSans(
             fontSize: 13,
             fontWeight: FontWeight.w800,
-            color: darkBlue,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -372,20 +375,20 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
           maxLines: maxLines,
           style: GoogleFonts.workSans(
             fontSize: 14,
-            color: const Color(0xFF4B5563), // Dark grey text
+            color: textColor,
             fontWeight: FontWeight.w500,
             height: 1.5,
           ),
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: cardColor,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: borderGrey, width: 1.5),
+              borderSide: BorderSide(color: dividerColor, width: 1.5),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: darkBlue, width: 1.5),
+              borderSide: BorderSide(color: brandBlue, width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -432,9 +435,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: _EditVisitNoteScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -486,7 +489,7 @@ class _TopHeaderBand extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.notifications_none_rounded,
-                color: Color(0xFF00225D),
+                color: Colors.white, // Pop white on blue header
                 size: 20,
               ),
             ),
@@ -522,9 +525,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: _EditVisitNoteScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -534,7 +537,9 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF01BCE3), // Cyan accent
+        selectedItemColor: Theme.of(
+          context,
+        ).colorScheme.secondary, // Cyan accent
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,
@@ -577,7 +582,6 @@ class _BottomNav extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
           } else if (index == 4) {
-            // FIXED: Added Profile navigation here!
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
             );

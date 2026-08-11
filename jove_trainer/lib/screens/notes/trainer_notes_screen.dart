@@ -33,14 +33,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
 
-  // Theme Colors
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color cyanAccent = Color(0xFF01BCE3);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
-  static const Color textGrey = Color(0xFF6B7280);
-
-  // Rotating colors for client avatars
+  // Rotating colors for client avatars (Kept static for consistent visual identity)
   final List<Map<String, Color>> _avatarColors = [
     {
       'bg': const Color(0xFFE0E7FF),
@@ -208,15 +201,16 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ---> Get Strings Here <---
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final dividerColor = Theme.of(context).dividerColor;
+
     return Scaffold(
-      backgroundColor: bgGrey,
-      bottomNavigationBar: _BottomNav(
-        currentIndex: 3,
-        strings: strings,
-      ), // Passed Strings to Nav
+      backgroundColor: bgColor,
+      bottomNavigationBar: _BottomNav(currentIndex: 3, strings: strings),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -236,7 +230,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                     style: GoogleFonts.workSans(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: darkBlue,
+                      color: textColor,
                     ),
                   ),
                 ),
@@ -249,7 +243,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                   child: Container(
                     height: 52,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF3F4F6),
+                      color: dividerColor.withValues(
+                        alpha: 0.3,
+                      ), // Adapts to theme
                       borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.all(4),
@@ -299,6 +295,12 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
 
   // --- ADD NOTES VIEW ---
   Widget _buildAddNotesView(Map<String, String> strings) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -309,7 +311,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
             style: GoogleFonts.workSans(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: darkBlue,
+              color: textColor,
             ),
           ),
         ),
@@ -319,9 +321,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
         SizedBox(
           height: 48,
           child: _isLoadingClients
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(
-                    color: cyanAccent,
+                    color: brandBlue,
                     strokeWidth: 3,
                   ),
                 )
@@ -331,7 +333,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                   child: Text(
                     strings['noClientsFound'] ?? 'No clients found.',
                     style: GoogleFonts.workSans(
-                      color: Colors.grey.shade500,
+                      color: subTextColor,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -363,9 +365,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                       child: Container(
                         padding: const EdgeInsets.fromLTRB(6, 6, 16, 6),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: cardColor,
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: borderGrey, width: 1.0),
+                          border: Border.all(color: dividerColor, width: 1.0),
                         ),
                         child: Row(
                           children: [
@@ -392,7 +394,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                               style: GoogleFonts.workSans(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: darkBlue,
+                                color: textColor,
                               ),
                             ),
                           ],
@@ -413,6 +415,12 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
       return const SizedBox();
     }
 
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Column(
       children: [
         // Search Bar
@@ -422,25 +430,25 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
             controller: _searchController,
             style: GoogleFonts.workSans(
               fontSize: 14,
-              color: darkBlue,
+              color: textColor,
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
               hintText: strings['filterByClient'] ?? 'Filter by client name...',
               hintStyle: GoogleFonts.workSans(
-                color: const Color(0xFF9CA3AF),
+                color: subTextColor,
                 fontSize: 14,
               ),
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF9CA3AF)),
+              prefixIcon: Icon(Icons.search, color: subTextColor),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: cardColor,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: borderGrey, width: 1),
+                borderSide: BorderSide(color: dividerColor, width: 1),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: darkBlue, width: 1.5),
+                borderSide: BorderSide(color: brandBlue, width: 1.5),
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 0),
             ),
@@ -458,15 +466,15 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(color: darkBlue),
+                return Center(
+                  child: CircularProgressIndicator(color: brandBlue),
                 );
               }
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Center(
                   child: Text(
                     strings['noPastNotes'] ?? 'No past notes found.',
-                    style: GoogleFonts.workSans(color: textGrey),
+                    style: GoogleFonts.workSans(color: subTextColor),
                   ),
                 );
               }
@@ -481,7 +489,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                 return Center(
                   child: Text(
                     strings['noMatchingNotes'] ?? 'No matching notes.',
-                    style: GoogleFonts.workSans(color: textGrey),
+                    style: GoogleFonts.workSans(color: subTextColor),
                   ),
                 );
               }
@@ -526,9 +534,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                   return Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: borderGrey, width: 1.5),
+                      border: Border.all(color: dividerColor, width: 1.5),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -563,7 +571,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                                     style: GoogleFonts.workSans(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700,
-                                      color: darkBlue,
+                                      color: textColor,
                                     ),
                                   ),
                                   Text(
@@ -571,7 +579,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                                     style: GoogleFonts.workSans(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
-                                      color: textGrey,
+                                      color: subTextColor,
                                     ),
                                   ),
                                 ],
@@ -579,9 +587,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                             ),
                             // Edit Icon
                             IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.edit_outlined,
-                                color: darkBlue,
+                                color: brandBlue,
                                 size: 20,
                               ),
                               onPressed: () => _attemptEdit(
@@ -599,7 +607,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                             notePreview.trim(),
                             style: GoogleFonts.workSans(
                               fontSize: 14,
-                              color: const Color(0xFF4B5563),
+                              color: textColor.withValues(alpha: 0.8),
                               height: 1.5,
                             ),
                           ),
@@ -635,12 +643,16 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cardColor = Theme.of(context).cardColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? cardColor : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
           boxShadow: isSelected
               ? [
@@ -655,22 +667,18 @@ class _TabButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected
-                  ? const Color(0xFF00225D)
-                  : const Color(0xFF9CA3AF),
-            ),
+            Icon(icon, size: 18, color: isSelected ? brandBlue : subTextColor),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.workSans(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-                color: isSelected
-                    ? const Color(0xFF00225D)
-                    : const Color(0xFF9CA3AF),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+                style: GoogleFonts.workSans(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
+                  color: isSelected ? brandBlue : subTextColor,
+                ),
               ),
             ),
           ],
@@ -714,9 +722,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -768,7 +776,7 @@ class _TopHeaderBand extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.notifications_none_rounded,
-                color: Color(0xFF00225D),
+                color: Colors.white, // Kept white to pop on blue background
                 size: 20,
               ),
             ),
@@ -804,9 +812,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -816,7 +824,9 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF01BCE3),
+        selectedItemColor: Theme.of(
+          context,
+        ).colorScheme.secondary, // Dynamic cyan
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,

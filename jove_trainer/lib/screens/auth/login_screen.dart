@@ -91,8 +91,16 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ---> DYNAMIC THEME COLORS <---
+    final primaryColor = Theme.of(
+      context,
+    ).primaryColor; // Blue in Light, Dark Surface in Dark Mode
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF003AA3),
+      backgroundColor: primaryColor,
       body: Stack(
         children: [
           // Full-screen Topographic/Wavy lines background matching the image
@@ -165,10 +173,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   _AuthTextField(
                     controller: _emailController,
                     focusNode: _emailFocusNode,
-                    hint: 'Joevfitness@gmail.co',
+                    hint: 'Joevfitness@gmail.com',
                     icon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     isActive: _emailFocusNode.hasFocus,
+                    bgColor: cardColor,
+                    textColor: textColor,
+                    iconColor: subTextColor,
                   ),
 
                   const SizedBox(height: 20),
@@ -179,17 +190,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   _AuthTextField(
                     controller: _passwordController,
                     focusNode: _passwordFocusNode,
-                    hint: 'Enter  Password',
+                    hint: 'Enter Password',
                     icon: Icons.lock_outline,
                     obscureText: _obscurePassword,
                     isActive: _passwordFocusNode.hasFocus,
+                    bgColor: cardColor,
+                    textColor: textColor,
+                    iconColor: subTextColor,
                     suffixIcon: _passwordFocusNode.hasFocus
                         ? IconButton(
                             icon: Icon(
                               _obscurePassword
                                   ? Icons.visibility_outlined
                                   : Icons.visibility_off_outlined,
-                              color: const Color(0xFFBFBFBF),
+                              color: subTextColor,
                               size: 20,
                             ),
                             onPressed: () {
@@ -298,6 +312,9 @@ class _AuthTextField extends StatelessWidget {
     required this.focusNode,
     required this.hint,
     required this.icon,
+    required this.bgColor,
+    required this.textColor,
+    required this.iconColor,
     this.obscureText = false,
     this.keyboardType,
     this.suffixIcon,
@@ -312,17 +329,20 @@ class _AuthTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final Widget? suffixIcon;
   final bool isActive;
+  final Color bgColor;
+  final Color textColor;
+  final Color iconColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F5F7), // Light grey background
+        color: bgColor, // Dynamically adapts to Light/Dark mode
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: const Color(
             0xFF01BCE3,
-          ), // Both fields get the blue border from the image
+          ), // Both fields get the cyan border from the image
           width: isActive ? 2 : 1.5,
         ),
         boxShadow: isActive
@@ -340,17 +360,17 @@ class _AuthTextField extends StatelessWidget {
         focusNode: focusNode,
         obscureText: obscureText,
         keyboardType: keyboardType,
-        style: const TextStyle(
-          color: Color(0xFF111214),
+        style: TextStyle(
+          color: textColor, // Dynamically changes to white in dark mode
           fontSize: 16,
           fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: Colors.black, size: 22),
+          prefixIcon: Icon(icon, color: iconColor, size: 22),
           suffixIcon: suffixIcon,
           hintText: hint,
-          hintStyle: const TextStyle(
-            color: Color(0xFFB0B0B0),
+          hintStyle: TextStyle(
+            color: iconColor,
             fontSize: 15,
             fontWeight: FontWeight.w500,
           ),

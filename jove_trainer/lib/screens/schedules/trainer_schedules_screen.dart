@@ -53,12 +53,8 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
   final int _pastDays = 90;
   final int _futureDays = 90;
 
-  // Colors based on the design
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color primaryRed = Color(0xFFBB0013);
-  static const Color cyanAccent = Color(0xFF01BCE3);
-  static const Color headerBlue = Color(0xFF003AA3);
-  static const Color bgGrey = Color(0xFFFAFAFA);
+  // Keep brand red static
+  static const Color primaryRed = Color(0xFFC7001A);
 
   @override
   void initState() {
@@ -280,19 +276,24 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ---> Fetch translations <---
     final strings = languageService.strings;
+
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final cyanAccent = Theme.of(context).colorScheme.secondary;
 
     int completedCount = _sessions.where((s) => s.status == 'done').length;
     int totalCount = _sessions.length;
     double progress = totalCount > 0 ? (completedCount / totalCount) : 0;
 
     return Scaffold(
-      backgroundColor: bgGrey,
-      bottomNavigationBar: _BottomNav(
-        currentIndex: 1,
-        strings: strings,
-      ), // Index 1 is Schedules
+      backgroundColor: bgColor,
+      bottomNavigationBar: _BottomNav(currentIndex: 1, strings: strings),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -308,7 +309,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
               style: GoogleFonts.workSans(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: darkBlue,
+                color: textColor,
               ),
             ),
           ),
@@ -333,11 +334,11 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                   child: Container(
                     width: 65,
                     decoration: BoxDecoration(
-                      color: selected ? darkBlue : Colors.white,
+                      color: selected ? brandBlue : cardColor,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: selected ? cyanAccent : const Color(0xFFE5E7EB),
-                        width: selected ? 2 : 1, // Thicker cyan border
+                        color: selected ? cyanAccent : dividerColor,
+                        width: selected ? 2 : 1,
                       ),
                     ),
                     child: Column(
@@ -348,9 +349,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                           style: GoogleFonts.workSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: selected
-                                ? cyanAccent
-                                : const Color(0xFF6B7280),
+                            color: selected ? cyanAccent : subTextColor,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -359,7 +358,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                           style: GoogleFonts.workSans(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: selected ? Colors.white : darkBlue,
+                            color: selected ? Colors.white : textColor,
                           ),
                         ),
                       ],
@@ -378,23 +377,25 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${strings['timeDash'] ?? 'Time - '}${_formatFullDate(_selectedDate, strings)}',
-                  style: GoogleFonts.workSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: darkBlue,
+                Expanded(
+                  child: Text(
+                    '${strings['timeDash'] ?? 'Time - '}${_formatFullDate(_selectedDate, strings)}',
+                    style: GoogleFonts.workSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: textColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 8),
                 Row(
                   children: [
                     Container(
                       width: 40,
                       height: 6,
                       decoration: BoxDecoration(
-                        color: totalCount > 0
-                            ? primaryRed
-                            : const Color(0xFFE5E7EB),
+                        color: totalCount > 0 ? primaryRed : dividerColor,
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(4),
                           bottomLeft: Radius.circular(4),
@@ -414,9 +415,9 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                     Container(
                       width: 40,
                       height: 6,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFE5E7EB),
-                        borderRadius: BorderRadius.only(
+                      decoration: BoxDecoration(
+                        color: dividerColor,
+                        borderRadius: const BorderRadius.only(
                           topRight: Radius.circular(4),
                           bottomRight: Radius.circular(4),
                         ),
@@ -428,7 +429,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                       style: GoogleFonts.workSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: darkBlue,
+                        color: textColor,
                       ),
                     ),
                   ],
@@ -442,16 +443,14 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
           // List of Sessions
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: darkBlue),
-                  )
+                ? Center(child: CircularProgressIndicator(color: brandBlue))
                 : _sessions.isEmpty
                 ? Center(
                     child: Text(
                       strings['noSessionsThisDay'] ??
                           'No sessions scheduled for this day.',
                       style: GoogleFonts.workSans(
-                        color: const Color(0xFF6B7280),
+                        color: subTextColor,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -495,14 +494,18 @@ class _SessionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDone = session.status == 'done';
 
-    // Dynamic Colors based strictly on Done / Upcoming
-    Color cardBg = Colors.white;
-    Color cardBorder = const Color(0xFFE5E7EB);
+    // ---> DYNAMIC THEME COLORS FOR CARDS <---
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final innerBoxColor = Theme.of(context).scaffoldBackgroundColor;
 
-    Color badgeBg = isDone ? const Color(0xFFC6F6D5) : const Color(0xFFE5E7EB);
-    Color badgeText = isDone
-        ? const Color(0xFF22543D)
-        : const Color(0xFF4B5563);
+    Color badgeBg = isDone
+        ? Colors.green.withValues(alpha: 0.15)
+        : dividerColor.withValues(alpha: 0.5);
+    Color badgeText = isDone ? Colors.green : subTextColor;
     String badgeLabel = isDone
         ? (strings['done'] ?? 'Done')
         : (strings['upcoming'] ?? 'Upcoming');
@@ -510,9 +513,9 @@ class _SessionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardBg,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardBorder, width: 1.5),
+        border: Border.all(color: dividerColor, width: 1.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,7 +531,7 @@ class _SessionCard extends StatelessWidget {
                   style: GoogleFonts.workSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF6B7280),
+                    color: subTextColor,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -537,7 +540,7 @@ class _SessionCard extends StatelessWidget {
                   style: GoogleFonts.workSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: _TrainerSchedulesScreenState.darkBlue,
+                    color: textColor,
                   ),
                 ),
               ],
@@ -560,7 +563,7 @@ class _SessionCard extends StatelessWidget {
                         style: GoogleFonts.workSans(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: _TrainerSchedulesScreenState.darkBlue,
+                          color: textColor,
                         ),
                       ),
                     ),
@@ -590,10 +593,10 @@ class _SessionCard extends StatelessWidget {
                 // Location and Service Type
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on_outlined,
                       size: 14,
-                      color: Color(0xFF6B7280),
+                      color: subTextColor,
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -601,22 +604,18 @@ class _SessionCard extends StatelessWidget {
                       style: GoogleFonts.workSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF6B7280),
+                        color: subTextColor,
                       ),
                     ),
                     const SizedBox(width: 16),
-                    const Icon(
-                      Icons.fitness_center,
-                      size: 14,
-                      color: Color(0xFF6B7280),
-                    ),
+                    Icon(Icons.fitness_center, size: 14, color: subTextColor),
                     const SizedBox(width: 4),
                     Text(
                       session.serviceType,
                       style: GoogleFonts.workSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF6B7280),
+                        color: subTextColor,
                       ),
                     ),
                   ],
@@ -631,13 +630,13 @@ class _SessionCard extends StatelessWidget {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: innerBoxColor,
                       borderRadius: BorderRadius.circular(8),
-                      border: const Border(
-                        left: BorderSide(color: Color(0xFFD1D5DB), width: 3),
-                        top: BorderSide(color: Color(0xFFE5E7EB), width: 1),
-                        right: BorderSide(color: Color(0xFFE5E7EB), width: 1),
-                        bottom: BorderSide(color: Color(0xFFE5E7EB), width: 1),
+                      border: Border(
+                        left: BorderSide(color: dividerColor, width: 3),
+                        top: BorderSide(color: dividerColor, width: 1),
+                        right: BorderSide(color: dividerColor, width: 1),
+                        bottom: BorderSide(color: dividerColor, width: 1),
                       ),
                     ),
                     child: Text(
@@ -646,7 +645,7 @@ class _SessionCard extends StatelessWidget {
                       style: GoogleFonts.workSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFF6B7280),
+                        color: subTextColor,
                       ),
                     ),
                   ),
@@ -654,7 +653,7 @@ class _SessionCard extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // Action Buttons Row (Toggles Done/Undone and Navigates to Notes)
+                // Action Buttons Row
                 Row(
                   children: [
                     Expanded(
@@ -667,7 +666,7 @@ class _SessionCard extends StatelessWidget {
                           : _SolidBtn(
                               icon: Icons.check,
                               label: strings['complete'] ?? 'Complete',
-                              color: _TrainerSchedulesScreenState.darkBlue,
+                              color: brandBlue,
                               onTap: onToggle,
                             ),
                     ),
@@ -743,22 +742,25 @@ class _OutlineBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return OutlinedButton.icon(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         backgroundColor: Colors.transparent,
-        foregroundColor: _TrainerSchedulesScreenState.darkBlue,
-        side: const BorderSide(color: Color(0xFF6B7280)),
+        foregroundColor: textColor,
+        side: BorderSide(color: subTextColor),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      icon: Icon(icon, size: 16, color: _TrainerSchedulesScreenState.darkBlue),
+      icon: Icon(icon, size: 16, color: textColor),
       label: Text(
         label,
         style: GoogleFonts.workSans(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: _TrainerSchedulesScreenState.darkBlue,
+          color: textColor,
         ),
       ),
     );
@@ -803,9 +805,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: _TrainerSchedulesScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -874,7 +876,8 @@ class _TopHeaderBand extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.notifications_none_rounded,
-                      color: Color(0xFF00225D),
+                      color: Colors
+                          .white, // Popped to white for visibility on blue header
                       size: 20,
                     ),
                     if (uid != null)
@@ -939,9 +942,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: _TrainerSchedulesScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -951,7 +954,9 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: _TrainerSchedulesScreenState.cyanAccent,
+        selectedItemColor: Theme.of(
+          context,
+        ).colorScheme.secondary, // Cyan accent
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,

@@ -27,11 +27,8 @@ class AddVisitNoteScreen extends StatefulWidget {
 }
 
 class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color headerBlue = Color(0xFF003AA3);
+  // Keep brand red static
   static const Color primaryRed = Color(0xFFC7001A);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
 
   final TextEditingController _exercisesController = TextEditingController();
   final TextEditingController _observationController = TextEditingController();
@@ -115,8 +112,11 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ---> Fetch translations <---
     final strings = languageService.strings;
+
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
 
     // Dynamically build the session types list based on language
     final List<String> sessionTypes = [
@@ -132,7 +132,7 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
     _selectedSessionType ??= sessionTypes.first;
 
     return Scaffold(
-      backgroundColor: bgGrey,
+      backgroundColor: bgColor,
       body: Column(
         children: [
           const _TopHeaderBand(),
@@ -151,7 +151,7 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
                         style: GoogleFonts.workSans(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: darkBlue,
+                          color: textColor,
                         ),
                       ),
                       // Client Pill
@@ -293,21 +293,24 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
 
   // --- UI Helpers for this page ---
   Widget _buildSectionTitle(String title) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
     return Text(
       title,
       style: GoogleFonts.workSans(
         fontSize: 13,
         fontWeight: FontWeight.w800,
-        color: darkBlue,
+        color: textColor,
       ),
     );
   }
 
   Widget _buildSessionTimeSelector(List<String> sessionTypes) {
+    final primaryBlue = Theme.of(context).primaryColor;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF2563EB),
+        color: primaryBlue,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -380,22 +383,25 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
   }
 
   Widget _buildDividerWithText(String text) {
+    final dividerColor = Theme.of(context).dividerColor;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Row(
       children: [
-        const Expanded(child: Divider(color: borderGrey, thickness: 1)),
+        Expanded(child: Divider(color: dividerColor, thickness: 1)),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             text,
             style: GoogleFonts.workSans(
-              color: const Color(0xFF9CA3AF),
+              color: subTextColor,
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 1,
             ),
           ),
         ),
-        const Expanded(child: Divider(color: borderGrey, thickness: 1)),
+        Expanded(child: Divider(color: dividerColor, thickness: 1)),
       ],
     );
   }
@@ -406,6 +412,12 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
     required TextEditingController controller,
     int maxLines = 1,
   }) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -414,7 +426,7 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
           style: GoogleFonts.workSans(
             fontSize: 12,
             fontWeight: FontWeight.w800,
-            color: darkBlue,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 8),
@@ -423,25 +435,25 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
           maxLines: maxLines,
           style: GoogleFonts.workSans(
             fontSize: 14,
-            color: darkBlue,
+            color: textColor, // Text dynamically adjusts
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: GoogleFonts.workSans(
-              color: const Color(0xFF9CA3AF),
+              color: subTextColor,
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: cardColor,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: borderGrey, width: 1),
+              borderSide: BorderSide(color: dividerColor, width: 1),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: darkBlue, width: 1.5),
+              borderSide: BorderSide(color: brandBlue, width: 1.5),
             ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -470,9 +482,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: _AddVisitNoteScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Header Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),

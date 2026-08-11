@@ -24,12 +24,8 @@ class TrainerProfileScreen extends StatefulWidget {
 }
 
 class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color headerBlue = Color(0xFF003AA3);
+  // Keep brand specific colors static
   static const Color primaryRed = Color(0xFFC7001A);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
-  static const Color textGrey = Color(0xFF6B7280);
 
   bool _isLoading = true;
   String _fullName = '';
@@ -127,26 +123,31 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   }
 
   void _handleSignOut(Map<String, String> strings) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final cardColor = Theme.of(context).cardColor;
+
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        backgroundColor: cardColor,
         title: Text(
           strings['signOut'] ?? 'Sign Out',
           style: GoogleFonts.workSans(
             fontWeight: FontWeight.bold,
-            color: darkBlue,
+            color: textColor,
           ),
         ),
         content: Text(
           strings['signOutConfirm'] ?? 'Are you sure you want to sign out?',
-          style: GoogleFonts.workSans(),
+          style: GoogleFonts.workSans(color: textColor),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: Text(
               strings['cancel'] ?? 'Cancel',
-              style: GoogleFonts.workSans(color: textGrey),
+              style: GoogleFonts.workSans(color: subTextColor),
             ),
           ),
           TextButton(
@@ -179,17 +180,17 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ---> Get Strings Here <---
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
-      backgroundColor: bgGrey,
-      bottomNavigationBar: _BottomNav(
-        currentIndex: 4,
-        strings: strings,
-      ), // Passed strings
+      backgroundColor: bgColor,
+      bottomNavigationBar: _BottomNav(currentIndex: 4, strings: strings),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: darkBlue))
+          ? Center(child: CircularProgressIndicator(color: brandBlue))
           : Column(
               children: [
                 const _TopHeaderBand(),
@@ -326,6 +327,11 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final dividerColor = Theme.of(context).dividerColor;
+
     String initials = '?';
     if (_fullName.isNotEmpty) {
       final parts = _fullName.trim().split(' ');
@@ -341,11 +347,11 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF2563EB), width: 3),
+                border: Border.all(color: brandBlue, width: 3),
               ),
               child: CircleAvatar(
                 radius: 46,
-                backgroundColor: borderGrey,
+                backgroundColor: dividerColor,
                 backgroundImage: _profileImageUrl.isNotEmpty
                     ? NetworkImage(_profileImageUrl)
                     : null,
@@ -354,7 +360,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                         initials,
                         style: GoogleFonts.workSans(
                           fontSize: 32,
-                          color: darkBlue,
+                          color: textColor,
                           fontWeight: FontWeight.bold,
                         ),
                       )
@@ -366,15 +372,11 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
               right: 4,
               child: Container(
                 padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).scaffoldBackgroundColor,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.verified,
-                  color: Color(0xFF2563EB),
-                  size: 22,
-                ),
+                child: Icon(Icons.verified, color: brandBlue, size: 22),
               ),
             ),
           ],
@@ -385,7 +387,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
           style: GoogleFonts.workSans(
             fontSize: 24,
             fontWeight: FontWeight.w800,
-            color: darkBlue,
+            color: textColor,
           ),
         ),
         const SizedBox(height: 4),
@@ -394,7 +396,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
           style: GoogleFonts.workSans(
             fontSize: 13,
             fontWeight: FontWeight.w800,
-            color: const Color(0xFF4B5563),
+            color: subTextColor,
             letterSpacing: 1.0,
           ),
         ),
@@ -404,7 +406,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
           style: GoogleFonts.workSans(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: const Color(0xFF2563EB),
+            color: brandBlue,
           ),
         ),
       ],
@@ -415,7 +417,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     return Container(
       height: 70,
       decoration: BoxDecoration(
-        color: headerBlue,
+        color: Theme.of(context).primaryColor, // Dynamic brand blue
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -446,7 +448,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                 Text(
                   value,
                   style: GoogleFonts.workSans(
-                    color: Colors.white,
+                    color: Colors.white, // Keep white for contrast on blue
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
@@ -460,12 +462,16 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   }
 
   Widget _buildPersonalInfoCard(Map<String, String> strings) {
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderGrey, width: 1.5),
+        border: Border.all(color: dividerColor, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,12 +481,12 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
             style: GoogleFonts.workSans(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: darkBlue,
+              color: textColor,
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(color: borderGrey, thickness: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Divider(color: dividerColor, thickness: 1),
           ),
           _buildInfoRow(
             Icons.phone_outlined,
@@ -505,9 +511,13 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value) {
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+
     return Row(
       children: [
-        Icon(icon, color: darkBlue, size: 20),
+        Icon(icon, color: brandBlue, size: 20),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
@@ -518,7 +528,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                 style: GoogleFonts.workSans(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: const Color(0xFF9CA3AF),
+                  color: subTextColor,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -528,7 +538,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                 style: GoogleFonts.workSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: darkBlue,
+                  color: textColor,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -540,6 +550,9 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   }
 
   Widget _buildFeedbackSection(Map<String, String> strings) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -553,7 +566,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                 style: GoogleFonts.workSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: darkBlue,
+                  color: textColor,
                 ),
               ),
               GestureDetector(
@@ -584,7 +597,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                   child: Text(
                     strings['noFeedback'] ?? 'No feedback available yet.',
                     style: GoogleFonts.workSans(
-                      color: textGrey,
+                      color: subTextColor,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -607,6 +620,11 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     Map<String, dynamic> feedback,
     Map<String, String> strings,
   ) {
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     final clientName =
         feedback['clientName']?.toString() ??
         strings['anonymous'] ??
@@ -624,9 +642,9 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
       width: 280,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F6),
+        color: cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderGrey, width: 1),
+        border: Border.all(color: dividerColor, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,9 +669,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
               style: GoogleFonts.workSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: reviewText.isNotEmpty
-                    ? const Color(0xFF374151)
-                    : textGrey,
+                color: reviewText.isNotEmpty ? textColor : subTextColor,
                 fontStyle: reviewText.isNotEmpty
                     ? FontStyle.normal
                     : FontStyle.italic,
@@ -667,16 +683,16 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
             children: [
               CircleAvatar(
                 radius: 14,
-                backgroundColor: borderGrey,
+                backgroundColor: dividerColor,
                 backgroundImage: clientImage.isNotEmpty
                     ? NetworkImage(clientImage)
                     : null,
                 child: clientImage.isEmpty
                     ? Text(
                         initial,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
-                          color: darkBlue,
+                          color: textColor,
                           fontWeight: FontWeight.bold,
                         ),
                       )
@@ -691,7 +707,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                     style: GoogleFonts.workSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
-                      color: darkBlue,
+                      color: textColor,
                     ),
                   ),
                   Text(
@@ -699,7 +715,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                     style: GoogleFonts.workSans(
                       fontSize: 9,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF9CA3AF),
+                      color: subTextColor,
                     ),
                   ),
                 ],
@@ -717,6 +733,10 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -730,10 +750,10 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFFE5E7EB),
+                color: dividerColor,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: const Color(0xFF4B5563), size: 20),
+              child: Icon(icon, color: subTextColor, size: 20),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -745,7 +765,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                     style: GoogleFonts.workSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: darkBlue,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -754,13 +774,13 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                     style: GoogleFonts.workSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF6B7280),
+                      color: subTextColor,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: Color(0xFF9CA3AF)),
+            Icon(Icons.chevron_right_rounded, color: subTextColor),
           ],
         ),
       ),
@@ -787,9 +807,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -878,7 +898,7 @@ class _TopHeaderBand extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.notifications_none_rounded,
-                      color: Color(0xFF00225D),
+                      color: Colors.white, // Fixed to always be white here
                       size: 20,
                     ),
                     if (uid != null)
@@ -943,9 +963,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -955,7 +975,9 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF01BCE3),
+        selectedItemColor: Theme.of(
+          context,
+        ).colorScheme.secondary, // Dynamic cyan
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,

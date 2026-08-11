@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 👇 ADDED THIS LINE: Required for Firebase / Internet access to work on real devices 👇 -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="jove_trainer"
+        android:label="JoE.V Trainer"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

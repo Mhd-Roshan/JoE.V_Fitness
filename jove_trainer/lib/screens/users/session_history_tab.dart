@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// ---> NEW: IMPORT LANGUAGE SERVICE <---
+// ---> IMPORT LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
 
 class SessionHistoryTab extends StatefulWidget {
@@ -94,9 +94,15 @@ class _SessionHistoryTabState extends State<SessionHistoryTab> {
   Widget build(BuildContext context) {
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF00225D)),
+      return Center(
+        child: CircularProgressIndicator(
+          color: brandBlue,
+        ), // Dynamic loading color
       );
     }
     if (_sessions.isEmpty) {
@@ -104,7 +110,7 @@ class _SessionHistoryTabState extends State<SessionHistoryTab> {
         child: Text(
           strings['noSessionsRecorded'] ?? 'No sessions recorded yet.',
           style: GoogleFonts.workSans(
-            color: const Color(0xFF808080),
+            color: subTextColor, // Dynamic empty text color
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -157,6 +163,18 @@ class _SessionVisitCard extends StatelessWidget {
     final strings = languageService.strings;
     final isDone = session.status == 'completed';
 
+    // ---> DYNAMIC THEME COLORS FOR CARD <---
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+
+    // Check if it's dark mode to adjust the green badge safely
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final greenBadgeText = isDark
+        ? const Color(0xFF4ADE80)
+        : const Color(0xFF15803D);
+
     // Build translated Date Label
     String dateLabel = '—';
     if (session.dateObj != null) {
@@ -186,9 +204,9 @@ class _SessionVisitCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardColor, // Dynamic Card Background
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE6E8EA)),
+        border: Border.all(color: dividerColor), // Dynamic Border
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,7 +221,7 @@ class _SessionVisitCard extends StatelessWidget {
                     strings['timeWord'] ?? 'Time',
                     style: GoogleFonts.workSans(
                       fontSize: 11,
-                      color: const Color(0xFF808080),
+                      color: subTextColor, // Dynamic SubText
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -213,7 +231,7 @@ class _SessionVisitCard extends StatelessWidget {
                     style: GoogleFonts.workSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF00225D),
+                      color: textColor, // Dynamic Main Text
                     ),
                   ),
                 ],
@@ -229,7 +247,7 @@ class _SessionVisitCard extends StatelessWidget {
                         style: GoogleFonts.workSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF00225D),
+                          color: textColor, // Dynamic Date Text
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -240,8 +258,10 @@ class _SessionVisitCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: isDone
-                              ? const Color(0xFFDCFCE7)
-                              : const Color(0xFFE6E8EA),
+                              ? const Color(0xFF22C55E).withValues(
+                                  alpha: 0.15,
+                                ) // Dynamic Green tint
+                              : dividerColor, // Dynamic Grey tint
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -249,9 +269,7 @@ class _SessionVisitCard extends StatelessWidget {
                           style: GoogleFonts.workSans(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
-                            color: isDone
-                                ? const Color(0xFF15803D)
-                                : const Color(0xFF808080),
+                            color: isDone ? greenBadgeText : subTextColor,
                           ),
                         ),
                       ),
@@ -260,32 +278,28 @@ class _SessionVisitCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.location_on_outlined,
                         size: 13,
-                        color: Color(0xFF808080),
+                        color: subTextColor,
                       ),
                       const SizedBox(width: 3),
                       Text(
                         session.area,
                         style: GoogleFonts.workSans(
                           fontSize: 12,
-                          color: const Color(0xFF808080),
+                          color: subTextColor,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                       const SizedBox(width: 10),
-                      const Icon(
-                        Icons.fitness_center,
-                        size: 13,
-                        color: Color(0xFF808080),
-                      ),
+                      Icon(Icons.fitness_center, size: 13, color: subTextColor),
                       const SizedBox(width: 3),
                       Text(
                         session.serviceType,
                         style: GoogleFonts.workSans(
                           fontSize: 12,
-                          color: const Color(0xFF808080),
+                          color: subTextColor,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -301,14 +315,14 @@ class _SessionVisitCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFFE6E8EA)),
+                border: Border.all(color: dividerColor), // Dynamic border
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 session.notes!,
                 style: GoogleFonts.workSans(
                   fontSize: 12,
-                  color: const Color(0xFF00225D),
+                  color: textColor, // Dynamic Notes text
                   fontWeight: FontWeight.w500,
                 ),
               ),

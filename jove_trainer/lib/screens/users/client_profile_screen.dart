@@ -10,7 +10,7 @@ import 'trainer_users_screen.dart';
 import '../notes/trainer_notes_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 
-// ---> NEW: IMPORT LANGUAGE SERVICE <---
+// ---> IMPORT LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
 
 class TrainerUserProfileScreen extends StatefulWidget {
@@ -26,7 +26,7 @@ class TrainerUserProfileScreen extends StatefulWidget {
 class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   bool _loading = true;
   int _selectedTab = 0; // 0: Overview, 1: Sessions, 2: Health info
-  String _activeFilterKey = 'allTime'; // Keep state internal key
+  String _activeFilterKey = 'allTime';
 
   // Fetched Data
   String _fullName = '—';
@@ -44,15 +44,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   String _area = '—';
   int _totalSessions = 0;
 
-  // Theme Colors
-  static const Color darkBlue = Color(0xFF00225D);
-  static const Color headerBlue = Color(0xFF003AA3);
+  // Semantic Colors (Stay the same across themes)
   static const Color cyanAccent = Color(0xFF01BCE3);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
   static const Color greenText = Color(0xFF17CC1A);
-
-  static const Color lightBlueCard = Color(0xFFA5C4F2);
   static const Color progressSteps = Color(0xFF01BCE3);
   static const Color progressWater = Color(0xFF2E51A2);
   static const Color progressSleep = Color(0xFFA932B2);
@@ -63,7 +57,6 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
     _loadData();
   }
 
-  // Firebase fetching logic with filtering applied
   Future<void> _loadData() async {
     setState(() => _loading = true);
 
@@ -92,7 +85,6 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
           ? subsSnap.docs.first.data()
           : <String, dynamic>{};
 
-      // 1. Progress Logs Query (Apply Date Filter)
       Query progressQuery = FirebaseFirestore.instance
           .collection('progressLogs')
           .doc(widget.clientId)
@@ -118,7 +110,6 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
           ? progressSnap.docs.first.data() as Map<String, dynamic>
           : <String, dynamic>{};
 
-      // 2. Sessions Query (Fetch all, filter locally to avoid indexing errors)
       final sessionsSnap = await FirebaseFirestore.instance
           .collection('sessions')
           .where('clientId', isEqualTo: widget.clientId)
@@ -142,7 +133,6 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
         }
       }
 
-      // Age calculation
       int? age;
       final dobStr = profileData['dob'] as String?;
       if (dobStr != null) {
@@ -187,7 +177,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   void _showFilterOptions(Map<String, String> strings) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(
+        context,
+      ).cardColor, // Dynamic Bottom Sheet Color
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -202,11 +194,11 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                 style: GoogleFonts.workSans(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: darkBlue,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 10),
-              const Divider(color: borderGrey),
+              Divider(color: Theme.of(context).dividerColor),
               _filterTile('allTime', strings['allTime'] ?? 'All Time'),
               _filterTile('last7Days', strings['last7Days'] ?? 'Last 7 Days'),
               _filterTile(
@@ -223,23 +215,26 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
 
   Widget _filterTile(String filterKey, String displayName) {
     bool isSelected = _activeFilterKey == filterKey;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return ListTile(
       leading: Icon(
         isSelected ? Icons.check_circle : Icons.circle_outlined,
-        color: isSelected ? cyanAccent : Colors.grey,
+        color: isSelected ? cyanAccent : subTextColor,
       ),
       title: Text(
         displayName,
         style: GoogleFonts.workSans(
           fontSize: 16,
           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-          color: darkBlue,
+          color: textColor,
         ),
       ),
       onTap: () {
         setState(() => _activeFilterKey = filterKey);
         Navigator.pop(context);
-        _loadData(); // Re-fetch the data automatically
+        _loadData();
       },
     );
   }
@@ -267,23 +262,30 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   Widget build(BuildContext context) {
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
-      backgroundColor: bgGrey,
+      backgroundColor: bgColor,
       bottomNavigationBar: _BottomNav(
-        currentIndex: 2,
+        currentIndex: 2, // Index 2 is Users
         strings: strings,
-      ), // Index 2 is Users
+      ),
       body: Column(
         children: [
           const _TopHeaderBand(),
           Expanded(
             child: _loading
-                ? const Center(
-                    child: CircularProgressIndicator(color: darkBlue),
-                  )
+                ? Center(child: CircularProgressIndicator(color: brandBlue))
                 : RefreshIndicator(
                     onRefresh: _loadData,
                     color: cyanAccent,
+                    backgroundColor: cardColor,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 40),
@@ -298,9 +300,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                               children: [
                                 GestureDetector(
                                   onTap: () => Navigator.pop(context),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.arrow_back,
-                                    color: darkBlue,
+                                    color: textColor,
                                     size: 24,
                                   ),
                                 ),
@@ -310,7 +312,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                   style: GoogleFonts.workSans(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w800,
-                                    color: darkBlue,
+                                    color: textColor,
                                   ),
                                 ),
                                 const Spacer(),
@@ -319,13 +321,13 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: cardColor,
                                       borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: borderGrey),
+                                      border: Border.all(color: dividerColor),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                       Icons.tune_rounded,
-                                      color: darkBlue,
+                                      color: textColor,
                                       size: 20,
                                     ),
                                   ),
@@ -346,7 +348,10 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                 padding: const EdgeInsets.all(4),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: darkBlue, width: 3),
+                                  border: Border.all(
+                                    color: brandBlue,
+                                    width: 3,
+                                  ),
                                 ),
                                 child: ClipOval(
                                   child:
@@ -356,14 +361,14 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                           fit: BoxFit.cover,
                                         )
                                       : Container(
-                                          color: Colors.grey.shade300,
+                                          color: dividerColor,
                                           alignment: Alignment.center,
                                           child: Text(
                                             _initials,
                                             style: GoogleFonts.workSans(
                                               fontSize: 32,
                                               fontWeight: FontWeight.w800,
-                                              color: darkBlue,
+                                              color: textColor,
                                             ),
                                           ),
                                         ),
@@ -377,21 +382,22 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                   width: 20,
                                   height: 20,
                                   decoration: BoxDecoration(
-                                    color: darkBlue,
+                                    color:
+                                        cardColor, // Frame matches background
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: Colors.white,
+                                      color: bgColor,
                                       width: 2,
                                     ),
                                   ),
                                   alignment: Alignment.center,
                                   child: Container(
-                                    width: 8,
-                                    height: 8,
+                                    width: 10,
+                                    height: 10,
                                     decoration: BoxDecoration(
                                       color: _status == 'active'
                                           ? cyanAccent
-                                          : Colors.grey,
+                                          : subTextColor,
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -408,7 +414,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                             style: GoogleFonts.workSans(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: darkBlue,
+                              color: textColor,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -429,17 +435,17 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                   style: TextStyle(
                                     color: _status == 'active'
                                         ? greenText
-                                        : Colors.grey.shade600,
+                                        : subTextColor,
                                   ),
                                 ),
-                                const TextSpan(
+                                TextSpan(
                                   text: '  •  ',
-                                  style: TextStyle(color: Color(0xFF9CA3AF)),
+                                  style: TextStyle(color: subTextColor),
                                 ),
                                 TextSpan(
                                   text: _packageName,
-                                  style: const TextStyle(
-                                    color: Color(0xFF4B5563),
+                                  style: TextStyle(
+                                    color: subTextColor,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -455,7 +461,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: cyanAccent.withValues(alpha: 0.1),
+                              color: cyanAccent.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -463,7 +469,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                               style: GoogleFonts.workSans(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: darkBlue,
+                                color: cyanAccent,
                               ),
                             ),
                           ),
@@ -515,7 +521,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                             child: Container(
                               height: 40,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE5E7EB),
+                                color: dividerColor.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               padding: const EdgeInsets.all(4),
@@ -575,6 +581,11 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
         ? _currentWeightKg! - _startWeightKg!
         : null;
 
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -583,9 +594,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderGrey, width: 1.5),
+              border: Border.all(color: dividerColor, width: 1.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -595,7 +606,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                   style: GoogleFonts.workSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: darkBlue,
+                    color: textColor,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -607,7 +618,11 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                       flex: 2,
                       child: Text(
                         strings['weight'] ?? 'Weight',
-                        style: _labelStyle,
+                        style: GoogleFonts.workSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: subTextColor,
+                        ),
                       ),
                     ),
                     Expanded(
@@ -616,7 +631,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                         text: TextSpan(
                           style: GoogleFonts.workSans(
                             fontSize: 12,
-                            color: darkBlue,
+                            color: textColor,
                           ),
                           children: [
                             TextSpan(
@@ -631,7 +646,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                     '(${strings['startWord'] ?? 'start'} ${_fmt(_startWeightKg)} kg)',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
-                                  color: Colors.grey.shade600,
+                                  color: subTextColor,
                                 ),
                               ),
                           ],
@@ -690,9 +705,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
           Container(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderGrey, width: 1.5),
+              border: Border.all(color: dividerColor, width: 1.5),
             ),
             child: Column(
               children: [
@@ -732,12 +747,6 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
       ),
     );
   }
-
-  TextStyle get _labelStyle => GoogleFonts.workSans(
-    fontSize: 13,
-    fontWeight: FontWeight.w700,
-    color: const Color(0xFF6B7280),
-  );
 }
 
 // ---------------------------------------------------------
@@ -758,14 +767,25 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Smart colors for Dark and Light mode
     Color bg = isHighlighted
-        ? _TrainerUserProfileScreenState.lightBlueCard
-        : _TrainerUserProfileScreenState.darkBlue;
+        ? (isDark
+              ? const Color(0xFF01BCE3).withValues(alpha: 0.15)
+              : const Color(0xFFA5C4F2))
+        : (isDark ? Theme.of(context).cardColor : const Color(0xFF00225D));
+
+    Color border = isHighlighted
+        ? Colors.transparent
+        : (isDark ? Theme.of(context).dividerColor : Colors.transparent);
+
     Color textCol = isHighlighted
-        ? _TrainerUserProfileScreenState.darkBlue
+        ? Theme.of(context).colorScheme.onSurface
         : Colors.white;
+
     Color subTextCol = isHighlighted
-        ? _TrainerUserProfileScreenState.darkBlue.withValues(alpha: 0.7)
+        ? Theme.of(context).colorScheme.onSurfaceVariant
         : const Color(0xFF9CA3AF);
 
     return Container(
@@ -773,7 +793,8 @@ class _StatCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: isHighlighted
+        border: Border.all(color: border),
+        boxShadow: (isHighlighted || isDark)
             ? null
             : [
                 BoxShadow(
@@ -831,12 +852,16 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
+          color: isSelected ? cardColor : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
           boxShadow: isSelected
               ? [
@@ -853,9 +878,7 @@ class _TabButton extends StatelessWidget {
           style: GoogleFonts.workSans(
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-            color: isSelected
-                ? _TrainerUserProfileScreenState.darkBlue
-                : const Color(0xFF9CA3AF),
+            color: isSelected ? textColor : subTextColor,
           ),
         ),
       ),
@@ -886,7 +909,7 @@ class _ProgressBarRow extends StatelessWidget {
             style: GoogleFonts.workSans(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF6B7280),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -895,7 +918,7 @@ class _ProgressBarRow extends StatelessWidget {
           child: Container(
             height: 6,
             decoration: BoxDecoration(
-              color: const Color(0xFFE5E7EB),
+              color: Theme.of(context).dividerColor,
               borderRadius: BorderRadius.circular(4),
             ),
             alignment: Alignment.centerLeft,
@@ -918,7 +941,7 @@ class _ProgressBarRow extends StatelessWidget {
             style: GoogleFonts.workSans(
               fontSize: 12,
               fontWeight: FontWeight.w800,
-              color: Colors.black,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ),
@@ -945,9 +968,12 @@ class _DetailRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: hideBorder
           ? null
-          : const BoxDecoration(
+          : BoxDecoration(
               border: Border(
-                bottom: BorderSide(color: Color(0xFFF3F4F6), width: 1.5),
+                bottom: BorderSide(
+                  color: Theme.of(context).dividerColor,
+                  width: 1.5,
+                ),
               ),
             ),
       child: Row(
@@ -961,7 +987,7 @@ class _DetailRow extends StatelessWidget {
             style: GoogleFonts.workSans(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: const Color(0xFF6B7280),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           Text(
@@ -970,7 +996,7 @@ class _DetailRow extends StatelessWidget {
             style: GoogleFonts.workSans(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: _TrainerUserProfileScreenState.darkBlue,
+              color: Theme.of(context).colorScheme.onSurface,
               height: multiLineValue ? 1.2 : 1,
             ),
           ),
@@ -1013,9 +1039,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: _TrainerUserProfileScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Header Color
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -1063,7 +1089,7 @@ class _TopHeaderBand extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.notifications_none_rounded,
-                color: Color(0xFF00225D),
+                color: Colors.white, // Always white on header
                 size: 20,
               ),
             ),
@@ -1097,9 +1123,9 @@ class _BottomNav extends StatelessWidget {
       (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
     return Container(
-      decoration: const BoxDecoration(
-        color: _TrainerUserProfileScreenState.headerBlue,
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Footer Color
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -1109,7 +1135,7 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: _TrainerUserProfileScreenState.cyanAccent,
+        selectedItemColor: Theme.of(context).colorScheme.secondary,
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,

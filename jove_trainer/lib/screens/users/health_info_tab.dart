@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// ---> NEW: IMPORT LANGUAGE SERVICE <---
+// ---> IMPORT LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
 
 class HealthInfoTab extends StatefulWidget {
@@ -16,8 +16,8 @@ class HealthInfoTab extends StatefulWidget {
 class _Procedure {
   final String id;
   final String name;
-  final String? date; // Formatted date string
-  final String? rawDate; // Raw ISO string for editing
+  final String? date;
+  final String? rawDate;
   final String? recoveryStatus;
 
   _Procedure({
@@ -150,30 +150,43 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
     final nameCtrl = TextEditingController();
     final statusCtrl = TextEditingController();
     DateTime? selectedDate;
+    final textColor = Theme.of(context).colorScheme.onSurface;
 
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setStateDialog) {
           return AlertDialog(
+            backgroundColor: Theme.of(context).cardColor, // Dynamic Dialog BG
             title: Text(
               strings['addProcedure'] ?? 'Add Procedure',
-              style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
+              style: GoogleFonts.workSans(
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nameCtrl,
+                  style: TextStyle(color: textColor),
                   decoration: InputDecoration(
                     labelText: strings['procedureName'] ?? 'Procedure Name',
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: statusCtrl,
+                  style: TextStyle(color: textColor),
                   decoration: InputDecoration(
                     labelText: strings['recoveryStatus'] ?? 'Recovery Status',
+                    labelStyle: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -183,8 +196,12 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                     selectedDate == null
                         ? (strings['selectDate'] ?? 'Select Date')
                         : '${selectedDate!.month}/${selectedDate!.year}',
+                    style: TextStyle(color: textColor),
                   ),
-                  trailing: const Icon(Icons.calendar_today),
+                  trailing: Icon(
+                    Icons.calendar_today,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   onTap: () async {
                     final d = await showDatePicker(
                       context: context,
@@ -231,17 +248,27 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   Future<void> _addMedication() async {
     final strings = languageService.strings;
     final ctrl = TextEditingController();
+    final textColor = Theme.of(context).colorScheme.onSurface;
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         title: Text(
           strings['addMedication'] ?? 'Add Medication',
-          style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
+          style: GoogleFonts.workSans(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
         ),
         content: TextField(
           controller: ctrl,
+          style: TextStyle(color: textColor),
           decoration: InputDecoration(
             hintText: strings['egIbuprofen'] ?? 'e.g. Ibuprofen',
+            hintStyle: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         actions: [
@@ -270,17 +297,27 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   Future<void> _addCondition() async {
     final strings = languageService.strings;
     final ctrl = TextEditingController();
+    final textColor = Theme.of(context).colorScheme.onSurface;
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
         title: Text(
           strings['addCondition'] ?? 'Add Condition',
-          style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
+          style: GoogleFonts.workSans(
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
         ),
         content: TextField(
           controller: ctrl,
+          style: TextStyle(color: textColor),
           decoration: InputDecoration(
             hintText: strings['egHypertension'] ?? 'e.g. Hypertension',
+            hintStyle: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         actions: [
@@ -320,6 +357,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
     final strings = languageService.strings;
     showModalBottomSheet(
       context: context,
+      backgroundColor: Theme.of(context).cardColor, // Dynamic Bottom Sheet
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -335,6 +373,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                   style: GoogleFonts.workSans(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -350,10 +389,15 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.close),
+                  leading: Icon(
+                    Icons.close,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                   title: Text(
                     strings['cancel'] ?? 'Cancel',
-                    style: GoogleFonts.workSans(),
+                    style: GoogleFonts.workSans(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   onTap: () => Navigator.pop(ctx),
                 ),
@@ -369,10 +413,15 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   Widget build(BuildContext context) {
     final strings = languageService.strings;
 
+    // ---> DYNAMIC THEME COLORS <---
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
+    final headerColor = Theme.of(context).primaryColor;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF00225D)),
-      );
+      return Center(child: CircularProgressIndicator(color: brandBlue));
     }
 
     final hasAnything =
@@ -384,22 +433,22 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFC0C0C0)),
+          border: Border.all(color: dividerColor), // Dynamic border
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Header
+            // Top Header (Always keeps brand color)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              color: const Color(0xFF00225D),
+              color: headerColor,
               child: Row(
                 children: [
                   const Icon(
                     Icons.favorite,
-                    color: Color(0xFFBB0013),
+                    color: Color(0xFFBB0013), // Keep red heart
                     size: 18,
                   ),
                   const SizedBox(width: 8),
@@ -407,7 +456,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                     strings['physicalConditionsProfile'] ??
                         'Physical Conditions Profile',
                     style: GoogleFonts.workSans(
-                      color: Colors.white,
+                      color: Colors.white, // Text stays white on header
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                     ),
@@ -416,11 +465,11 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
               ),
             ),
 
-            // Content Area
+            // Content Area (Changes with theme)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
-              color: const Color(0xFF00225D),
+              color: cardColor,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -431,7 +480,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                         strings['noHealthInfo'] ??
                             'No health information recorded yet.',
                         style: GoogleFonts.workSans(
-                          color: Colors.white70,
+                          color: subTextColor,
                           fontSize: 13,
                         ),
                       ),
@@ -523,6 +572,9 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = languageService.strings;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
     return Row(
       children: [
         Container(
@@ -538,7 +590,7 @@ class _SectionLabel extends StatelessWidget {
           child: Text(
             text,
             style: GoogleFonts.workSans(
-              color: Colors.white,
+              color: textColor, // Dynamic Text
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -549,17 +601,19 @@ class _SectionLabel extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: brandBlue.withValues(
+                alpha: 0.1,
+              ), // Subtle dynamic background
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
               children: [
-                const Icon(Icons.add, color: Colors.white, size: 14),
+                Icon(Icons.add, color: brandBlue, size: 14),
                 const SizedBox(width: 4),
                 Text(
                   strings['addWord'] ?? 'Add',
                   style: GoogleFonts.workSans(
-                    color: Colors.white,
+                    color: brandBlue,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -581,7 +635,10 @@ class _EmptyNote extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: GoogleFonts.workSans(color: Colors.white54, fontSize: 12),
+      style: GoogleFonts.workSans(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontSize: 12,
+      ),
     );
   }
 }
@@ -594,11 +651,14 @@ class _ProcedureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = languageService.strings;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: Theme.of(context).scaffoldBackgroundColor, // Slight inset look
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -610,7 +670,7 @@ class _ProcedureCard extends StatelessWidget {
                 Text(
                   procedure.name,
                   style: GoogleFonts.workSans(
-                    color: Colors.white,
+                    color: textColor,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
@@ -627,7 +687,7 @@ class _ProcedureCard extends StatelessWidget {
                         '${strings['recoveryWord'] ?? 'Recovery'}: ${procedure.recoveryStatus}',
                     ].join(' • '),
                     style: GoogleFonts.workSans(
-                      color: Colors.white60,
+                      color: subTextColor,
                       fontSize: 11,
                     ),
                   ),
@@ -636,7 +696,7 @@ class _ProcedureCard extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+            icon: Icon(Icons.close, color: subTextColor, size: 18),
             onPressed: onDelete,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -654,10 +714,13 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Container(
       padding: const EdgeInsets.only(left: 14, right: 8, top: 6, bottom: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -666,7 +729,7 @@ class _Pill extends StatelessWidget {
           Text(
             text,
             style: GoogleFonts.workSans(
-              color: Colors.white,
+              color: textColor,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -674,7 +737,7 @@ class _Pill extends StatelessWidget {
           const SizedBox(width: 6),
           GestureDetector(
             onTap: onDelete,
-            child: const Icon(Icons.cancel, color: Colors.white54, size: 16),
+            child: Icon(Icons.cancel, color: subTextColor, size: 16),
           ),
         ],
       ),
@@ -690,10 +753,12 @@ class _ConditionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = languageService.strings;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -702,7 +767,7 @@ class _ConditionRow extends StatelessWidget {
             child: Text(
               condition.name,
               style: GoogleFonts.workSans(
-                color: Colors.white,
+                color: textColor,
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
               ),
@@ -711,7 +776,7 @@ class _ConditionRow extends StatelessWidget {
           ElevatedButton(
             onPressed: onManage,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF17CC1A),
+              backgroundColor: const Color(0xFF17CC1A), // Keep action green
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
@@ -722,7 +787,7 @@ class _ConditionRow extends StatelessWidget {
             child: Text(
               strings['manage'] ?? 'Manage',
               style: GoogleFonts.workSans(
-                color: Colors.white,
+                color: Colors.white, // Keep white on green
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),

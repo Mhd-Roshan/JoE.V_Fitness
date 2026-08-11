@@ -4,6 +4,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// --- THEME IMPORTS ---
+import 'package:provider/provider.dart';
+import '../../theme/theme_provider.dart';
+
 // --- BOTTOM NAVIGATION IMPORTS ---
 import '../home/trainer_home_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
@@ -12,7 +16,7 @@ import '../notes/trainer_notes_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
 
-// ---> NEW: IMPORT ONLY THE LANGUAGE SERVICE <---
+// ---> IMPORT LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
 
 class AppSettingsScreen extends StatefulWidget {
@@ -23,12 +27,8 @@ class AppSettingsScreen extends StatefulWidget {
 }
 
 class _AppSettingsScreenState extends State<AppSettingsScreen> {
-  // Theme Colors
-  static const Color darkBlue = Color(0xFF00225D);
+  // Brand Colors
   static const Color primaryRed = Color(0xFFC7001A);
-  static const Color bgGrey = Color(0xFFFAFAFA);
-  static const Color borderGrey = Color(0xFFE5E7EB);
-  static const Color textGrey = Color(0xFF6B7280);
 
   // State Variables
   bool _notificationsEnabled = true;
@@ -47,13 +47,15 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     {'code': 'ta', 'name': 'தமிழ்'},
   ];
 
-  void _showLanguagePicker() {
-    final strings =
-        languageService.strings; // Fetch strings for the bottom sheet
+  // ----------------------------------------------------
+  // LANGUAGE PICKER BOTTOM SHEET
+  // ----------------------------------------------------
+  void _showLanguagePicker(Color textColor, Color subTextColor) {
+    final strings = languageService.strings;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -69,7 +71,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                   style: GoogleFonts.workSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: darkBlue,
+                    color: textColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -78,7 +80,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                   return ListTile(
                     leading: Icon(
                       Icons.language,
-                      color: isSelected ? primaryRed : textGrey,
+                      color: isSelected ? primaryRed : subTextColor,
                     ),
                     title: Text(
                       lang['name']!,
@@ -87,26 +89,18 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                         fontWeight: isSelected
                             ? FontWeight.w700
                             : FontWeight.w500,
-                        color: isSelected ? darkBlue : textGrey,
+                        color: isSelected ? textColor : subTextColor,
                       ),
                     ),
                     trailing: isSelected
                         ? const Icon(Icons.check_circle, color: primaryRed)
                         : null,
                     onTap: () {
-                      // 1. Instantly update the UI on THIS screen
                       setState(() {
                         _selectedLanguage = lang['code']!;
                       });
-
-                      // 2. Save language preference in your service
                       languageService.setLanguage(lang['code']!);
-
-                      // 3. Close the bottom sheet
                       Navigator.pop(context);
-
-                      // 4. SEAMLESS TRANSITION!
-                      // Just clear the back-history and drop them cleanly on the Home screen.
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
                           builder: (_) => const TrainerHomeScreen(),
@@ -124,12 +118,127 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     );
   }
 
+  // ----------------------------------------------------
+  // THEME PICKER BOTTOM SHEET (NEW!)
+  // ----------------------------------------------------
+  void _showThemePicker(
+    ThemeProvider themeProvider,
+    Color textColor,
+    Color subTextColor,
+  ) {
+    final strings = languageService.strings;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  strings['theme'] ?? 'App Theme',
+                  style: GoogleFonts.workSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildThemeOption(
+                  themeProvider,
+                  ThemeMode.system,
+                  strings['systemDefault'] ?? 'System Default',
+                  Icons.settings_system_daydream_rounded,
+                  textColor,
+                  subTextColor,
+                ),
+                _buildThemeOption(
+                  themeProvider,
+                  ThemeMode.light,
+                  strings['lightMode'] ?? 'Light Mode',
+                  Icons.light_mode_rounded,
+                  textColor,
+                  subTextColor,
+                ),
+                _buildThemeOption(
+                  themeProvider,
+                  ThemeMode.dark,
+                  strings['darkMode'] ?? 'Dark Mode',
+                  Icons.dark_mode_rounded,
+                  textColor,
+                  subTextColor,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildThemeOption(
+    ThemeProvider provider,
+    ThemeMode mode,
+    String title,
+    IconData icon,
+    Color textColor,
+    Color subTextColor,
+  ) {
+    final isSelected = provider.themeMode == mode;
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isSelected ? const Color(0xFF01BCE3) : subTextColor,
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.workSans(
+          fontSize: 15,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          color: isSelected ? textColor : subTextColor,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check_circle, color: Color(0xFF01BCE3))
+          : null,
+      onTap: () {
+        provider.setThemeMode(mode); // Updates the app instantly!
+        Navigator.pop(context);
+      },
+    );
+  }
+
+  String _getThemeLabel(ThemeMode mode, Map<String, String> strings) {
+    switch (mode) {
+      case ThemeMode.light:
+        return strings['light'] ?? 'Light';
+      case ThemeMode.dark:
+        return strings['dark'] ?? 'Dark';
+      case ThemeMode.system:
+        return strings['system'] ?? 'System';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final strings = languageService.strings; // Fetch strings for this page
+    final strings = languageService.strings;
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
+    // --- DYNAMIC THEME COLORS ---
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final cardColor = Theme.of(context).cardColor;
+    final textColor = Theme.of(context).colorScheme.onSurface;
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final dividerColor = Theme.of(context).dividerColor;
 
     return Scaffold(
-      backgroundColor: bgGrey,
+      backgroundColor: bgColor,
       bottomNavigationBar: _BottomNav(currentIndex: 4, strings: strings),
       body: Column(
         children: [
@@ -144,7 +253,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                   Row(
                     children: [
                       GestureDetector(
-                        // SEAMLESS BACK ARROW FIX
                         onTap: () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
@@ -152,9 +260,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                             ),
                           );
                         },
-                        child: const Icon(
+                        child: Icon(
                           Icons.arrow_back,
-                          color: darkBlue,
+                          color: textColor,
                           size: 24,
                         ),
                       ),
@@ -164,7 +272,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                         style: GoogleFonts.workSans(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: darkBlue,
+                          color: textColor,
                         ),
                       ),
                     ],
@@ -174,12 +282,15 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderGrey, width: 1.5),
+                      border: Border.all(color: dividerColor, width: 1.5),
                     ),
                     child: Column(
                       children: [
+                        // ------------------------------------
+                        // 1. NOTIFICATIONS TOGGLE
+                        // ------------------------------------
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 20,
@@ -194,7 +305,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                     Container(
                                       padding: const EdgeInsets.all(10),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFFDE8E8),
+                                        color: primaryRed.withValues(
+                                          alpha: 0.1,
+                                        ),
                                         borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: const Icon(
@@ -216,7 +329,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                             style: GoogleFonts.workSans(
                                               fontSize: 15,
                                               fontWeight: FontWeight.w700,
-                                              color: darkBlue,
+                                              color: textColor,
                                             ),
                                           ),
                                           const SizedBox(height: 2),
@@ -227,7 +340,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                             style: GoogleFonts.workSans(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w500,
-                                              color: textGrey,
+                                              color: subTextColor,
                                             ),
                                           ),
                                         ],
@@ -250,14 +363,121 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                           ),
                         ),
 
-                        const Divider(
-                          color: borderGrey,
-                          height: 1,
-                          thickness: 1,
+                        Divider(color: dividerColor, height: 1, thickness: 1),
+
+                        // ------------------------------------
+                        // 2. THEME SELECTOR
+                        // ------------------------------------
+                        GestureDetector(
+                          onTap: () => _showThemePicker(
+                            themeProvider,
+                            textColor,
+                            subTextColor,
+                          ),
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: const Color(
+                                            0xFF01BCE3,
+                                          ).withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          themeProvider.themeMode ==
+                                                  ThemeMode.dark
+                                              ? Icons.dark_mode_rounded
+                                              : (themeProvider.themeMode ==
+                                                        ThemeMode.light
+                                                    ? Icons.light_mode_rounded
+                                                    : Icons
+                                                          .settings_system_daydream_rounded),
+                                          color: const Color(
+                                            0xFF01BCE3,
+                                          ), // Cyan accent
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              strings['theme'] ?? 'App Theme',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.workSans(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w700,
+                                                color: textColor,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              strings['themeDesc'] ??
+                                                  'Match device or pick a theme',
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.workSans(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                                color: subTextColor,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _getThemeLabel(
+                                        themeProvider.themeMode,
+                                        strings,
+                                      ),
+                                      style: GoogleFonts.workSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: subTextColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: subTextColor,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
 
+                        Divider(color: dividerColor, height: 1, thickness: 1),
+
+                        // ------------------------------------
+                        // 3. LANGUAGE PICKER
+                        // ------------------------------------
                         GestureDetector(
-                          onTap: _showLanguagePicker,
+                          onTap: () =>
+                              _showLanguagePicker(textColor, subTextColor),
                           behavior: HitTestBehavior.opaque,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
@@ -296,7 +516,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                               style: GoogleFonts.workSans(
                                                 fontSize: 15,
                                                 fontWeight: FontWeight.w700,
-                                                color: darkBlue,
+                                                color: textColor,
                                               ),
                                             ),
                                             const SizedBox(height: 2),
@@ -307,7 +527,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                               style: GoogleFonts.workSans(
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w500,
-                                                color: textGrey,
+                                                color: subTextColor,
                                               ),
                                             ),
                                           ],
@@ -329,13 +549,13 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                       style: GoogleFonts.workSans(
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
-                                        color: textGrey,
+                                        color: subTextColor,
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    const Icon(
+                                    Icon(
                                       Icons.chevron_right_rounded,
-                                      color: textGrey,
+                                      color: subTextColor,
                                     ),
                                   ],
                                 ),
@@ -375,9 +595,9 @@ class _TopHeaderBand extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Header Color
+        borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
@@ -473,7 +693,7 @@ class _TopHeaderBand extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.notifications_none_rounded,
-                      color: Color(0xFF00225D),
+                      color: Colors.white,
                       size: 20,
                     ),
                     if (uid != null)
@@ -537,9 +757,9 @@ class _BottomNav extends StatelessWidget {
     ];
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF003AA3),
-        borderRadius: BorderRadius.only(
+      decoration: BoxDecoration(
+        color: Theme.of(context).primaryColor, // Dynamic Header Color
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
@@ -549,7 +769,7 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: const Color(0xFF01BCE3),
+        selectedItemColor: Theme.of(context).colorScheme.secondary,
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,
