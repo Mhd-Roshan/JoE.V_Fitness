@@ -3,16 +3,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// --- ALL BOTTOM NAVIGATION IMPORTS ---
 import '../home/trainer_home_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
 import '../users/trainer_users_screen.dart';
 import '../notes/trainer_notes_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
-
-// --- IMPORT THE SUB-SCREENS ---
 import 'contact_admin_screen.dart';
-import 'app_settings_screen.dart'; // <-- ADDED APP SETTINGS IMPORT
+import 'app_settings_screen.dart';
+import 'trainer_client_reviews_screen.dart';
+import '../auth/login_screen.dart';
+
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
 
 class TrainerProfileScreen extends StatefulWidget {
   const TrainerProfileScreen({super.key});
@@ -22,7 +24,6 @@ class TrainerProfileScreen extends StatefulWidget {
 }
 
 class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
-  // Theme Colors
   static const Color darkBlue = Color(0xFF00225D);
   static const Color headerBlue = Color(0xFF003AA3);
   static const Color primaryRed = Color(0xFFC7001A);
@@ -31,8 +32,6 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   static const Color textGrey = Color(0xFF6B7280);
 
   bool _isLoading = true;
-
-  // Data Variables (Populated purely from Firebase)
   String _fullName = '';
   String _designation = '';
   int _yearsExperience = 0;
@@ -40,11 +39,9 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   String _email = '';
   String _area = '';
   String _profileImageUrl = '';
-
   int _clientCount = 0;
   int _totalSessions = 0;
   String _successRate = '';
-
   List<Map<String, dynamic>> _feedbacks = [];
 
   @override
@@ -61,14 +58,11 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     }
 
     try {
-      // 1. Fetch Trainer/User Data
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
       final userData = userDoc.data() ?? {};
-
-      // Fallback check: Some apps store trainer data in a 'trainers' collection
       final trainerQuery = await FirebaseFirestore.instance
           .collection('trainers')
           .where('trainerId', isEqualTo: uid)
@@ -77,20 +71,14 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
       final trainerData = trainerQuery.docs.isNotEmpty
           ? trainerQuery.docs.first.data()
           : {};
-
-      // 2. Dynamically Count Assigned Clients
       final clientsQuery = await FirebaseFirestore.instance
           .collection('users')
           .where('trainerId', isEqualTo: uid)
           .get();
-
-      // 3. Dynamically Count Total Sessions (From your 'sessions' collection)
       final sessionsQuery = await FirebaseFirestore.instance
           .collection('sessions')
           .where('trainerId', isEqualTo: uid)
           .get();
-
-      // 4. Fetch Real Client Feedbacks
       final feedbackQuery = await FirebaseFirestore.instance
           .collection('feedbacks')
           .where('trainerId', isEqualTo: uid)
@@ -100,7 +88,6 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
 
       if (mounted) {
         setState(() {
-          // Merge User/Trainer document data
           _fullName =
               userData['fullName'] ??
               trainerData['fullName'] ??
@@ -116,7 +103,6 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
               trainerData['profileImageUrl'] ??
               userData['profileImageUrl'] ??
               '';
-
           _designation =
               (trainerData['designation'] ??
                       userData['designation'] ??
@@ -128,58 +114,58 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
               userData['yearsExperience'] ??
               0;
           _successRate =
-              trainerData['successRate'] ??
-              userData['successRate'] ??
-              '100%'; // Custom metric usually stored in DB
-
-          // Dynamic Counts
+              trainerData['successRate'] ?? userData['successRate'] ?? '100%';
           _clientCount = clientsQuery.docs.length;
           _totalSessions = sessionsQuery.docs.length;
-
-          // Feedback list
           _feedbacks = feedbackQuery.docs.map((doc) => doc.data()).toList();
-
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error loading profile: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _handleSignOut() {
+  void _handleSignOut(Map<String, String> strings) {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(
-          'Sign Out',
+          strings['signOut'] ?? 'Sign Out',
           style: GoogleFonts.workSans(
             fontWeight: FontWeight.bold,
             color: darkBlue,
           ),
         ),
         content: Text(
-          'Are you sure you want to sign out?',
+          strings['signOutConfirm'] ?? 'Are you sure you want to sign out?',
           style: GoogleFonts.workSans(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: GoogleFonts.workSans(color: textGrey)),
+            child: Text(
+              strings['cancel'] ?? 'Cancel',
+              style: GoogleFonts.workSans(color: textGrey),
+            ),
           ),
           TextButton(
             onPressed: () async {
               Navigator.pop(dialogContext);
-              await FirebaseAuth.instance.signOut();
-              if (mounted) {
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/login', (route) => false);
+              try {
+                await FirebaseAuth.instance.signOut();
+                if (mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
+              } catch (e) {
+                debugPrint("Error signing out: $e");
               }
             },
             child: Text(
-              'Sign Out',
+              strings['signOut'] ?? 'Sign Out',
               style: GoogleFonts.workSans(
                 color: primaryRed,
                 fontWeight: FontWeight.bold,
@@ -193,77 +179,72 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ---> Get Strings Here <---
+    final strings = languageService.strings;
+
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: const _BottomNav(currentIndex: 4), // Profile Tab
+      bottomNavigationBar: _BottomNav(
+        currentIndex: 4,
+        strings: strings,
+      ), // Passed strings
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: darkBlue))
           : Column(
               children: [
                 const _TopHeaderBand(),
-
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.only(bottom: 40),
                     child: Column(
                       children: [
                         const SizedBox(height: 30),
-
-                        // 1. Profile Picture & Header
                         _buildProfileHeader(),
-
                         const SizedBox(height: 24),
-
-                        // 2. Stats Row
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Row(
                             children: [
                               Expanded(
                                 child: _buildStatCard(
-                                  'Clients',
+                                  strings['clients'] ?? 'Clients',
                                   _clientCount.toString(),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: _buildStatCard(
-                                  'Sessions',
+                                  strings['sessions'] ?? 'Sessions',
                                   _totalSessions.toString(),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _buildStatCard('Rate', _successRate),
+                                child: _buildStatCard(
+                                  strings['rate'] ?? 'Rate',
+                                  _successRate,
+                                ),
                               ),
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 24),
-
-                        // 3. Personal Information Box
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: _buildPersonalInfoCard(),
+                          child: _buildPersonalInfoCard(strings),
                         ),
-
                         const SizedBox(height: 32),
-
-                        // 4. Client Feedback Section
-                        _buildFeedbackSection(),
-
+                        _buildFeedbackSection(strings),
                         const SizedBox(height: 32),
-
-                        // 5. Menu Options
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: Column(
                             children: [
                               _buildMenuOption(
                                 icon: Icons.group_outlined,
-                                title: 'My Client',
-                                subtitle: '$_clientCount users assigned',
+                                title: strings['myClient'] ?? 'My Client',
+                                subtitle:
+                                    '$_clientCount ${strings['usersAssigned'] ?? 'users assigned'}',
                                 onTap: () =>
                                     Navigator.of(context).pushReplacement(
                                       MaterialPageRoute(
@@ -275,53 +256,48 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                               const SizedBox(height: 12),
                               _buildMenuOption(
                                 icon: Icons.call_outlined,
-                                title: 'Contact admin',
-                                subtitle: 'Report issue or request leave',
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const ContactAdminScreen(),
-                                    ),
-                                  );
-                                },
+                                title:
+                                    strings['contactAdmin'] ?? 'Contact admin',
+                                subtitle:
+                                    strings['reportIssue'] ??
+                                    'Report issue or request leave',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ContactAdminScreen(),
+                                  ),
+                                ),
                               ),
                               const SizedBox(height: 12),
                               _buildMenuOption(
                                 icon: Icons.settings_outlined,
-                                title: 'App setting',
-                                subtitle: 'Language, notifications',
-                                onTap: () {
-                                  // ---> WIRED UP TO SETTINGS PAGE <---
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const AppSettingsScreen(),
-                                    ),
-                                  );
-                                },
+                                title: strings['appSettings'] ?? 'App Settings',
+                                subtitle:
+                                    strings['appSettingsDesc'] ??
+                                    'Language, notifications',
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const AppSettingsScreen(),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 32),
-
-                        // 6. Sign Out Button
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                           child: SizedBox(
                             width: double.infinity,
                             height: 54,
                             child: ElevatedButton.icon(
-                              onPressed: _handleSignOut,
+                              onPressed: () => _handleSignOut(strings),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: primaryRed,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                elevation: 2,
                               ),
                               icon: const Icon(
                                 Icons.logout_rounded,
@@ -329,7 +305,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                                 size: 20,
                               ),
                               label: Text(
-                                'SIGN OUT',
+                                strings['signOut'] ?? 'SIGN OUT',
                                 style: GoogleFonts.workSans(
                                   color: Colors.white,
                                   fontSize: 15,
@@ -349,17 +325,13 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
   Widget _buildProfileHeader() {
-    // Safety check for initials
     String initials = '?';
     if (_fullName.isNotEmpty) {
       final parts = _fullName.trim().split(' ');
       initials = parts.first[0].toUpperCase();
       if (parts.length > 1) initials += parts.last[0].toUpperCase();
     }
-
     return Column(
       children: [
         Stack(
@@ -487,7 +459,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     );
   }
 
-  Widget _buildPersonalInfoCard() {
+  Widget _buildPersonalInfoCard(Map<String, String> strings) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -499,7 +471,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Personal Information',
+            strings['personalInfo'] ?? 'Personal Information',
             style: GoogleFonts.workSans(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -510,11 +482,23 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
             padding: EdgeInsets.symmetric(vertical: 12),
             child: Divider(color: borderGrey, thickness: 1),
           ),
-          _buildInfoRow(Icons.phone_outlined, 'PHONE', _phone),
+          _buildInfoRow(
+            Icons.phone_outlined,
+            strings['phone'] ?? 'PHONE',
+            _phone,
+          ),
           const SizedBox(height: 20),
-          _buildInfoRow(Icons.mail_outline_rounded, 'EMAIL', _email),
+          _buildInfoRow(
+            Icons.mail_outline_rounded,
+            strings['email'] ?? 'EMAIL',
+            _email,
+          ),
           const SizedBox(height: 20),
-          _buildInfoRow(Icons.location_on_outlined, 'PRIMARY AREA', _area),
+          _buildInfoRow(
+            Icons.location_on_outlined,
+            strings['primaryArea'] ?? 'PRIMARY AREA',
+            _area,
+          ),
         ],
       ),
     );
@@ -555,7 +539,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     );
   }
 
-  Widget _buildFeedbackSection() {
+  Widget _buildFeedbackSection(Map<String, String> strings) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -565,20 +549,28 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Client Feedback',
+                strings['clientFeedback'] ?? 'Client Feedback',
                 style: GoogleFonts.workSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: darkBlue,
                 ),
               ),
-              Text(
-                'VIEW ALL',
-                style: GoogleFonts.workSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: primaryRed,
-                  letterSpacing: 1.0,
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrainerClientReviewsScreen(),
+                  ),
+                ),
+                child: Text(
+                  strings['viewAll'] ?? 'VIEW ALL',
+                  style: GoogleFonts.workSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: primaryRed,
+                    letterSpacing: 1.0,
+                  ),
                 ),
               ),
             ],
@@ -590,7 +582,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
           child: _feedbacks.isEmpty
               ? Center(
                   child: Text(
-                    'No feedback available yet.',
+                    strings['noFeedback'] ?? 'No feedback available yet.',
                     style: GoogleFonts.workSans(
                       color: textGrey,
                       fontStyle: FontStyle.italic,
@@ -603,29 +595,29 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                   itemCount: _feedbacks.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(width: 16),
-                  itemBuilder: (context, index) {
-                    final feedback = _feedbacks[index];
-                    return _buildFeedbackCard(feedback);
-                  },
+                  itemBuilder: (context, index) =>
+                      _buildFeedbackCard(_feedbacks[index], strings),
                 ),
         ),
       ],
     );
   }
 
-  Widget _buildFeedbackCard(Map<String, dynamic> feedback) {
-    // Dynamic Firebase Fields
-    final clientName = feedback['clientName']?.toString() ?? 'Anonymous';
-    final memberType = feedback['memberType']?.toString() ?? 'MEMBER';
+  Widget _buildFeedbackCard(
+    Map<String, dynamic> feedback,
+    Map<String, String> strings,
+  ) {
+    final clientName =
+        feedback['clientName']?.toString() ??
+        strings['anonymous'] ??
+        'Anonymous';
+    final memberType =
+        feedback['memberType']?.toString() ?? strings['member'] ?? 'MEMBER';
     final reviewText = feedback['reviewText']?.toString() ?? '';
     final clientImage = feedback['clientImageUrl']?.toString() ?? '';
-
-    // Safety parse rating
-    int rating = 5;
-    if (feedback['rating'] != null) {
-      rating = double.tryParse(feedback['rating'].toString())?.round() ?? 5;
-    }
-
+    int rating = feedback['rating'] != null
+        ? (double.tryParse(feedback['rating'].toString())?.round() ?? 5)
+        : 5;
     String initial = clientName.isNotEmpty ? clientName[0].toUpperCase() : 'U';
 
     return Container(
@@ -640,20 +632,22 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: List.generate(5, (index) {
-              return Icon(
+            children: List.generate(
+              5,
+              (index) => Icon(
                 index < rating ? Icons.star : Icons.star_border,
                 color: primaryRed,
                 size: 16,
-              );
-            }),
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           Expanded(
             child: Text(
               reviewText.isNotEmpty
                   ? '"$reviewText"'
-                  : 'No written review provided.',
+                  : (strings['noWrittenReview'] ??
+                        'No written review provided.'),
               style: GoogleFonts.workSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -788,14 +782,13 @@ class _TopHeaderBand extends StatelessWidget {
       offset: const Offset(1.5, 1.5),
       blurRadius: 3,
     );
-
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
       decoration: const BoxDecoration(
-        color: _TrainerProfileScreenState.headerBlue,
+        color: Color(0xFF003AA3),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -853,7 +846,7 @@ class _TopHeaderBand extends StatelessWidget {
                   TextSpan(
                     text: 'FITNESS',
                     style: GoogleFonts.workSans(
-                      color: _TrainerProfileScreenState.primaryRed,
+                      color: const Color(0xFFC7001A),
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
                       fontStyle: FontStyle.italic,
@@ -867,14 +860,12 @@ class _TopHeaderBand extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TrainerNotificationsScreen(),
-                  ),
-                );
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TrainerNotificationsScreen(),
+                ),
+              ),
               child: Container(
                 width: 38,
                 height: 38,
@@ -928,22 +919,32 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
+
   final int currentIndex;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
 
     return Container(
       decoration: const BoxDecoration(
-        color: _TrainerProfileScreenState.headerBlue,
+        color: Color(0xFF003AA3),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -997,7 +998,6 @@ class _BottomNav extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
           }
-          // index 4 is Profile, so if tapped, do nothing since we are already here.
         },
       ),
     );

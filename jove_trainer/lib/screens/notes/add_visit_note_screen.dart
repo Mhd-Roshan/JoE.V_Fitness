@@ -1,8 +1,10 @@
-import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
 
 class AddVisitNoteScreen extends StatefulWidget {
   final String clientId;
@@ -35,17 +37,8 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
   final TextEditingController _observationController = TextEditingController();
   final TextEditingController _nextFocusController = TextEditingController();
 
-  // Dynamic Data instead of Dummy Data
   TimeOfDay _selectedTime = TimeOfDay.now();
-  String _selectedSessionType = 'Strength';
-  final List<String> _sessionTypes = [
-    'Strength',
-    'Cardio',
-    'HIIT',
-    'Mobility',
-    'Recovery',
-    'Yoga',
-  ];
+  String? _selectedSessionType; // Will be set in build() based on translations
 
   bool _isSaving = false;
 
@@ -59,11 +52,18 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
 
   // Save Data to Firebase
   Future<void> _saveNote() async {
+    final strings = languageService.strings;
+
     // Basic validation
     if (_exercisesController.text.trim().isEmpty &&
         _observationController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter some notes before saving.')),
+        SnackBar(
+          content: Text(
+            strings['enterNotesBeforeSaving'] ??
+                'Please enter some notes before saving.',
+          ),
+        ),
       );
       return;
     }
@@ -79,7 +79,7 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
         'clientId': widget.clientId,
         'clientName': widget.clientName,
         'sessionTime': _selectedTime.format(context),
-        'sessionType': _selectedSessionType,
+        'sessionType': _selectedSessionType ?? 'Strength',
         'exercisesPerformed': _exercisesController.text.trim(),
         'observation': _observationController.text.trim(),
         'nextFocus': _nextFocusController.text.trim(),
@@ -88,8 +88,10 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Visit notes saved successfully!'),
+        SnackBar(
+          content: Text(
+            strings['visitNotesSaved'] ?? 'Visit notes saved successfully!',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -100,7 +102,9 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error saving note: $e'),
+          content: Text(
+            '${strings['errorSavingNote'] ?? 'Error saving note:'} $e',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -111,6 +115,22 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ---> Fetch translations <---
+    final strings = languageService.strings;
+
+    // Dynamically build the session types list based on language
+    final List<String> sessionTypes = [
+      strings['strength'] ?? 'Strength',
+      strings['cardio'] ?? 'Cardio',
+      strings['hiit'] ?? 'HIIT',
+      strings['mobility'] ?? 'Mobility',
+      strings['recovery'] ?? 'Recovery',
+      strings['yoga'] ?? 'Yoga',
+    ];
+
+    // Set a default selected session type if null
+    _selectedSessionType ??= sessionTypes.first;
+
     return Scaffold(
       backgroundColor: bgGrey,
       body: Column(
@@ -127,7 +147,7 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
                   Row(
                     children: [
                       Text(
-                        'New Note for ',
+                        strings['newNoteFor'] ?? 'New Note for ',
                         style: GoogleFonts.workSans(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -183,39 +203,41 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
                   const SizedBox(height: 30),
 
                   // Session Time Section
-                  _buildSectionTitle('Session Time'),
+                  _buildSectionTitle(strings['sessionTime'] ?? 'Session Time'),
                   const SizedBox(height: 12),
-                  _buildSessionTimeSelector(),
-                  const SizedBox(height: 24),
-
-                  // Audio Upload Section
-                  _buildSectionTitle('Audio Upload'),
-                  const SizedBox(height: 12),
-                  _buildAudioUploadBox(),
+                  _buildSessionTimeSelector(sessionTypes),
                   const SizedBox(height: 30),
 
                   // Divider: VISIT NOTES DETAILS
-                  _buildDividerWithText('VISIT NOTES DETAILS'),
+                  _buildDividerWithText(
+                    strings['visitNotesDetails'] ?? 'VISIT NOTES DETAILS',
+                  ),
                   const SizedBox(height: 24),
 
                   // Input Fields
                   _buildInputField(
-                    title: 'Exercises Performed',
-                    hint: 'e.g. Squats 3x15, Push-ups 3x12, Deadlift 3x8',
+                    title:
+                        strings['exercisesPerformed'] ?? 'Exercises Performed',
+                    hint:
+                        strings['exercisesHint'] ??
+                        'e.g. Squats 3x15, Push-ups 3x12, Deadlift 3x8',
                     controller: _exercisesController,
                   ),
                   const SizedBox(height: 20),
                   _buildInputField(
-                    title: 'Observation',
+                    title: strings['observation'] ?? 'Observation',
                     hint:
+                        strings['observationHint'] ??
                         'Energy level, form, pain points,\nimprovements, vitals...',
                     controller: _observationController,
                     maxLines: 4,
                   ),
                   const SizedBox(height: 20),
                   _buildInputField(
-                    title: 'Next Focus Core',
-                    hint: 'e.g. Core work, increase cardio intensity',
+                    title: strings['nextFocusCore'] ?? 'Next Focus Core',
+                    hint:
+                        strings['nextFocusHint'] ??
+                        'e.g. Core work, increase cardio intensity',
                     controller: _nextFocusController,
                   ),
                   const SizedBox(height: 32),
@@ -248,7 +270,9 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
                               color: Colors.white,
                             ),
                       label: Text(
-                        _isSaving ? 'Saving...' : 'Save Visit Notes',
+                        _isSaving
+                            ? (strings['saving'] ?? 'Saving...')
+                            : (strings['saveVisitNotes'] ?? 'Save Visit Notes'),
                         style: GoogleFonts.workSans(
                           color: Colors.white,
                           fontSize: 16,
@@ -279,7 +303,7 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
     );
   }
 
-  Widget _buildSessionTimeSelector() {
+  Widget _buildSessionTimeSelector(List<String> sessionTypes) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -328,13 +352,13 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
             onSelected: (String item) =>
                 setState(() => _selectedSessionType = item),
             itemBuilder: (BuildContext context) =>
-                _sessionTypes.map((String item) {
+                sessionTypes.map((String item) {
                   return PopupMenuItem<String>(value: item, child: Text(item));
                 }).toList(),
             child: Row(
               children: [
                 Text(
-                  _selectedSessionType,
+                  _selectedSessionType ?? '',
                   style: GoogleFonts.workSans(
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
@@ -351,46 +375,6 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAudioUploadBox() {
-    return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Audio upload feature coming soon!')),
-        );
-      },
-      child: CustomPaint(
-        painter: _DashedRectPainter(
-          color: const Color(0xFFCBD5E1),
-          strokeWidth: 1.5,
-          dashWidth: 6,
-          dashSpace: 4,
-        ),
-        child: Container(
-          width: double.infinity,
-          height: 80,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(color: Colors.transparent),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.upload_file, color: Color(0xFF475569), size: 24),
-              const SizedBox(height: 8),
-              Text(
-                'UPLOAD AUDIO',
-                style: GoogleFonts.workSans(
-                  color: const Color(0xFF475569),
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -468,51 +452,6 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
       ],
     );
   }
-}
-
-// ---------------------------------------------------------
-// CUSTOM DASHED BORDER PAINTER
-// ---------------------------------------------------------
-class _DashedRectPainter extends CustomPainter {
-  final Color color;
-  final double strokeWidth, dashWidth, dashSpace;
-  _DashedRectPainter({
-    required this.color,
-    required this.strokeWidth,
-    required this.dashWidth,
-    required this.dashSpace,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke;
-    Path path = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(0, 0, size.width, size.height),
-          const Radius.circular(8),
-        ),
-      );
-    Path dashPath = Path();
-    double distance = 0.0;
-    for (PathMetric pathMetric in path.computeMetrics()) {
-      while (distance < pathMetric.length) {
-        dashPath.addPath(
-          pathMetric.extractPath(distance, distance + dashWidth),
-          Offset.zero,
-        );
-        distance += dashWidth + dashSpace;
-      }
-      distance = 0.0;
-    }
-    canvas.drawPath(dashPath, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ---------------------------------------------------------

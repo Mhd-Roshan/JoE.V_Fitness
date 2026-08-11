@@ -7,6 +7,10 @@ import '../home/trainer_home_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
 import '../users/trainer_users_screen.dart';
 import 'trainer_notes_screen.dart';
+import '../profile/trainer_profile_screen.dart';
+
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
 
 class EditVisitNoteScreen extends StatefulWidget {
   final String noteId;
@@ -34,7 +38,6 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
   late TextEditingController _nextFocusController;
 
   bool _isSaving = false;
-  String? _audioName;
 
   @override
   void initState() {
@@ -49,7 +52,6 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
     _nextFocusController = TextEditingController(
       text: widget.noteData['nextFocus'] ?? '',
     );
-    _audioName = widget.noteData['audioName']?.toString();
   }
 
   @override
@@ -82,10 +84,17 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
 
   // --- Update Data in Firebase ---
   Future<void> _updateNote() async {
+    final strings = languageService.strings;
+
     if (_exercisesController.text.trim().isEmpty &&
         _observationController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fields cannot be entirely empty.')),
+        SnackBar(
+          content: Text(
+            strings['fieldsCannotBeEmpty'] ??
+                'Fields cannot be entirely empty.',
+          ),
+        ),
       );
       return;
     }
@@ -108,8 +117,10 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Note updated successfully!'),
+        SnackBar(
+          content: Text(
+            strings['noteUpdatedSuccessfully'] ?? 'Note updated successfully!',
+          ),
           backgroundColor: Colors.green,
         ),
       );
@@ -120,7 +131,9 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error updating note: $e'),
+          content: Text(
+            '${strings['errorUpdatingNote'] ?? 'Error updating note:'} $e',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -133,39 +146,14 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
     }
   }
 
-  // --- Remove Audio ---
-  Future<void> _removeAudio() async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('visit_notes')
-          .doc(widget.noteId)
-          .update({
-            'audioName': FieldValue.delete(),
-            'audioUrl': FieldValue.delete(),
-          });
-
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _audioName = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Audio removed successfully.')),
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to remove audio: $e')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final clientName = widget.noteData['clientName'] ?? 'Unknown';
+    // ---> Fetch translations <---
+    final strings = languageService.strings;
+
+    final clientName =
+        widget.noteData['clientName'] ??
+        (strings['unknownClient'] ?? 'Unknown');
 
     // Parse created date
     final Timestamp? t = widget.noteData['createdAt'];
@@ -174,7 +162,10 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
 
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: const _BottomNav(currentIndex: 3), // Notes Tab
+      bottomNavigationBar: _BottomNav(
+        currentIndex: 3,
+        strings: strings,
+      ), // Passed strings
       body: Column(
         children: [
           const _TopHeaderBand(),
@@ -187,7 +178,7 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
                 children: [
                   // Title
                   Text(
-                    'Edit Visit Notes',
+                    strings['editVisitNotes'] ?? 'Edit Visit Notes',
                     style: GoogleFonts.workSans(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -232,7 +223,7 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        'CLIENT',
+                                        strings['clientCaps'] ?? 'CLIENT',
                                         style: GoogleFonts.workSans(
                                           color: Colors.white.withValues(
                                             alpha: 0.8,
@@ -258,7 +249,8 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(
-                                        'SESSION DATE',
+                                        strings['sessionDateCaps'] ??
+                                            'SESSION DATE',
                                         style: GoogleFonts.workSans(
                                           color: Colors.white.withValues(
                                             alpha: 0.8,
@@ -292,160 +284,26 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
 
                   // Input Fields
                   _buildInputField(
-                    title: 'Exercises performed',
+                    title:
+                        strings['exercisesPerformed'] ?? 'Exercises performed',
                     controller: _exercisesController,
                     maxLines: 4,
                   ),
                   const SizedBox(height: 20),
 
                   _buildInputField(
-                    title: 'Observations',
+                    title: strings['observations'] ?? 'Observations',
                     controller: _observationController,
                     maxLines: 4,
                   ),
                   const SizedBox(height: 20),
 
                   _buildInputField(
-                    title: 'Next session focus',
+                    title: strings['nextSessionFocus'] ?? 'Next session focus',
                     controller: _nextFocusController,
                     maxLines: 4,
                   ),
-                  const SizedBox(height: 28),
-
-                  // Audio Attachment Card (Only shows if audio exists)
-                  if (_audioName != null && _audioName!.isNotEmpty) ...[
-                    Text(
-                      'Audio attachment',
-                      style: GoogleFonts.workSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: darkBlue,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: borderGrey, width: 1.5),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFFDE8E8), // Light pink/red
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.mic,
-                                  color: primaryRed,
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _audioName!,
-                                      style: GoogleFonts.workSans(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: darkBlue,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'RECORDED TODAY • 1:24', // Can make dynamic if you save duration
-                                      style: GoogleFonts.workSans(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF6B7280),
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Audio replace feature coming soon!',
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                      color: darkBlue,
-                                      width: 1.5,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'REPLACE',
-                                    style: GoogleFonts.workSans(
-                                      color: darkBlue,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _removeAudio,
-                                  style: OutlinedButton.styleFrom(
-                                    side: const BorderSide(
-                                      color: primaryRed,
-                                      width: 1.5,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'REMOVE',
-                                    style: GoogleFonts.workSans(
-                                      color: primaryRed,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                  ],
+                  const SizedBox(height: 32),
 
                   // Save Button
                   SizedBox(
@@ -471,7 +329,7 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
                               ),
                             )
                           : Text(
-                              'SAVE CHANGES',
+                              strings['saveChanges'] ?? 'SAVE CHANGES',
                               style: GoogleFonts.workSans(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -640,17 +498,27 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
+
   final int currentIndex;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
 
     return Container(
@@ -708,8 +576,12 @@ class _BottomNav extends StatelessWidget {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
+          } else if (index == 4) {
+            // FIXED: Added Profile navigation here!
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
+            );
           }
-          // Profile pending
         },
       ),
     );

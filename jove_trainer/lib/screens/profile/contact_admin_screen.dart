@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
+
 class ContactAdminScreen extends StatefulWidget {
   const ContactAdminScreen({super.key});
 
@@ -30,12 +33,17 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
   }
 
   Future<void> _sendMessage() async {
+    final strings = languageService.strings; // Get strings for snackbars
     final subject = _subjectController.text.trim();
     final message = _messageController.text.trim();
 
     if (subject.isEmpty || message.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill out all fields.')),
+        SnackBar(
+          content: Text(
+            strings['fillAllFields'] ?? 'Please fill out all fields.',
+          ),
+        ),
       );
       return;
     }
@@ -44,13 +52,19 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
 
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
-      
+
       // Fetch trainer name just to make it easier for the admin to read in the database
-      String trainerName = 'Unknown Trainer';
+      String trainerName = strings['unknownTrainer'] ?? 'Unknown Trainer';
       if (uid != null) {
-        final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
         if (userDoc.exists) {
-          trainerName = userDoc.data()?['fullName'] ?? userDoc.data()?['name'] ?? 'Unknown Trainer';
+          trainerName =
+              userDoc.data()?['fullName'] ??
+              userDoc.data()?['name'] ??
+              trainerName;
         }
       }
 
@@ -65,20 +79,26 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
       });
 
       if (!mounted) return;
-      
+
       // Show success and go back
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Message sent successfully! The admin will contact you soon.'),
+        SnackBar(
+          content: Text(
+            strings['messageSentSuccess'] ??
+                'Message sent successfully! The admin will contact you soon.',
+          ),
           backgroundColor: Colors.green,
         ),
       );
       Navigator.pop(context);
-
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error sending message: $e')),
+        SnackBar(
+          content: Text(
+            '${strings['errorSendingMessage'] ?? 'Error sending message:'} $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -87,12 +107,15 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // ---> Fetch translations <---
+    final strings = languageService.strings;
+
     return Scaffold(
       backgroundColor: bgGrey,
       body: Column(
         children: [
           const _TopHeaderBand(),
-          
+
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
@@ -104,11 +127,15 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                     children: [
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
-                        child: const Icon(Icons.arrow_back, color: darkBlue, size: 24),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: darkBlue,
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Contact Admin',
+                        strings['contactAdmin'] ?? 'Contact Admin',
                         style: GoogleFonts.workSans(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -117,7 +144,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
 
                   // Info Card
@@ -131,14 +158,18 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.support_agent_rounded, color: Color(0xFF0284C7), size: 32),
+                        const Icon(
+                          Icons.support_agent_rounded,
+                          color: Color(0xFF0284C7),
+                          size: 32,
+                        ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Need Help?',
+                                strings['needHelp'] ?? 'Need Help?',
                                 style: GoogleFonts.workSans(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
@@ -147,7 +178,8 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Send a message directly to the system administrator. We usually respond within 24 hours.',
+                                strings['needHelpDesc'] ??
+                                    'Send a message directly to the system administrator. We usually respond within 24 hours.',
                                 style: GoogleFonts.workSans(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
@@ -176,7 +208,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                       children: [
                         // Subject Field
                         Text(
-                          'Subject',
+                          strings['subject'] ?? 'Subject',
                           style: GoogleFonts.workSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -187,18 +219,29 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                         TextField(
                           controller: _subjectController,
                           decoration: InputDecoration(
-                            hintText: 'e.g. Schedule Issue, App Bug, Question',
-                            hintStyle: GoogleFonts.workSans(color: textGrey, fontSize: 13),
+                            hintText:
+                                strings['subjectHint'] ??
+                                'e.g. Schedule Issue, App Bug, Question',
+                            hintStyle: GoogleFonts.workSans(
+                              color: textGrey,
+                              fontSize: 13,
+                            ),
                             filled: true,
                             fillColor: bgGrey,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(color: borderGrey),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: darkBlue, width: 1.5),
+                              borderSide: const BorderSide(
+                                color: darkBlue,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                         ),
@@ -207,7 +250,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
 
                         // Message Field
                         Text(
-                          'Message',
+                          strings['message'] ?? 'Message',
                           style: GoogleFonts.workSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -219,18 +262,29 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                           controller: _messageController,
                           maxLines: 6,
                           decoration: InputDecoration(
-                            hintText: 'Describe your issue or question in detail...',
-                            hintStyle: GoogleFonts.workSans(color: textGrey, fontSize: 13),
+                            hintText:
+                                strings['messageHint'] ??
+                                'Describe your issue or question in detail...',
+                            hintStyle: GoogleFonts.workSans(
+                              color: textGrey,
+                              fontSize: 13,
+                            ),
                             filled: true,
                             fillColor: bgGrey,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: const BorderSide(color: borderGrey),
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: darkBlue, width: 1.5),
+                              borderSide: const BorderSide(
+                                color: darkBlue,
+                                width: 1.5,
+                              ),
                             ),
                           ),
                         ),
@@ -255,10 +309,13 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : Text(
-                                    'Send Message',
+                                    strings['sendMessage'] ?? 'Send Message',
                                     style: GoogleFonts.workSans(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w700,
@@ -269,7 +326,7 @@ class _ContactAdminScreenState extends State<ContactAdminScreen> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
                 ],
               ),

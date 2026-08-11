@@ -12,12 +12,8 @@ import '../notes/trainer_notes_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
 
-// --- LOCALIZATION & SERVICES IMPORTS ---
+// ---> NEW: IMPORT ONLY THE LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
-import '../../l10n/app_en.dart' as loc_en;
-import '../../l10n/app_ml.dart' as loc_ml;
-import '../../l10n/app_hi.dart' as loc_hi;
-import '../../l10n/app_ta.dart' as loc_ta;
 
 class AppSettingsScreen extends StatefulWidget {
   const AppSettingsScreen({super.key});
@@ -44,20 +40,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     _selectedLanguage = languageService.currentLanguage;
   }
 
-  Map<String, String> get _strings {
-    switch (_selectedLanguage) {
-      case 'ml':
-        return loc_ml.AppStrings.ml;
-      case 'hi':
-        return loc_hi.AppStrings.hi;
-      case 'ta':
-        return loc_ta.AppStrings.ta;
-      case 'en':
-      default:
-        return loc_en.AppStrings.en;
-    }
-  }
-
   final List<Map<String, String>> _languages = [
     {'code': 'en', 'name': 'English'},
     {'code': 'ml', 'name': 'മലയാളം'},
@@ -66,6 +48,9 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   ];
 
   void _showLanguagePicker() {
+    final strings =
+        languageService.strings; // Fetch strings for the bottom sheet
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -80,7 +65,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  _strings['selectLanguage'] ?? 'Select Language',
+                  strings['selectLanguage'] ?? 'Select Language',
                   style: GoogleFonts.workSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
@@ -121,9 +106,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                       Navigator.pop(context);
 
                       // 4. SEAMLESS TRANSITION!
-                      // Instead of restarting the whole app/showing the Splash screen,
-                      // we just clear the back-history and drop them cleanly on the Home screen.
-                      // The Home screen will rebuild from scratch with the new language perfectly!
+                      // Just clear the back-history and drop them cleanly on the Home screen.
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
                           builder: (_) => const TrainerHomeScreen(),
@@ -143,9 +126,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings; // Fetch strings for this page
+
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: _BottomNav(currentIndex: 4, strings: _strings),
+      bottomNavigationBar: _BottomNav(currentIndex: 4, strings: strings),
       body: Column(
         children: [
           const _TopHeaderBand(),
@@ -160,7 +145,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                     children: [
                       GestureDetector(
                         // SEAMLESS BACK ARROW FIX
-                        // Forces the Profile screen to rebuild cleanly if they just press back
                         onTap: () {
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
@@ -176,7 +160,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        _strings['appSettings'] ?? 'App Settings',
+                        strings['appSettings'] ?? 'App Settings',
                         style: GoogleFonts.workSans(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
@@ -226,7 +210,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            _strings['notifications'] ??
+                                            strings['notifications'] ??
                                                 'Notifications',
                                             overflow: TextOverflow.ellipsis,
                                             style: GoogleFonts.workSans(
@@ -237,7 +221,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            _strings['notificationsDesc'] ??
+                                            strings['notificationsDesc'] ??
                                                 'Turn alerts on or off',
                                             overflow: TextOverflow.ellipsis,
                                             style: GoogleFonts.workSans(
@@ -307,8 +291,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              _strings['language'] ??
-                                                  'Language',
+                                              strings['language'] ?? 'Language',
                                               overflow: TextOverflow.ellipsis,
                                               style: GoogleFonts.workSans(
                                                 fontSize: 15,
@@ -318,7 +301,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                                             ),
                                             const SizedBox(height: 2),
                                             Text(
-                                              _strings['languageDesc'] ??
+                                              strings['languageDesc'] ??
                                                   'Select app language',
                                               overflow: TextOverflow.ellipsis,
                                               style: GoogleFonts.workSans(

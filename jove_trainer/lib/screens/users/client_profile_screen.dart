@@ -4,11 +4,14 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'session_history_tab.dart';
 import 'health_info_tab.dart';
+import '../home/trainer_home_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
 import 'trainer_users_screen.dart';
 import '../notes/trainer_notes_screen.dart';
-import '../notifications/trainer_notifications_screen.dart';
 import '../profile/trainer_profile_screen.dart';
+
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
 
 class TrainerUserProfileScreen extends StatefulWidget {
   final String clientId;
@@ -23,7 +26,7 @@ class TrainerUserProfileScreen extends StatefulWidget {
 class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   bool _loading = true;
   int _selectedTab = 0; // 0: Overview, 1: Sessions, 2: Health info
-  String _activeFilter = 'All Time'; // Default filter state
+  String _activeFilterKey = 'allTime'; // Keep state internal key
 
   // Fetched Data
   String _fullName = '—';
@@ -62,9 +65,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
 
   // Firebase fetching logic with filtering applied
   Future<void> _loadData() async {
-    setState(
-      () => _loading = true,
-    ); // Ensure loading indicator shows on filter change
+    setState(() => _loading = true);
 
     try {
       final userSnap = await FirebaseFirestore.instance
@@ -98,13 +99,13 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
           .collection('entries')
           .orderBy('createdAt', descending: true);
 
-      if (_activeFilter == 'Last 7 Days') {
+      if (_activeFilterKey == 'last7Days') {
         final cutOff = DateTime.now().subtract(const Duration(days: 7));
         progressQuery = progressQuery.where(
           'createdAt',
           isGreaterThanOrEqualTo: cutOff,
         );
-      } else if (_activeFilter == 'Last 30 Days') {
+      } else if (_activeFilterKey == 'last30Days') {
         final cutOff = DateTime.now().subtract(const Duration(days: 30));
         progressQuery = progressQuery.where(
           'createdAt',
@@ -124,16 +125,15 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
           .get();
 
       int filteredSessionCount = 0;
-      if (_activeFilter == 'All Time') {
+      if (_activeFilterKey == 'allTime') {
         filteredSessionCount = sessionsSnap.docs.length;
       } else {
-        DateTime cutOff = _activeFilter == 'Last 7 Days'
+        DateTime cutOff = _activeFilterKey == 'last7Days'
             ? DateTime.now().subtract(const Duration(days: 7))
             : DateTime.now().subtract(const Duration(days: 30));
 
         for (var doc in sessionsSnap.docs) {
           final data = doc.data();
-          // Fallback to check 'date', 'createdAt', or 'startTime' depending on your DB structure
           Timestamp? ts =
               data['date'] ?? data['createdAt'] ?? data['startTime'];
           if (ts != null && ts.toDate().isAfter(cutOff)) {
@@ -162,7 +162,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
         _fullName = userData['fullName'] ?? 'Unknown Client';
         _photoUrl = userData['photoURL'];
         _status = subData['status'] ?? 'inactive';
-        _packageName = subData['packageName'] ?? '—'; // Fixed usage below
+        _packageName = subData['packageName'] ?? '—';
         _currentWeightKg = (latestProgress['weightKg'] as num?)?.toDouble();
         _startWeightKg = (profileData['startWeightKg'] as num?)?.toDouble();
         _heightCm =
@@ -174,7 +174,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
         _age = age;
         _goal = profileData['primaryGoal'] ?? '—';
         _area = profileData['location'] ?? '—';
-        _totalSessions = filteredSessionCount; // Using the filtered count
+        _totalSessions = filteredSessionCount;
         _loading = false;
       });
     } catch (e) {
@@ -184,7 +184,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   }
 
   // --- FILTER UI BOTTOM SHEET ---
-  void _showFilterOptions() {
+  void _showFilterOptions(Map<String, String> strings) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -198,7 +198,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Filter Data By',
+                strings['filterDataBy'] ?? 'Filter Data By',
                 style: GoogleFonts.workSans(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -207,9 +207,12 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
               ),
               const SizedBox(height: 10),
               const Divider(color: borderGrey),
-              _filterTile('All Time'),
-              _filterTile('Last 7 Days'),
-              _filterTile('Last 30 Days'),
+              _filterTile('allTime', strings['allTime'] ?? 'All Time'),
+              _filterTile('last7Days', strings['last7Days'] ?? 'Last 7 Days'),
+              _filterTile(
+                'last30Days',
+                strings['last30Days'] ?? 'Last 30 Days',
+              ),
               const SizedBox(height: 20),
             ],
           ),
@@ -218,15 +221,15 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
     );
   }
 
-  Widget _filterTile(String label) {
-    bool isSelected = _activeFilter == label;
+  Widget _filterTile(String filterKey, String displayName) {
+    bool isSelected = _activeFilterKey == filterKey;
     return ListTile(
       leading: Icon(
         isSelected ? Icons.check_circle : Icons.circle_outlined,
         color: isSelected ? cyanAccent : Colors.grey,
       ),
       title: Text(
-        label,
+        displayName,
         style: GoogleFonts.workSans(
           fontSize: 16,
           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
@@ -234,7 +237,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
         ),
       ),
       onTap: () {
-        setState(() => _activeFilter = label);
+        setState(() => _activeFilterKey = filterKey);
         Navigator.pop(context);
         _loadData(); // Re-fetch the data automatically
       },
@@ -256,19 +259,19 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
       ? '—'
       : (val == val.toInt() ? val.toInt().toString() : val.toStringAsFixed(1));
 
-  double get _stepPercent =>
-      ((_dailySteps ?? 0) / 10000).clamp(0.0, 1.0); // Assumes 10k goal
-  double get _waterPercent =>
-      ((_waterL ?? 0) / 4.0).clamp(0.0, 1.0); // Assumes 4L goal
-  double get _sleepPercent =>
-      ((_sleepHours ?? 0) / 8.0).clamp(0.0, 1.0); // Assumes 8H goal
+  double get _stepPercent => ((_dailySteps ?? 0) / 10000).clamp(0.0, 1.0);
+  double get _waterPercent => ((_waterL ?? 0) / 4.0).clamp(0.0, 1.0);
+  double get _sleepPercent => ((_sleepHours ?? 0) / 8.0).clamp(0.0, 1.0);
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
+
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: const _BottomNav(
+      bottomNavigationBar: _BottomNav(
         currentIndex: 2,
+        strings: strings,
       ), // Index 2 is Users
       body: Column(
         children: [
@@ -279,7 +282,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                     child: CircularProgressIndicator(color: darkBlue),
                   )
                 : RefreshIndicator(
-                    onRefresh: _loadData, // Added pull to refresh
+                    onRefresh: _loadData,
                     color: cyanAccent,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -303,7 +306,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                 ),
                                 const SizedBox(width: 12),
                                 Text(
-                                  'User Profile',
+                                  strings['userProfile'] ?? 'User Profile',
                                   style: GoogleFonts.workSans(
                                     fontSize: 20,
                                     fontWeight: FontWeight.w800,
@@ -312,7 +315,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                 ),
                                 const Spacer(),
                                 GestureDetector(
-                                  onTap: _showFilterOptions,
+                                  onTap: () => _showFilterOptions(strings),
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
                                     decoration: BoxDecoration(
@@ -410,7 +413,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                           ),
                           const SizedBox(height: 4),
 
-                          // --- RESTORED STATUS & PACKAGE NAME ---
+                          // Status & Package
                           RichText(
                             text: TextSpan(
                               style: GoogleFonts.workSans(
@@ -421,7 +424,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                               children: [
                                 TextSpan(
                                   text: _status == 'active'
-                                      ? 'ACTIVE NOW'
+                                      ? (strings['activeNow'] ?? 'ACTIVE NOW')
                                       : _status.toUpperCase(),
                                   style: TextStyle(
                                     color: _status == 'active'
@@ -456,7 +459,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
-                              "Showing: $_activeFilter",
+                              "${strings['showing'] ?? 'Showing:'} ${strings[_activeFilterKey] ?? 'Filter'}",
                               style: GoogleFonts.workSans(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -474,7 +477,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                               children: [
                                 Expanded(
                                   child: _StatCard(
-                                    title: 'WEIGHT',
+                                    title: strings['weightCaps'] ?? 'WEIGHT',
                                     value: _fmt(_currentWeightKg),
                                     unit: 'kg',
                                     isHighlighted: false,
@@ -483,7 +486,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: _StatCard(
-                                    title: 'HEIGHT',
+                                    title: strings['heightCaps'] ?? 'HEIGHT',
                                     value: _fmt(_heightCm),
                                     unit: 'cm',
                                     isHighlighted: true,
@@ -492,9 +495,11 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: _StatCard(
-                                    title: 'SESSIONS',
+                                    title:
+                                        strings['sessions']?.toUpperCase() ??
+                                        'SESSIONS',
                                     value: '$_totalSessions',
-                                    unit: 'Total',
+                                    unit: strings['total'] ?? 'Total',
                                     isHighlighted: false,
                                   ),
                                 ),
@@ -518,7 +523,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                 children: [
                                   Expanded(
                                     child: _TabButton(
-                                      label: 'Overview',
+                                      label: strings['overview'] ?? 'Overview',
                                       isSelected: _selectedTab == 0,
                                       onTap: () =>
                                           setState(() => _selectedTab = 0),
@@ -526,7 +531,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                   ),
                                   Expanded(
                                     child: _TabButton(
-                                      label: 'Sessions',
+                                      label: strings['sessions'] ?? 'Sessions',
                                       isSelected: _selectedTab == 1,
                                       onTap: () =>
                                           setState(() => _selectedTab = 1),
@@ -534,7 +539,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                   ),
                                   Expanded(
                                     child: _TabButton(
-                                      label: 'Health info',
+                                      label:
+                                          strings['healthInfo'] ??
+                                          'Health info',
                                       isSelected: _selectedTab == 2,
                                       onTap: () =>
                                           setState(() => _selectedTab = 2),
@@ -548,11 +555,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                           const SizedBox(height: 24),
 
                           // Tab Content
-                          if (_selectedTab == 0) _buildOverviewTab(),
+                          if (_selectedTab == 0) _buildOverviewTab(strings),
                           if (_selectedTab == 1)
-                            SessionHistoryTab(
-                              clientId: widget.clientId,
-                            ), // You can also pass _activeFilter here if the child supports it
+                            SessionHistoryTab(clientId: widget.clientId),
                           if (_selectedTab == 2)
                             HealthInfoTab(clientId: widget.clientId),
                         ],
@@ -565,7 +570,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
     );
   }
 
-  Widget _buildOverviewTab() {
+  Widget _buildOverviewTab(Map<String, String> strings) {
     final weightDelta = (_currentWeightKg != null && _startWeightKg != null)
         ? _currentWeightKg! - _startWeightKg!
         : null;
@@ -586,7 +591,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Progress',
+                  strings['progress'] ?? 'Progress',
                   style: GoogleFonts.workSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -600,7 +605,10 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                   children: [
                     Expanded(
                       flex: 2,
-                      child: Text('Weight', style: _labelStyle),
+                      child: Text(
+                        strings['weight'] ?? 'Weight',
+                        style: _labelStyle,
+                      ),
                     ),
                     Expanded(
                       flex: 4,
@@ -619,7 +627,8 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                             ),
                             if (_startWeightKg != null)
                               TextSpan(
-                                text: '(start ${_fmt(_startWeightKg)} kg)',
+                                text:
+                                    '(${strings['startWord'] ?? 'start'} ${_fmt(_startWeightKg)} kg)',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
                                   color: Colors.grey.shade600,
@@ -652,21 +661,21 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
 
                 const SizedBox(height: 16),
                 _ProgressBarRow(
-                  label: 'Daily steps',
+                  label: strings['dailySteps'] ?? 'Daily steps',
                   value: _dailySteps != null ? '$_dailySteps' : '—',
                   percent: _stepPercent,
                   color: progressSteps,
                 ),
                 const SizedBox(height: 16),
                 _ProgressBarRow(
-                  label: 'Water (L)',
+                  label: strings['waterL'] ?? 'Water (L)',
                   value: _waterL != null ? '${_fmt(_waterL)}L' : '—',
                   percent: _waterPercent,
                   color: progressWater,
                 ),
                 const SizedBox(height: 16),
                 _ProgressBarRow(
-                  label: 'Sleep (H)',
+                  label: strings['sleepH'] ?? 'Sleep (H)',
                   value: _sleepHours != null ? '${_fmt(_sleepHours)}h' : '—',
                   percent: _sleepPercent,
                   color: progressSleep,
@@ -688,28 +697,34 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
             child: Column(
               children: [
                 _DetailRow(
-                  label: 'Age',
-                  value: _age != null ? '$_age yrs' : '—',
+                  label: strings['age'] ?? 'Age',
+                  value: _age != null
+                      ? '$_age ${strings['yrs'] ?? 'yrs'}'
+                      : '—',
                 ),
                 _DetailRow(
-                  label: 'Weight',
+                  label: strings['weight'] ?? 'Weight',
                   value: _currentWeightKg != null
                       ? '${_fmt(_currentWeightKg)}\nkg'
                       : '—',
                   multiLineValue: true,
                 ),
                 _DetailRow(
-                  label: 'Start weight',
+                  label: strings['startWeight'] ?? 'Start weight',
                   value: _startWeightKg != null
                       ? '${_fmt(_startWeightKg)} kg'
                       : '—',
                 ),
                 _DetailRow(
-                  label: 'Start height',
+                  label: strings['startHeight'] ?? 'Start height',
                   value: _heightCm != null ? '${_fmt(_heightCm)} cm' : '—',
                 ),
-                _DetailRow(label: 'Goal', value: _goal),
-                _DetailRow(label: 'Area', value: _area, hideBorder: true),
+                _DetailRow(label: strings['goal'] ?? 'Goal', value: _goal),
+                _DetailRow(
+                  label: strings['area'] ?? 'Area',
+                  value: _area,
+                  hideBorder: true,
+                ),
               ],
             ),
           ),
@@ -1060,16 +1075,26 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
   final int currentIndex;
+  final Map<String, String> strings;
+
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
     return Container(
       decoration: const BoxDecoration(
@@ -1109,32 +1134,27 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
+          // Properly ordered navigation
           if (index == 0) {
-            Navigator.of(context).popUntil((route) => route.isFirst);
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
+              (route) => false,
+            );
           } else if (index == 1) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
             );
-          } else if (index == 4) {
+          } else if (index == 2) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
             );
-          } else if (index == 5) {
-            // --> NAVIGATE TO PROFILE SCREEN <--
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
           } else if (index == 3) {
-            // --> NAVIGATE TO NOTES SCREEN <--
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
             );
-          } else if (index == 2) {
-            // --> NAVIGATE TO NOTIFICATION SCREEN <--
+          } else if (index == 4) {
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (_) => const TrainerNotificationsScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
             );
           }
         },

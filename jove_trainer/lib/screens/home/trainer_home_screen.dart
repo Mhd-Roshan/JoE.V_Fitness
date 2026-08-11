@@ -8,6 +8,10 @@ import '../users/trainer_users_screen.dart';
 import '../notes/trainer_notes_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
+import '../profile/trainer_client_reviews_screen.dart';
+
+// IMPORT LANGUAGE SERVICE
+import '../../services/language_service.dart';
 
 class TrainerHomeScreen extends StatefulWidget {
   const TrainerHomeScreen({super.key});
@@ -20,10 +24,10 @@ class _TrainerSession {
   final String id;
   final String clientName;
   final String serviceType;
-  final String time; // e.g., "07:00"
-  final String amPm; // e.g., "AM"
+  final String time;
+  final String amPm;
   final String area;
-  final String status; // 'completed', 'live', 'future'
+  String status;
 
   _TrainerSession({
     required this.id,
@@ -38,17 +42,11 @@ class _TrainerSession {
 
 class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   bool _loading = true;
-  String _trainerName = '—';
-  String _designation = '—';
-  int _yearsExperience = 0;
   List<_TrainerSession> _sessions = [];
 
-  // Colors based on the design
+  // Removed the unused color variables!
   static const Color darkBlue = Color(0xFF00225D);
   static const Color primaryRed = Color(0xFFBB0013);
-  static const Color cyanAccent = Color(0xFF01BCE3);
-  static const Color headerBlue = Color(0xFF003AA3);
-  static const Color navBlue = Color(0xFF003AA3);
   static const Color bgGrey = Color(0xFFFFFFFF);
 
   @override
@@ -67,27 +65,11 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   Future<void> _loadData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      setState(() {
-        _loading = false;
-      });
+      if (mounted) setState(() => _loading = false);
       return;
     }
 
     try {
-      // 1. Fetch User Data
-      final userSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-
-      // 2. Fetch Trainer Data
-      final trainerSnap = await FirebaseFirestore.instance
-          .collection('trainers')
-          .where('trainerId', isEqualTo: uid)
-          .limit(1)
-          .get();
-
-      // 3. Fetch Today's Sessions
       final sessionsSnap = await FirebaseFirestore.instance
           .collection('sessions')
           .where('trainerId', isEqualTo: uid)
@@ -96,8 +78,6 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
 
       final sessions = sessionsSnap.docs.map((d) {
         final data = d.data();
-
-        // Parse time to split "07:00 AM" into "07:00" and "AM"
         String rawTime = data['scheduledTime']?.toString().trim() ?? '00:00 AM';
         List<String> timeParts = rawTime.split(' ');
         String parsedTime = timeParts.isNotEmpty ? timeParts[0] : '00:00';
@@ -117,57 +97,51 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
         );
       }).toList()..sort((a, b) => a.time.compareTo(b.time));
 
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _trainerName = userSnap.data()?['fullName'] ?? 'Trainer';
-        if (trainerSnap.docs.isNotEmpty) {
-          final tData = trainerSnap.docs.first.data();
-          _designation = tData['designation'] ?? 'Trainer';
-          _yearsExperience = tData['yearsExperience'] ?? 0;
-        } else {
-          _designation = 'Trainer';
-          _yearsExperience = 0;
-        }
-        _sessions = sessions;
-        _loading = false;
-      });
-    } catch (e) {
-      debugPrint('Trainer home load error: $e');
       if (mounted) {
         setState(() {
+          _sessions = sessions;
           _loading = false;
         });
       }
+    } catch (e) {
+      debugPrint('Trainer home load error: $e');
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  // Dynamically generate initials from the trainer's name
-  String get _initials {
-    final parts = _trainerName.trim().split(' ');
-    if (parts.isEmpty || parts.first.isEmpty) {
-      return '—';
+  Future<void> _toggleSessionStatus(_TrainerSession session) async {
+    final oldStatus = session.status;
+    final newStatus = oldStatus == 'completed' ? 'future' : 'completed';
+
+    setState(() {
+      session.status = newStatus;
+    });
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(session.id)
+          .update({'status': newStatus});
+    } catch (e) {
+      setState(() {
+        session.status = oldStatus;
+      });
+      debugPrint('Failed to update session status: $e');
     }
-    final first = parts.first[0];
-    final second = parts.length > 1 && parts.last.isNotEmpty
-        ? parts.last[0]
-        : '';
-    return (first + second).toUpperCase();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Find the live session for the Hero card
+    final strings = languageService.strings;
+
     final heroSession = _sessions.cast<_TrainerSession?>().firstWhere(
-      (s) => s?.status == 'live',
+      (s) => s?.status != 'completed',
       orElse: () => _sessions.isNotEmpty ? _sessions.first : null,
     );
 
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: const _BottomNav(currentIndex: 0),
+      bottomNavigationBar: _BottomNav(currentIndex: 0, strings: strings),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: darkBlue))
           : SingleChildScrollView(
@@ -182,58 +156,15 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 24),
-                        // Trainer Profile Row
-                        Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: const BoxDecoration(
-                                color: darkBlue,
-                                shape: BoxShape.circle,
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                _initials,
-                                style: GoogleFonts.workSans(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _trainerName,
-                                  style: GoogleFonts.workSans(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w800,
-                                    color: darkBlue,
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                                Text(
-                                  '$_designation · $_yearsExperience yrs exp',
-                                  style: GoogleFonts.workSans(
-                                    fontSize: 12,
-                                    color: const Color(0xFF6B7280),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                        const SizedBox(height: 32),
 
-                        const SizedBox(height: 24),
-
-                        // Hero Card (Live Session)
+                        // Hero Card
                         if (heroSession != null)
-                          _HeroSessionCard(session: heroSession)
+                          _HeroSessionCard(
+                            session: heroSession,
+                            onComplete: () => _toggleSessionStatus(heroSession),
+                            strings: strings,
+                          )
                         else
                           Container(
                             width: double.infinity,
@@ -247,7 +178,8 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                               ),
                             ),
                             child: Text(
-                              'No sessions scheduled for today yet.',
+                              strings['noSessionsScheduled'] ??
+                                  'No sessions scheduled for today yet.',
                               style: GoogleFonts.workSans(
                                 color: const Color(0xFF6B7280),
                                 fontSize: 14,
@@ -258,9 +190,8 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
 
                         const SizedBox(height: 32),
 
-                        // Quick Actions Title
                         Text(
-                          'Quick Action',
+                          strings['quickAction'] ?? 'Quick Action',
                           style: GoogleFonts.workSans(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
@@ -272,39 +203,47 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                     ),
                   ),
 
-                  // Quick Actions List (Horizontal Scroll)
-                  SizedBox(
-                    height: 90,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      clipBehavior: Clip.none,
+                  // Quick Actions Grid
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
                       children: [
-                        const _QuickActionCard(
-                          label: 'Record Session',
-                          icon: Icons.mic_none_outlined,
-                          isRed: true,
-                        ),
-                        const SizedBox(width: 16),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).pushReplacement(
-                              MaterialPageRoute(
-                                builder: (_) => const TrainerNotesScreen(),
-                              ),
-                            );
-                          },
-                          child: const _QuickActionCard(
-                            label: 'Add Notes',
-                            icon: Icons.chat_outlined,
-                            isRed: false,
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (_) => const TrainerNotesScreen(),
+                                ),
+                              );
+                            },
+                            child: _QuickActionCard(
+                              label: strings['addNotes'] ?? 'Add Notes',
+                              icon: Icons.chat_outlined,
+                              isRed: true,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 16),
-                        const _QuickActionCard(
-                          label: 'Health Info',
-                          icon: Icons.favorite_border_rounded,
-                          isRed: false,
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const TrainerClientReviewsScreen(),
+                                ),
+                              );
+                            },
+                            child: _QuickActionCard(
+                              label:
+                                  strings['reviewFeedback'] ??
+                                  'Review Feedback',
+                              icon: Icons.star_outline_rounded,
+                              isRed: false,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -320,7 +259,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              "Today's Sessions",
+                              strings['todaysSessions'] ?? "Today's Sessions",
                               style: GoogleFonts.workSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
@@ -328,23 +267,31 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                                 letterSpacing: 0.5,
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFFDE8E9,
-                                ), // Very light red
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'View All',
-                                style: GoogleFonts.workSans(
-                                  color: primaryRed,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const TrainerSchedulesScreen(),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFDE8E9),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  strings['viewAll'] ?? 'View All',
+                                  style: GoogleFonts.workSans(
+                                    color: primaryRed,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
                             ),
@@ -352,12 +299,12 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // List of sessions
                         if (_sessions.isEmpty)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             child: Text(
-                              'No sessions today.',
+                              strings['noSessionsToday'] ??
+                                  'No sessions today.',
                               style: GoogleFonts.workSans(
                                 color: const Color(0xFF6B7280),
                               ),
@@ -367,7 +314,10 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                           ..._sessions.map(
                             (s) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child: _SessionRow(session: s),
+                              child: _SessionRow(
+                                session: s,
+                                onToggle: () => _toggleSessionStatus(s),
+                              ),
                             ),
                           ),
                       ],
@@ -389,7 +339,6 @@ class _TopHeaderBand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Drop shadow matching the image perfectly
     final textShadow = Shadow(
       color: Colors.black.withValues(alpha: 0.4),
       offset: const Offset(1.5, 1.5),
@@ -404,24 +353,21 @@ class _TopHeaderBand extends StatelessWidget {
       height: 1,
       shadows: [textShadow],
     );
-
     final redTitleStyle = GoogleFonts.workSans(
-      color: const Color(0xFFC7001A), // Matches the bright red in the header
+      color: const Color(0xFFC7001A),
       fontSize: 24,
       fontWeight: FontWeight.w900,
       fontStyle: FontStyle.italic,
       height: 1,
       shadows: [textShadow],
     );
-
     final uid = FirebaseAuth.instance.currentUser?.uid;
 
     return Container(
       width: double.infinity,
-      // Reduced top and bottom padding to make the header smaller
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
       decoration: const BoxDecoration(
-        color: _TrainerHomeScreenState.headerBlue, // 0xFF003AA3
+        color: Color(0xFF003AA3),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -430,7 +376,6 @@ class _TopHeaderBand extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Logo on the far left
           Align(
             alignment: Alignment.centerLeft,
             child: Image.asset(
@@ -440,8 +385,6 @@ class _TopHeaderBand extends StatelessWidget {
               fit: BoxFit.contain,
             ),
           ),
-
-          // Centered Text: JoE[kettlebell]V FITNESS
           Align(
             alignment: Alignment.center,
             child: Text.rich(
@@ -462,8 +405,6 @@ class _TopHeaderBand extends StatelessWidget {
               ),
             ),
           ),
-
-          // Right-aligned Notification Icon (with unread badge logic)
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
@@ -487,19 +428,15 @@ class _TopHeaderBand extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.notifications_none_rounded,
-                      color: Color(0xFF00225D), // Dark blue icon as requested
+                      color: Color(0xFF00225D),
                       size: 20,
                     ),
-                    // Only fetch notifications if user is logged in
                     if (uid != null)
                       StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('notifications')
                             .where('trainerId', isEqualTo: uid)
-                            .where(
-                              'isRead',
-                              isEqualTo: false,
-                            ) // Check for unread
+                            .where('isRead', isEqualTo: false)
                             .snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.hasData &&
@@ -511,13 +448,13 @@ class _TopHeaderBand extends StatelessWidget {
                                 width: 8,
                                 height: 8,
                                 decoration: const BoxDecoration(
-                                  color: Color(0xFFC7001A), // Primary Red
+                                  color: Color(0xFFC7001A),
                                   shape: BoxShape.circle,
                                 ),
                               ),
                             );
                           }
-                          return const SizedBox.shrink(); // No unread
+                          return const SizedBox.shrink();
                         },
                       ),
                   ],
@@ -532,12 +469,19 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _HeroSessionCard extends StatelessWidget {
-  const _HeroSessionCard({required this.session});
+  const _HeroSessionCard({
+    required this.session,
+    required this.onComplete,
+    required this.strings,
+  });
+
   final _TrainerSession session;
+  final VoidCallback onComplete;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    final isLive = session.status == 'live';
+    final isCompleted = session.status == 'completed';
 
     return Container(
       width: double.infinity,
@@ -546,67 +490,25 @@ class _HeroSessionCard extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [_TrainerHomeScreenState.darkBlue, Color(0xFF001233)],
+          colors: [Color(0xFF00225D), Color(0xFF001233)],
         ),
         borderRadius: BorderRadius.circular(20),
-        border: isLive
-            ? Border.all(color: _TrainerHomeScreenState.cyanAccent, width: 2)
-            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Left Content Column (Text & Badges)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Live Badge
-                    if (isLive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _TrainerHomeScreenState.primaryRed,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Live now',
-                              style: GoogleFonts.workSans(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      const SizedBox(
-                        height: 24,
-                      ), // Keeps layout consistent if no badge
-
-                    const SizedBox(height: 16),
-
                     Text(
                       session.clientName,
                       style: GoogleFonts.workSans(
                         color: Colors.white,
-                        fontSize: 24, // Slightly scaled down to fit the map
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
                       ),
@@ -620,54 +522,26 @@ class _HeroSessionCard extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-
-                    const SizedBox(height: 16),
-
-                    // Time and Location row
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.access_time_rounded,
-                              size: 16,
-                              color: _TrainerHomeScreenState.cyanAccent,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${session.time} ${session.amPm}',
-                              style: GoogleFonts.workSans(
-                                color: _TrainerHomeScreenState.cyanAccent,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 16,
+                          color: Colors.white,
                         ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.location_on_outlined,
-                              size: 16,
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            session.area,
+                            style: GoogleFonts.workSans(
                               color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
                             ),
-                            const SizedBox(width: 4),
-                            Flexible(
-                              child: Text(
-                                session.area,
-                                style: GoogleFonts.workSans(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),
@@ -675,25 +549,46 @@ class _HeroSessionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Right Side: Map Thumbnail
-              GestureDetector(
-                onTap: () {
-                  // In the future: Add logic to open Google Maps
-                },
-                child: Container(
-                  width: 90,
-                  height: 90,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[200], // Fallback color
-                    borderRadius: BorderRadius.circular(4),
-                    image: const DecorationImage(
-                      image: NetworkImage(
-                        'https://tile.openstreetmap.org/13/1310/3165.png',
-                      ),
-                      fit: BoxFit.cover,
-                    ),
+              Container(
+                width: 90,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 1,
                   ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.event_available_rounded,
+                      color: Color(0xFF01BCE3),
+                      size: 28,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      session.time,
+                      style: GoogleFonts.workSans(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      session.amPm,
+                      style: GoogleFonts.workSans(
+                        color: Color(0xFF01BCE3),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -701,19 +596,22 @@ class _HeroSessionCard extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // Buttons
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person_outline,
+                  onPressed: onComplete,
+                  icon: Icon(
+                    isCompleted
+                        ? Icons.undo_rounded
+                        : Icons.check_circle_outline,
                     size: 18,
                     color: Colors.white,
                   ),
                   label: Text(
-                    'View Profile',
+                    isCompleted
+                        ? (strings['markUndone'] ?? 'Mark Undone')
+                        : (strings['markDone'] ?? 'Mark Done'),
                     style: GoogleFonts.workSans(
                       color: Colors.white,
                       fontSize: 13,
@@ -733,7 +631,6 @@ class _HeroSessionCard extends StatelessWidget {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // Navigate to notes from the live session button too!
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
                         builder: (_) => const TrainerNotesScreen(),
@@ -746,7 +643,7 @@ class _HeroSessionCard extends StatelessWidget {
                     color: Colors.white,
                   ),
                   label: Text(
-                    'Add visit notes',
+                    strings['addVisitNotes'] ?? 'Add visit notes',
                     style: GoogleFonts.workSans(
                       color: Colors.white,
                       fontSize: 13,
@@ -754,7 +651,7 @@ class _HeroSessionCard extends StatelessWidget {
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _TrainerHomeScreenState.primaryRed,
+                    backgroundColor: const Color(0xFFBB0013),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -785,12 +682,11 @@ class _QuickActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 140,
-      padding: const EdgeInsets.all(16),
+      height: 95,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: isRed
-            ? _TrainerHomeScreenState.primaryRed
-            : _TrainerHomeScreenState.darkBlue,
+        color: isRed ? const Color(0xFFBB0013) : const Color(0xFF00225D),
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -802,15 +698,19 @@ class _QuickActionCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white, size: 24),
+          Icon(icon, color: Colors.white, size: 26),
+          const SizedBox(height: 8),
           Text(
             label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.workSans(
               color: Colors.white,
               fontSize: 13,
               fontWeight: FontWeight.w700,
+              height: 1.2,
             ),
           ),
         ],
@@ -820,30 +720,27 @@ class _QuickActionCard extends StatelessWidget {
 }
 
 class _SessionRow extends StatelessWidget {
-  const _SessionRow({required this.session});
+  const _SessionRow({required this.session, required this.onToggle});
+
   final _TrainerSession session;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final isLive = session.status == 'live';
     final isCompleted = session.status == 'completed';
-    final isFuture = session.status == 'future' || (!isLive && !isCompleted);
 
-    // Dynamic styling based on exact design image
-    Color bgColor = isFuture ? const Color(0xFFF3F4F6) : Colors.white;
-    Color borderColor = isLive
-        ? _TrainerHomeScreenState.primaryRed
-        : (isCompleted ? const Color(0xFFE5E7EB) : Colors.transparent);
-    Color timeBoxColor = isLive
-        ? _TrainerHomeScreenState.primaryRed
-        : (isCompleted
-              ? _TrainerHomeScreenState.darkBlue
-              : const Color(0xFFD1D5DB));
-    Color timeTextColor = isFuture ? const Color(0xFF4B5563) : Colors.white;
-    Color titleColor = isFuture
+    Color bgColor = isCompleted ? const Color(0xFFF3F4F6) : Colors.white;
+    Color borderColor = isCompleted
+        ? const Color(0xFFE5E7EB)
+        : Colors.transparent;
+    Color timeBoxColor = isCompleted
+        ? const Color(0xFFD1D5DB)
+        : const Color(0xFF00225D);
+    Color timeTextColor = Colors.white;
+    Color titleColor = isCompleted
         ? const Color(0xFF6B7280)
-        : _TrainerHomeScreenState.darkBlue;
-    Color subtitleColor = isFuture
+        : const Color(0xFF00225D);
+    Color subtitleColor = isCompleted
         ? const Color(0xFF9CA3AF)
         : const Color(0xFF6B7280);
 
@@ -853,19 +750,9 @@ class _SessionRow extends StatelessWidget {
         color: bgColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor, width: 1.5),
-        // The live card has a thick red line on the right, achieved via box shadow here
-        boxShadow: isLive
-            ? [
-                const BoxShadow(
-                  color: _TrainerHomeScreenState.primaryRed,
-                  offset: Offset(6, 0),
-                ),
-              ]
-            : null,
       ),
       child: Row(
         children: [
-          // Time Block
           Container(
             width: 55,
             height: 60,
@@ -896,67 +783,41 @@ class _SessionRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-
-          // Text Details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      session.clientName,
-                      style: GoogleFonts.workSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: titleColor,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    if (isLive) ...[
-                      const SizedBox(width: 8),
-                      const Icon(
-                        Icons.circle,
-                        size: 8,
-                        color: _TrainerHomeScreenState.primaryRed,
-                      ),
-                    ],
-                  ],
+                Text(
+                  session.clientName,
+                  style: GoogleFonts.workSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                    letterSpacing: 0.5,
+                  ),
                 ),
                 const SizedBox(height: 2),
-                RichText(
-                  text: TextSpan(
-                    style: GoogleFonts.workSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: subtitleColor,
-                      letterSpacing: 0.5,
-                    ),
-                    children: [
-                      TextSpan(text: session.serviceType),
-                      if (isLive)
-                        const TextSpan(
-                          text: ' • LIVE',
-                          style: TextStyle(
-                            color: _TrainerHomeScreenState.primaryRed,
-                          ),
-                        ),
-                    ],
+                Text(
+                  session.serviceType,
+                  style: GoogleFonts.workSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: subtitleColor,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
             ),
           ),
-
-          // Trailing Icon
-          Icon(
-            isLive
-                ? Icons.keyboard_double_arrow_right_rounded
-                : Icons.chevron_right_rounded,
-            color: isLive
-                ? _TrainerHomeScreenState.primaryRed
-                : const Color(0xFFD1D5DB),
-            size: 24,
+          IconButton(
+            onPressed: onToggle,
+            icon: Icon(
+              isCompleted
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: isCompleted ? Colors.green : const Color(0xFF9CA3AF),
+              size: 28,
+            ),
           ),
         ],
       ),
@@ -965,22 +826,32 @@ class _SessionRow extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
+
   final int currentIndex;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
 
     return Container(
       decoration: const BoxDecoration(
-        color: _TrainerHomeScreenState.navBlue,
+        color: Color(0xFF003AA3),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -991,7 +862,7 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: _TrainerHomeScreenState.cyanAccent,
+        selectedItemColor: const Color(0xFF01BCE3),
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,
@@ -1016,6 +887,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
+          // Added required curly brackets for clean flow control
           if (index == 1) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
@@ -1039,15 +911,9 @@ class _BottomNav extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------
-// CUSTOM KETTLEBELL ICON W/ SHADOW
-// ---------------------------------------------------------
-
 class _KettlebellIcon extends StatelessWidget {
   const _KettlebellIcon({this.size = 18});
-
   final double size;
-
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -1064,17 +930,12 @@ class _KettlebellPainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
-
-    // Drop shadow matching the text shadow
     final shadowPaint = Paint()
       ..color = Colors.black.withValues(alpha: 0.4)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
-
     final double w = size.width;
     final double h = size.height;
-
-    // 1. The main handle shape - slightly thicker for visual clarity
     final Path handle = Path()
       ..addRRect(
         RRect.fromRectAndRadius(
@@ -1082,22 +943,13 @@ class _KettlebellPainter extends CustomPainter {
           Radius.circular(w * 0.2),
         ),
       );
-
-    // 2. The round body shape - clearly circular
     final Path body = Path()
       ..addOval(
         Rect.fromCircle(center: Offset(w * 0.5, h * 0.65), radius: w * 0.35),
       );
-
-    // Combine handle and body
     Path kettlebell = Path.combine(PathOperation.union, handle, body);
-
-    // 3. Cut off the bottom to make it flat.
-    // Cut exactly at h * 0.94 so the bottom rests exactly on the baseline.
     final Path bottomCut = Path()..addRect(Rect.fromLTRB(0, h * 0.94, w, h));
     kettlebell = Path.combine(PathOperation.difference, kettlebell, bottomCut);
-
-    // 4. Cut out the middle D-hole for the handle.
     final Path hole = Path()
       ..addRRect(
         RRect.fromRectAndRadius(
@@ -1106,11 +958,7 @@ class _KettlebellPainter extends CustomPainter {
         ),
       );
     kettlebell = Path.combine(PathOperation.difference, kettlebell, hole);
-
-    // Draw the drop shadow first
     canvas.drawPath(kettlebell.shift(const Offset(1.5, 1.5)), shadowPaint);
-
-    // Draw the white kettlebell on top
     canvas.drawPath(kettlebell, paint);
   }
 

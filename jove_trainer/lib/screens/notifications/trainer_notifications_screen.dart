@@ -10,6 +10,9 @@ import '../users/trainer_users_screen.dart';
 import '../notes/trainer_notes_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
+
 class TrainerNotificationsScreen extends StatefulWidget {
   const TrainerNotificationsScreen({super.key});
 
@@ -26,9 +29,7 @@ class _TrainerNotificationsScreenState
   static const Color bgGrey = Color(0xFFFAFAFA);
   static const Color borderGrey = Color(0xFFE5E7EB);
   static const Color textGrey = Color(0xFF6B7280);
-  static const Color cyanAccent = Color(
-    0xFF01BCE3,
-  ); // <-- Added this definition
+  static const Color cyanAccent = Color(0xFF01BCE3);
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -56,26 +57,37 @@ class _TrainerNotificationsScreenState
       await batch.commit();
     } catch (e) {
       if (!mounted) return;
+      final strings = languageService.strings;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating notifications: $e')),
+        SnackBar(
+          content: Text(
+            '${strings['errorUpdatingNotifications'] ?? 'Error updating notifications:'} $e',
+          ),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // ---> Fetch translations <---
+    final strings = languageService.strings;
+
     return Scaffold(
       backgroundColor: bgGrey,
-      // Using 0 as default so the nav bar renders properly without highlighting a wrong tab
-      bottomNavigationBar: const _BottomNav(currentIndex: 0),
+      // Pass strings to BottomNav
+      bottomNavigationBar: _BottomNav(currentIndex: 0, strings: strings),
       body: Column(
         children: [
           const _TopHeaderBand(),
 
           Expanded(
             child: _uid.isEmpty
-                ? const Center(
-                    child: Text("Please log in to view notifications."),
+                ? Center(
+                    child: Text(
+                      strings['loginToViewNotifications'] ??
+                          "Please log in to view notifications.",
+                    ),
                   )
                 : StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
@@ -116,7 +128,8 @@ class _TrainerNotificationsScreenState
                                 ),
                                 const SizedBox(width: 12),
                                 Text(
-                                  'Notification',
+                                  strings['notificationTitle'] ??
+                                      'Notification',
                                   style: GoogleFonts.workSans(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w800,
@@ -146,7 +159,7 @@ class _TrainerNotificationsScreenState
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
-                                    '$unreadCount unread',
+                                    '$unreadCount ${strings['unread'] ?? 'unread'}',
                                     style: GoogleFonts.workSans(
                                       color: primaryRed,
                                       fontSize: 12,
@@ -177,7 +190,8 @@ class _TrainerNotificationsScreenState
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'Mark all read',
+                                          strings['markAllRead'] ??
+                                              'Mark all read',
                                           style: GoogleFonts.workSans(
                                             color: darkBlue,
                                             fontSize: 12,
@@ -199,7 +213,8 @@ class _TrainerNotificationsScreenState
                             child: docs.isEmpty
                                 ? Center(
                                     child: Text(
-                                      'No notifications yet.',
+                                      strings['noNotificationsYet'] ??
+                                          'No notifications yet.',
                                       style: GoogleFonts.workSans(
                                         color: textGrey,
                                       ),
@@ -227,7 +242,10 @@ class _TrainerNotificationsScreenState
                                           final data =
                                               docs[index].data()
                                                   as Map<String, dynamic>;
-                                          return _buildNotificationItem(data);
+                                          return _buildNotificationItem(
+                                            data,
+                                            strings,
+                                          );
                                         },
                                       ),
                                     ),
@@ -244,22 +262,24 @@ class _TrainerNotificationsScreenState
     );
   }
 
-  Widget _buildNotificationItem(Map<String, dynamic> data) {
-    final title = data['title'] ?? 'Notification';
+  Widget _buildNotificationItem(
+    Map<String, dynamic> data,
+    Map<String, String> strings,
+  ) {
+    final title =
+        data['title'] ?? (strings['notificationTitle'] ?? 'Notification');
     final body = data['body'] ?? '';
     final type = data['type'] ?? 'session'; // 'session' or 'medical'
     final isRead = data['isRead'] ?? true;
     final Timestamp? timestamp = data['createdAt'];
     final timeStr = timestamp != null ? _formatTime(timestamp.toDate()) : '';
 
-    // Styling based on notification type (from your design image)
+    // Styling based on notification type
     final isMedical = type == 'medical';
     final iconBgColor = isMedical
         ? const Color(0xFFFDE8E8)
-        : const Color(0xFFE0F2FE); // Light red vs Light blue
-    final iconColor = isMedical
-        ? primaryRed
-        : const Color(0xFF2563EB); // Red vs Blue
+        : const Color(0xFFE0F2FE);
+    final iconColor = isMedical ? primaryRed : const Color(0xFF2563EB);
     final iconData = isMedical
         ? Icons.warning_amber_rounded
         : Icons.calendar_today_outlined;
@@ -447,17 +467,27 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
+
   final int currentIndex;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
 
     return Container(

@@ -12,6 +12,9 @@ import '../users/trainer_users_screen.dart';
 import 'add_visit_note_screen.dart';
 import 'edit_visit_note_screen.dart';
 
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
+
 class TrainerNotesScreen extends StatefulWidget {
   const TrainerNotesScreen({super.key});
 
@@ -32,12 +35,10 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
 
   // Theme Colors
   static const Color darkBlue = Color(0xFF00225D);
-  static const Color headerBlue = Color(0xFF003AA3);
   static const Color cyanAccent = Color(0xFF01BCE3);
   static const Color bgGrey = Color(0xFFFAFAFA);
   static const Color borderGrey = Color(0xFFE5E7EB);
   static const Color textGrey = Color(0xFF6B7280);
-  static const Color primaryRed = Color(0xFFC7001A);
 
   // Rotating colors for client avatars
   final List<Map<String, Color>> _avatarColors = [
@@ -96,11 +97,15 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
           .get();
 
       List<Map<String, dynamic>> fetchedClients = [];
+      final strings = languageService.strings; // Fetch language map
 
       for (int i = 0; i < snap.docs.length; i++) {
         final doc = snap.docs[i];
         final data = doc.data();
-        final name = data['fullName'] ?? data['name'] ?? 'Unknown Client';
+        final name =
+            data['fullName'] ??
+            data['name'] ??
+            (strings['unknownClient'] ?? 'Unknown Client');
 
         // Use just the first name for the UI chip
         final firstName = name.trim().split(' ').first;
@@ -176,12 +181,14 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
   ) {
     final now = DateTime.now();
     final difference = now.difference(createdAt);
+    final strings = languageService.strings; // Fetch language strings
 
     if (difference.inHours >= 24) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Edit Locked: This note is older than 24 hours. Only admins can edit it now.',
+            strings['editLocked'] ??
+                'Edit Locked: This note is older than 24 hours. Only admins can edit it now.',
             style: GoogleFonts.workSans(),
           ),
           backgroundColor: Colors.red.shade800,
@@ -199,37 +206,17 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
     }
   }
 
-  // --- Delete attached audio from Firebase ---
-  Future<void> _deleteAudio(String noteId) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('visit_notes')
-          .doc(noteId)
-          .update({
-            'audioName': FieldValue.delete(),
-            'audioUrl': FieldValue.delete(),
-          });
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Audio deleted successfully')),
-      );
-    } catch (e) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete audio: $e')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    // ---> Get Strings Here <---
+    final strings = languageService.strings;
+
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: const _BottomNav(currentIndex: 3), // 3 is Notes
+      bottomNavigationBar: _BottomNav(
+        currentIndex: 3,
+        strings: strings,
+      ), // Passed Strings to Nav
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -245,7 +232,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    'Visit Notes',
+                    strings['visitNotes'] ?? 'Visit Notes',
                     style: GoogleFonts.workSans(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -270,7 +257,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                       children: [
                         Expanded(
                           child: _TabButton(
-                            label: 'Add notes',
+                            label: strings['addNotes'] ?? 'Add notes',
                             icon: Icons.edit_note_rounded,
                             isSelected: _selectedTab == 0,
                             onTap: () => setState(() {
@@ -281,7 +268,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                         ),
                         Expanded(
                           child: _TabButton(
-                            label: 'Past notes',
+                            label: strings['pastNotes'] ?? 'Past notes',
                             icon: Icons.history_rounded,
                             isSelected: _selectedTab == 1,
                             onTap: () => setState(() {
@@ -299,8 +286,8 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                 // Content Area based on Tab Selection
                 Expanded(
                   child: _selectedTab == 0
-                      ? _buildAddNotesView()
-                      : _buildPastNotesView(),
+                      ? _buildAddNotesView(strings)
+                      : _buildPastNotesView(strings),
                 ),
               ],
             ),
@@ -311,14 +298,14 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
   }
 
   // --- ADD NOTES VIEW ---
-  Widget _buildAddNotesView() {
+  Widget _buildAddNotesView(Map<String, String> strings) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            'Select Clients',
+            strings['selectClients'] ?? 'Select Clients',
             style: GoogleFonts.workSans(
               fontSize: 14,
               fontWeight: FontWeight.w800,
@@ -342,7 +329,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
               ? Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    'No clients found.',
+                    strings['noClientsFound'] ?? 'No clients found.',
                     style: GoogleFonts.workSans(
                       color: Colors.grey.shade500,
                       fontStyle: FontStyle.italic,
@@ -360,7 +347,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
 
                     return GestureDetector(
                       onTap: () {
-                        // Navigate to Form Page
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -383,7 +369,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                         ),
                         child: Row(
                           children: [
-                            // Avatar Circle
                             Container(
                               width: 34,
                               height: 34,
@@ -402,7 +387,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                               ),
                             ),
                             const SizedBox(width: 10),
-                            // Name Text
                             Text(
                               client['name'],
                               style: GoogleFonts.workSans(
@@ -423,7 +407,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
   }
 
   // --- PAST NOTES VIEW ---
-  Widget _buildPastNotesView() {
+  Widget _buildPastNotesView(Map<String, String> strings) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       return const SizedBox();
@@ -442,7 +426,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
-              hintText: 'Filter by client name...',
+              hintText: strings['filterByClient'] ?? 'Filter by client name...',
               hintStyle: GoogleFonts.workSans(
                 color: const Color(0xFF9CA3AF),
                 fontSize: 14,
@@ -481,7 +465,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Center(
                   child: Text(
-                    'No past notes found.',
+                    strings['noPastNotes'] ?? 'No past notes found.',
                     style: GoogleFonts.workSans(color: textGrey),
                   ),
                 );
@@ -496,7 +480,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
               if (docs.isEmpty) {
                 return Center(
                   child: Text(
-                    'No matching notes.',
+                    strings['noMatchingNotes'] ?? 'No matching notes.',
                     style: GoogleFonts.workSans(color: textGrey),
                   ),
                 );
@@ -510,7 +494,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                 itemBuilder: (context, index) {
                   final doc = docs[index];
                   final data = doc.data() as Map<String, dynamic>;
-                  final clientName = data['clientName'] ?? 'Unknown';
+                  final clientName =
+                      data['clientName'] ??
+                      (strings['unknownClient'] ?? 'Unknown');
 
                   // Generate Initials
                   final parts = clientName.toString().trim().split(' ');
@@ -525,8 +511,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                   // Date Handling
                   final Timestamp? t = data['createdAt'];
                   final DateTime createdAt = t?.toDate() ?? DateTime.now();
-                  final bool canEdit =
-                      DateTime.now().difference(createdAt).inHours < 24;
 
                   // Combine texts for display
                   String notePreview = "";
@@ -538,8 +522,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                       data['observation'].toString().isNotEmpty) {
                     notePreview += "${data['observation']} ";
                   }
-
-                  final audioName = data['audioName'] as String?;
 
                   return Container(
                     padding: const EdgeInsets.all(16),
@@ -622,54 +604,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                             ),
                           ),
                         ],
-                        // Audio Pill
-                        if (audioName != null && audioName.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFDE8E8),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.mic,
-                                  color: primaryRed,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    'Audio attached: $audioName',
-                                    style: GoogleFonts.workSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: primaryRed,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                // Delete Audio Button (Only if within 24 hours)
-                                if (canEdit) ...[
-                                  const SizedBox(width: 8),
-                                  GestureDetector(
-                                    onTap: () => _deleteAudio(doc.id),
-                                    child: const Icon(
-                                      Icons.close,
-                                      color: primaryRed,
-                                      size: 16,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   );
@@ -725,7 +659,7 @@ class _TabButton extends StatelessWidget {
               icon,
               size: 18,
               color: isSelected
-                  ? _TrainerNotesScreenState.darkBlue
+                  ? const Color(0xFF00225D)
                   : const Color(0xFF9CA3AF),
             ),
             const SizedBox(width: 6),
@@ -735,7 +669,7 @@ class _TabButton extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
                 color: isSelected
-                    ? _TrainerNotesScreenState.darkBlue
+                    ? const Color(0xFF00225D)
                     : const Color(0xFF9CA3AF),
               ),
             ),
@@ -781,7 +715,7 @@ class _TopHeaderBand extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
       decoration: const BoxDecoration(
-        color: _TrainerNotesScreenState.headerBlue,
+        color: Color(0xFF003AA3),
         borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -846,22 +780,32 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
+
   final int currentIndex;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
 
     return Container(
       decoration: const BoxDecoration(
-        color: _TrainerNotesScreenState.headerBlue,
+        color: Color(0xFF003AA3),
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -872,7 +816,7 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: _TrainerNotesScreenState.cyanAccent,
+        selectedItemColor: const Color(0xFF01BCE3),
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,

@@ -95,61 +95,69 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: const Color(0xFF003AA3),
       body: Stack(
         children: [
-          // Decorative concentric ring circles - top right
-          const Positioned(
-            top: -63,
-            right: -45,
-            child: _ConcentricCircles(size: 220),
-          ),
+          // Full-screen Topographic/Wavy lines background matching the image
+          Positioned.fill(child: CustomPaint(painter: _TopographicPainter())),
 
           SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 29, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 135),
+                  const SizedBox(height: 60),
 
                   // Logo/Document image
                   Center(
                     child: Image.asset(
                       'assets/images/landing_photo.png',
-                      width: 145,
-                      height: 145,
+                      width: 130,
+                      height: 130,
                       fit: BoxFit.contain,
                     ),
                   ),
 
                   const SizedBox(height: 25),
 
-                  // Title
-                  const Text(
-                    'Sign In To JoE  V',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.75,
-                      height: 1.2,
+                  // Title with inline Kettlebell Icon
+                  const Text.rich(
+                    TextSpan(
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                        height: 1.2,
+                      ),
+                      children: [
+                        TextSpan(text: 'Sign In To JoE '),
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.baseline,
+                          baseline: TextBaseline.alphabetic,
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 1),
+                            child: _KettlebellIcon(size: 22),
+                          ),
+                        ),
+                        TextSpan(text: 'V'),
+                      ],
                     ),
+                    textAlign: TextAlign.center,
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
 
                   // Subtitle
                   const Text(
                     'Login account to beginning journey',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Color(0xFFDCDCDC),
-                      fontSize: 15,
+                      color: Colors.white,
+                      fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      height: 1.6,
                     ),
                   ),
 
-                  const SizedBox(height: 34),
+                  const SizedBox(height: 40),
 
                   // Email field
                   const _FieldLabel('Email'),
@@ -163,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     isActive: _emailFocusNode.hasFocus,
                   ),
 
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 20),
 
                   // Password field
                   const _FieldLabel('Password'),
@@ -175,18 +183,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: Icons.lock_outline,
                     obscureText: _obscurePassword,
                     isActive: _passwordFocusNode.hasFocus,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                        color: const Color(0xFFBFBFBF),
-                        size: 24,
-                      ),
-                      onPressed: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                    ),
+                    suffixIcon: _passwordFocusNode.hasFocus
+                        ? IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: const Color(0xFFBFBFBF),
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              );
+                            },
+                          )
+                        : null,
                   ),
 
                   if (_errorText != null) ...[
@@ -202,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 25),
+                  const SizedBox(height: 30),
 
                   // Sign In button
                   SizedBox(
@@ -215,7 +227,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           0xFFBB0013,
                         ).withValues(alpha: 0.6),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         elevation: 0,
                       ),
@@ -230,30 +242,22 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             )
-                          : Row(
+                          : const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Text(
+                                Text(
                                   'Sign In',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.arrow_forward,
-                                    color: Colors.white,
-                                    size: 14,
-                                  ),
+                                SizedBox(width: 12),
+                                Icon(
+                                  Icons.arrow_forward,
+                                  color: Colors.white,
+                                  size: 20,
                                 ),
                               ],
                             ),
@@ -282,7 +286,7 @@ class _FieldLabel extends StatelessWidget {
       style: const TextStyle(
         color: Colors.white,
         fontSize: 14,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
       ),
     );
   }
@@ -313,18 +317,20 @@ class _AuthTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF3F3F4),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFF4F5F7), // Light grey background
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isActive ? const Color(0xFF01BCE3) : Colors.transparent,
-          width: 1,
+          color: const Color(
+            0xFF01BCE3,
+          ), // Both fields get the blue border from the image
+          width: isActive ? 2 : 1.5,
         ),
         boxShadow: isActive
             ? [
                 BoxShadow(
-                  color: const Color(0xFF01BCE3).withValues(alpha: 0.25),
-                  blurRadius: 0,
-                  spreadRadius: 4,
+                  color: const Color(0xFF01BCE3).withValues(alpha: 0.3),
+                  blurRadius: 10,
+                  spreadRadius: 2,
                 ),
               ]
             : null,
@@ -340,18 +346,18 @@ class _AuthTextField extends StatelessWidget {
           fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: const Color(0xFF111214), size: 24),
+          prefixIcon: Icon(icon, color: Colors.black, size: 22),
           suffixIcon: suffixIcon,
           hintText: hint,
           hintStyle: const TextStyle(
-            color: Color(0xFFBFBFBF),
-            fontSize: 16,
+            color: Color(0xFFB0B0B0),
+            fontSize: 15,
             fontWeight: FontWeight.w500,
           ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 16,
+            vertical: 18,
           ),
         ),
       ),
@@ -359,45 +365,99 @@ class _AuthTextField extends StatelessWidget {
   }
 }
 
-/// Concentric circles decoration matching the design
-class _ConcentricCircles extends StatelessWidget {
-  const _ConcentricCircles({required this.size});
-  final double size;
+/// Custom painter to draw the wavy background lines seen in the design
+class _TopographicPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    // Center coordinates for drawing the overlapping curves
+    final Offset topRight = Offset(size.width, 0);
+    final Offset bottomCenter = Offset(size.width * 0.4, size.height);
+
+    // Draw wavy circles from top right
+    for (int i = 1; i <= 6; i++) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: topRight,
+          width: size.width * i * 0.65,
+          height: size.height * i * 0.45,
+        ),
+        paint,
+      );
+    }
+
+    // Draw wavy circles from bottom
+    for (int i = 1; i <= 5; i++) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: bottomCenter,
+          width: size.width * i * 0.8,
+          height: size.height * i * 0.5,
+        ),
+        paint,
+      );
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Outer circle
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFFBFBFBF).withValues(alpha: 0.5),
-                width: 4,
-              ),
-            ),
-          ),
-          // Inner circle
-          Container(
-            width: size * 0.545,
-            height: size * 0.545,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFFBFBFBF).withValues(alpha: 0.5),
-                width: 4,
-              ),
-            ),
-          ),
-        ],
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Kettlebell Icon added for the Title
+class _KettlebellIcon extends StatelessWidget {
+  const _KettlebellIcon({this.size = 18});
+  final double size;
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: size,
+    child: CustomPaint(painter: _KettlebellPainter()),
+  );
+}
+
+class _KettlebellPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    // No shadow needed since the background is solid blue and title text has no drop shadow
+    final double w = size.width, h = size.height;
+    final Path handle = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(w * 0.25, h * 0.05, w * 0.75, h * 0.5),
+          Radius.circular(w * 0.2),
+        ),
+      );
+    final Path body = Path()
+      ..addOval(
+        Rect.fromCircle(center: Offset(w * 0.5, h * 0.65), radius: w * 0.35),
+      );
+    Path k = Path.combine(PathOperation.union, handle, body);
+    k = Path.combine(
+      PathOperation.difference,
+      k,
+      Path()..addRect(Rect.fromLTRB(0, h * 0.94, w, h)),
+    );
+    k = Path.combine(
+      PathOperation.difference,
+      k,
+      Path()..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(w * 0.40, h * 0.20, w * 0.60, h * 0.45),
+          Radius.circular(w * 0.1),
+        ),
       ),
     );
+    canvas.drawPath(k, paint);
   }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

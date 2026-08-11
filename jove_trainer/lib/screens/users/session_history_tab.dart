@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart'; // <-- ADDED GOOGLE FONTS IMPORT
-import 'package:just_audio/just_audio.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
 
 class SessionHistoryTab extends StatefulWidget {
   const SessionHistoryTab({super.key, required this.clientId});
@@ -14,56 +16,26 @@ class SessionHistoryTab extends StatefulWidget {
 class _VisitSession {
   final String id;
   final String time;
-  final String dateLabel;
+  final DateTime? dateObj;
   final String status;
   final String area;
   final String serviceType;
   final String? notes;
-  final String? recordingUrl;
-  final String? recordingDuration;
 
   _VisitSession({
     required this.id,
     required this.time,
-    required this.dateLabel,
+    this.dateObj,
     required this.status,
     required this.area,
     required this.serviceType,
     this.notes,
-    this.recordingUrl,
-    this.recordingDuration,
   });
 }
 
 class _SessionHistoryTabState extends State<SessionHistoryTab> {
   bool _loading = true;
   List<_VisitSession> _sessions = [];
-
-  static const _months = [
-    '',
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  static const _weekdays = [
-    '',
-    'MON',
-    'TUE',
-    'WED',
-    'THU',
-    'FRI',
-    'SAT',
-    'SUN',
-  ];
 
   @override
   void initState() {
@@ -82,26 +54,30 @@ class _SessionHistoryTabState extends State<SessionHistoryTab> {
       final sessions = snap.docs.map((d) {
         final data = d.data();
         final dateStr = data['scheduledDate'] as String?;
-        String dateLabel = '—';
+        DateTime? parsedDate;
+
         if (dateStr != null) {
-          final parsed = DateTime.tryParse(dateStr);
-          if (parsed != null) {
-            dateLabel =
-                '${_weekdays[parsed.weekday]} ${parsed.day} ${_months[parsed.month]}';
-          }
+          parsedDate = DateTime.tryParse(dateStr);
         }
+
         return _VisitSession(
           id: d.id,
           time: data['scheduledTime'] ?? '—',
-          dateLabel: dateLabel,
+          dateObj: parsedDate,
           status: data['status'] ?? 'scheduled',
           area: data['area'] ?? '—',
           serviceType: data['serviceType'] ?? 'Session',
           notes: data['notes'],
-          recordingUrl: data['recordingUrl'],
-          recordingDuration: data['recordingDuration'],
         );
-      }).toList()..sort((a, b) => b.dateLabel.compareTo(a.dateLabel));
+      }).toList();
+
+      // Sorts chronologically by date
+      sessions.sort((a, b) {
+        if (a.dateObj != null && b.dateObj != null) {
+          return b.dateObj!.compareTo(a.dateObj!);
+        }
+        return 0;
+      });
 
       if (!mounted) return;
       setState(() {
@@ -116,6 +92,8 @@ class _SessionHistoryTabState extends State<SessionHistoryTab> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
+
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFF00225D)),
@@ -124,7 +102,7 @@ class _SessionHistoryTabState extends State<SessionHistoryTab> {
     if (_sessions.isEmpty) {
       return Center(
         child: Text(
-          'No sessions recorded yet.',
+          strings['noSessionsRecorded'] ?? 'No sessions recorded yet.',
           style: GoogleFonts.workSans(
             color: const Color(0xFF808080),
             fontSize: 14,
@@ -143,63 +121,67 @@ class _SessionHistoryTabState extends State<SessionHistoryTab> {
   }
 }
 
-class _SessionVisitCard extends StatefulWidget {
+class _SessionVisitCard extends StatelessWidget {
   const _SessionVisitCard({required this.session});
   final _VisitSession session;
 
-  @override
-  State<_SessionVisitCard> createState() => _SessionVisitCardState();
-}
+  static const _monthKeys = [
+    '',
+    'monthJan',
+    'monthFeb',
+    'monthMar',
+    'monthApr',
+    'monthMay',
+    'monthJun',
+    'monthJul',
+    'monthAug',
+    'monthSep',
+    'monthOct',
+    'monthNov',
+    'monthDec',
+  ];
 
-class _SessionVisitCardState extends State<_SessionVisitCard> {
-  AudioPlayer? _player;
-  bool _isPlaying = false;
-  bool _loadingAudio = false;
-
-  @override
-  void dispose() {
-    _player?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _togglePlay() async {
-    final url = widget.session.recordingUrl;
-    if (url == null) return;
-
-    if (_player == null) {
-      setState(() => _loadingAudio = true);
-      _player = AudioPlayer();
-      try {
-        await _player!.setUrl(url);
-      } catch (e) {
-        debugPrint('Audio load error: $e');
-        setState(() => _loadingAudio = false);
-        return;
-      }
-      _player!.playerStateStream.listen((state) {
-        if (!mounted) return;
-        setState(() {
-          _isPlaying = state.playing;
-          if (state.processingState == ProcessingState.completed) {
-            _isPlaying = false;
-            _player!.seek(Duration.zero);
-          }
-        });
-      });
-      setState(() => _loadingAudio = false);
-    }
-
-    if (_isPlaying) {
-      await _player!.pause();
-    } else {
-      await _player!.play();
-    }
-  }
+  static const _weekdayKeys = [
+    '',
+    'mon',
+    'tue',
+    'wed',
+    'thu',
+    'fri',
+    'sat',
+    'sun',
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final s = widget.session;
-    final isDone = s.status == 'completed';
+    final strings = languageService.strings;
+    final isDone = session.status == 'completed';
+
+    // Build translated Date Label
+    String dateLabel = '—';
+    if (session.dateObj != null) {
+      final weekDayStr =
+          strings[_weekdayKeys[session.dateObj!.weekday]] ??
+          _weekdayKeys[session.dateObj!.weekday].toUpperCase();
+      final monthStr =
+          strings[_monthKeys[session.dateObj!.month]] ??
+          _monthKeys[session.dateObj!.month].toUpperCase();
+      dateLabel = '$weekDayStr ${session.dateObj!.day} $monthStr';
+    }
+
+    // Build translated Status
+    String displayStatus = session.status;
+    if (isDone) {
+      displayStatus = strings['done'] ?? 'Done';
+    } else if (session.status == 'scheduled') {
+      displayStatus = strings['statusScheduled'] ?? 'Scheduled';
+    } else if (session.status == 'canceled') {
+      displayStatus = strings['statusCanceled'] ?? 'Canceled';
+    } else {
+      displayStatus = session.status.isNotEmpty
+          ? session.status[0].toUpperCase() + session.status.substring(1)
+          : '';
+    }
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -218,7 +200,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Time',
+                    strings['timeWord'] ?? 'Time',
                     style: GoogleFonts.workSans(
                       fontSize: 11,
                       color: const Color(0xFF808080),
@@ -227,7 +209,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    s.time,
+                    session.time,
                     style: GoogleFonts.workSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -243,7 +225,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                   Row(
                     children: [
                       Text(
-                        s.dateLabel,
+                        dateLabel,
                         style: GoogleFonts.workSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
@@ -263,10 +245,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          isDone
-                              ? 'Done'
-                              : s.status[0].toUpperCase() +
-                                    s.status.substring(1),
+                          displayStatus,
                           style: GoogleFonts.workSans(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -288,7 +267,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                       ),
                       const SizedBox(width: 3),
                       Text(
-                        s.area,
+                        session.area,
                         style: GoogleFonts.workSans(
                           fontSize: 12,
                           color: const Color(0xFF808080),
@@ -303,7 +282,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                       ),
                       const SizedBox(width: 3),
                       Text(
-                        s.serviceType,
+                        session.serviceType,
                         style: GoogleFonts.workSans(
                           fontSize: 12,
                           color: const Color(0xFF808080),
@@ -316,7 +295,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
               ),
             ],
           ),
-          if (s.notes != null && s.notes!.isNotEmpty) ...[
+          if (session.notes != null && session.notes!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               width: double.infinity,
@@ -326,7 +305,7 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                s.notes!,
+                session.notes!,
                 style: GoogleFonts.workSans(
                   fontSize: 12,
                   color: const Color(0xFF00225D),
@@ -334,128 +313,6 @@ class _SessionVisitCardState extends State<_SessionVisitCard> {
                 ),
               ),
             ),
-          ],
-          if (s.recordingUrl != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF2F4F6),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: _loadingAudio ? null : _togglePlay,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF00225D),
-                        shape: BoxShape.circle,
-                      ),
-                      child: _loadingAudio
-                          ? const Padding(
-                              padding: EdgeInsets.all(9),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              _isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _WaveformDecoration(),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Recorded Note',
-                          style: GoogleFonts.workSans(
-                            fontSize: 11,
-                            color: const Color(0xFF00225D),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (s.recordingDuration != null) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      s.recordingDuration!,
-                      style: GoogleFonts.workSans(
-                        fontSize: 11,
-                        color: const Color(0xFF808080),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Purely decorative waveform bars — a visual cue that this is an
-/// audio clip, not a real rendering of the recording's amplitude data
-/// (that would require decoding the audio file's PCM samples, which
-/// just_audio doesn't expose directly).
-class _WaveformDecoration extends StatelessWidget {
-  const _WaveformDecoration();
-
-  static const _heights = [
-    4.0,
-    10.0,
-    6.0,
-    14.0,
-    8.0,
-    16.0,
-    10.0,
-    6.0,
-    12.0,
-    8.0,
-    14.0,
-    6.0,
-    10.0,
-    16.0,
-    8.0,
-    12.0,
-    6.0,
-    10.0,
-    14.0,
-    8.0,
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 18,
-      child: Row(
-        children: [
-          for (int i = 0; i < _heights.length; i++) ...[
-            Container(
-              width: 2.5,
-              height: _heights[i],
-              decoration: BoxDecoration(
-                color: i.isEven
-                    ? const Color(0xFF01BCE3)
-                    : const Color(0xFF7459D9),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            if (i != _heights.length - 1) const SizedBox(width: 2),
           ],
         ],
       ),

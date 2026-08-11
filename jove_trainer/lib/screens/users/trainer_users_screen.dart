@@ -2,13 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:jove_trainer/screens/users/client_profile_screen.dart';
 
-// --- ADDED IMPORT BACK TO FIX THE ERROR ---
 import '../home/trainer_home_screen.dart';
 import '../notes/trainer_notes_screen.dart';
 import '../schedules/trainer_schedules_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
+
+// ---> NEW: IMPORT USER PROFILE SCREEN & LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
 
 class TrainerUsersScreen extends StatefulWidget {
   const TrainerUsersScreen({super.key});
@@ -75,6 +78,8 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
       return;
     }
 
+    final strings = languageService.strings;
+
     try {
       final snap = await FirebaseFirestore.instance
           .collection('users')
@@ -88,7 +93,7 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
         final name =
             data['fullName']?.toString() ??
             data['name']?.toString() ??
-            'Unknown User';
+            (strings['unknownClient'] ?? 'Unknown User');
 
         // Dynamically generate initials
         final parts = name.trim().split(' ');
@@ -156,7 +161,9 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
     } else {
       setState(() {
         _filteredUsers = _users
-            .where((user) => user.name.toLowerCase().contains(query.toLowerCase()))
+            .where(
+              (user) => user.name.toLowerCase().contains(query.toLowerCase()),
+            )
             .toList();
       });
     }
@@ -164,10 +171,13 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
+
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: const _BottomNav(
+      bottomNavigationBar: _BottomNav(
         currentIndex: 2,
+        strings: strings,
       ), // Index 2 is Users
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,7 +190,7 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              'All Users',
+              strings['allUsers'] ?? 'All Users',
               style: GoogleFonts.workSans(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -201,9 +211,10 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                     height: 48,
                     child: TextField(
                       controller: _searchController,
-                      onChanged: _filterUsers, 
+                      onChanged: _filterUsers,
                       decoration: InputDecoration(
-                        hintText: 'Search people....',
+                        hintText:
+                            strings['searchPeople'] ?? 'Search people....',
                         hintStyle: GoogleFonts.workSans(
                           color: const Color(0xFF9CA3AF),
                           fontSize: 14,
@@ -241,7 +252,12 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                 GestureDetector(
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Filter options coming soon!')),
+                      SnackBar(
+                        content: Text(
+                          strings['filterComingSoon'] ??
+                              'Filter options coming soon!',
+                        ),
+                      ),
                     );
                   },
                   child: Container(
@@ -270,9 +286,10 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
                 : _filteredUsers.isEmpty
                 ? Center(
                     child: Text(
-                      _searchController.text.isNotEmpty 
-                          ? 'No users match your search.'
-                          : 'No users assigned yet.',
+                      _searchController.text.isNotEmpty
+                          ? (strings['noUsersMatch'] ??
+                                'No users match your search.')
+                          : (strings['noUsers'] ?? 'No users assigned yet.'),
                       style: GoogleFonts.workSans(
                         color: const Color(0xFF6B7280),
                         fontSize: 14,
@@ -306,6 +323,8 @@ class _UserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -419,7 +438,7 @@ class _UserCard extends StatelessWidget {
 
           // 2. Progress Bar Section
           Text(
-            'Sessions',
+            strings['sessions'] ?? 'Sessions',
             style: GoogleFonts.workSans(
               fontSize: 11,
               fontWeight: FontWeight.w800,
@@ -467,13 +486,25 @@ class _UserCard extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () {
+                // ---> FIXED: THIS NOW OPENS THE ACTUAL USER PROFILE INSTEAD OF A SNACKBAR <---
                 ScaffoldMessenger.of(context).showSnackBar(
-                   SnackBar(content: Text('Opening profile for ${user.name}...')),
+                  SnackBar(
+                    content: Text(
+                      '${strings['openingProfileFor'] ?? 'Opening profile for '}${user.name}...',
+                    ),
+                  ),
+                );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        TrainerUserProfileScreen(clientId: user.id),
+                  ),
                 );
               },
               icon: const Icon(Icons.person_outline, size: 18),
               label: Text(
-                'View Profile',
+                strings['viewProfile'] ?? 'View Profile',
                 style: GoogleFonts.workSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -647,17 +678,26 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
   final int currentIndex;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'), 
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
 
     return Container(

@@ -38,7 +38,7 @@ dependencies:
   firebase_storage: ^13.4.5
   firebase_messaging: ^16.4.3
   google_fonts: ^6.2.1
-  just_audio: ^0.9.40
+ 
 
   # --- LOCALIZATION DEPENDENCIES ---
   flutter_localizations:

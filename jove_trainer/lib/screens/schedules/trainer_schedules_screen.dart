@@ -9,6 +9,9 @@ import '../notes/trainer_notes_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
 
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
+
 class TrainerSchedulesScreen extends StatefulWidget {
   const TrainerSchedulesScreen({super.key});
 
@@ -23,7 +26,7 @@ class _ScheduleSession {
   final String time;
   final String amPm;
   final String area;
-  final String status;
+  String status;
   final String? notes;
 
   _ScheduleSession({
@@ -128,9 +131,17 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
     _loadSessions();
   }
 
-  // Helper to dynamically get the right day string
-  String _getWeekdayLabel(int weekday) {
-    const labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  // Helper to dynamically get the right day string with Translation
+  String _getWeekdayLabel(int weekday, Map<String, String> strings) {
+    final labels = [
+      strings['mon'] ?? 'MON',
+      strings['tue'] ?? 'TUE',
+      strings['wed'] ?? 'WED',
+      strings['thu'] ?? 'THU',
+      strings['fri'] ?? 'FRI',
+      strings['sat'] ?? 'SAT',
+      strings['sun'] ?? 'SUN',
+    ];
     return labels[weekday - 1]; // DateTime.weekday is 1-7
   }
 
@@ -142,29 +153,29 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  String _formatFullDate(DateTime d) {
-    const days = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
+  String _formatFullDate(DateTime d, Map<String, String> strings) {
+    final days = [
+      strings['monday'] ?? 'Monday',
+      strings['tuesday'] ?? 'Tuesday',
+      strings['wednesday'] ?? 'Wednesday',
+      strings['thursday'] ?? 'Thursday',
+      strings['friday'] ?? 'Friday',
+      strings['saturday'] ?? 'Saturday',
+      strings['sunday'] ?? 'Sunday',
     ];
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+    final months = [
+      strings['january'] ?? 'January',
+      strings['february'] ?? 'February',
+      strings['march'] ?? 'March',
+      strings['april'] ?? 'April',
+      strings['may'] ?? 'May',
+      strings['june'] ?? 'June',
+      strings['july'] ?? 'July',
+      strings['august'] ?? 'August',
+      strings['september'] ?? 'September',
+      strings['october'] ?? 'October',
+      strings['november'] ?? 'November',
+      strings['december'] ?? 'December',
     ];
     return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]} ${d.year}';
   }
@@ -188,6 +199,8 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
           .where('scheduledDate', isEqualTo: _dateStr(_selectedDate))
           .get();
 
+      final strings = languageService.strings; // get strings for fallbacks
+
       final sessions = snap.docs.map((d) {
         final data = d.data();
 
@@ -199,22 +212,22 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
             ? timeParts[1].toUpperCase()
             : 'AM';
 
-        // Map Firestore status to UI status
+        // Map Firestore status strictly to 'done' or 'upcoming'
         String rawStatus =
             data['status']?.toString().toLowerCase() ?? 'scheduled';
 
         if (rawStatus == 'completed') {
           rawStatus = 'done';
-        }
-
-        if (rawStatus == 'future' || rawStatus == 'scheduled') {
-          rawStatus = 'upcoming';
+        } else {
+          rawStatus = 'upcoming'; // Merge everything else to upcoming
         }
 
         return _ScheduleSession(
           id: d.id,
-          clientName: data['clientName'] ?? 'Unknown',
-          serviceType: data['serviceType'] ?? 'Strength',
+          clientName:
+              data['clientName'] ?? (strings['unknownClient'] ?? 'Unknown'),
+          serviceType:
+              data['serviceType'] ?? (strings['strength'] ?? 'Strength'),
           time: parsedTime,
           amPm: parsedAmPm,
           area: data['area'] ?? 'Location',
@@ -239,16 +252,46 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
     }
   }
 
+  // Toggles the session status between completed (done) and future (upcoming)
+  Future<void> _toggleSessionStatus(_ScheduleSession session) async {
+    final oldStatus = session.status;
+    final newStatus = oldStatus == 'done' ? 'upcoming' : 'done';
+
+    // Optimistic UI Update
+    setState(() {
+      session.status = newStatus;
+    });
+
+    try {
+      // In Firestore, 'done' maps to 'completed' and 'upcoming' maps to 'future'
+      final firestoreStatus = newStatus == 'done' ? 'completed' : 'future';
+      await FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(session.id)
+          .update({'status': firestoreStatus});
+    } catch (e) {
+      // Revert if Firebase fails
+      setState(() {
+        session.status = oldStatus;
+      });
+      debugPrint('Failed to update session status: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ---> Fetch translations <---
+    final strings = languageService.strings;
+
     int completedCount = _sessions.where((s) => s.status == 'done').length;
     int totalCount = _sessions.length;
     double progress = totalCount > 0 ? (completedCount / totalCount) : 0;
 
     return Scaffold(
       backgroundColor: bgGrey,
-      bottomNavigationBar: const _BottomNav(
+      bottomNavigationBar: _BottomNav(
         currentIndex: 1,
+        strings: strings,
       ), // Index 1 is Schedules
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -261,7 +304,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              'Schedule date',
+              strings['scheduleDate'] ?? 'Schedule date',
               style: GoogleFonts.workSans(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
@@ -276,7 +319,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
           SizedBox(
             height: 75,
             child: ListView.separated(
-              controller: _scrollController, // Attach scroll controller here!
+              controller: _scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 24),
               scrollDirection: Axis.horizontal,
               itemCount: _scrollableDates.length,
@@ -301,7 +344,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          _getWeekdayLabel(date.weekday), // Dynamic Day Label
+                          _getWeekdayLabel(date.weekday, strings),
                           style: GoogleFonts.workSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -336,7 +379,7 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Time - ${_formatFullDate(_selectedDate)}',
+                  '${strings['timeDash'] ?? 'Time - '}${_formatFullDate(_selectedDate, strings)}',
                   style: GoogleFonts.workSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
@@ -405,7 +448,8 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                 : _sessions.isEmpty
                 ? Center(
                     child: Text(
-                      'No sessions scheduled for this day.',
+                      strings['noSessionsThisDay'] ??
+                          'No sessions scheduled for this day.',
                       style: GoogleFonts.workSans(
                         color: const Color(0xFF6B7280),
                         fontSize: 14,
@@ -419,7 +463,11 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 16),
                     itemBuilder: (context, index) {
-                      return _SessionCard(session: _sessions[index]);
+                      return _SessionCard(
+                        session: _sessions[index],
+                        strings: strings,
+                        onToggle: () => _toggleSessionStatus(_sessions[index]),
+                      );
                     },
                   ),
           ),
@@ -434,30 +482,30 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen> {
 // ---------------------------------------------------------
 
 class _SessionCard extends StatelessWidget {
-  const _SessionCard({required this.session});
+  const _SessionCard({
+    required this.session,
+    required this.strings,
+    required this.onToggle,
+  });
   final _ScheduleSession session;
+  final Map<String, String> strings;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
     final bool isDone = session.status == 'done';
-    final bool isLive = session.status == 'live';
-    final bool isUpcoming = session.status == 'upcoming';
 
-    // Dynamic Colors based on status
-    Color cardBg = isLive ? const Color(0xFFFDE8E9) : Colors.white;
-    Color cardBorder = isLive
-        ? _TrainerSchedulesScreenState.primaryRed
-        : const Color(0xFFE5E7EB);
+    // Dynamic Colors based strictly on Done / Upcoming
+    Color cardBg = Colors.white;
+    Color cardBorder = const Color(0xFFE5E7EB);
 
-    Color badgeBg = isDone
-        ? const Color(0xFFC6F6D5)
-        : (isLive ? const Color(0xFFFBCFE8) : const Color(0xFFE5E7EB));
+    Color badgeBg = isDone ? const Color(0xFFC6F6D5) : const Color(0xFFE5E7EB);
     Color badgeText = isDone
         ? const Color(0xFF22543D)
-        : (isLive
-              ? _TrainerSchedulesScreenState.primaryRed
-              : const Color(0xFF4B5563));
-    String badgeLabel = isDone ? 'Done' : (isLive ? 'Live' : 'Upcoming');
+        : const Color(0xFF4B5563);
+    String badgeLabel = isDone
+        ? (strings['done'] ?? 'Done')
+        : (strings['upcoming'] ?? 'Upcoming');
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -476,7 +524,7 @@ class _SessionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Time',
+                  strings['time'] ?? 'Time',
                   style: GoogleFonts.workSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -574,7 +622,7 @@ class _SessionCard extends StatelessWidget {
                   ],
                 ),
 
-                // Optional Notes Preview (shown mostly for 'Done' state if they exist)
+                // Notes Preview
                 if (isDone || session.notes != null) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -594,7 +642,7 @@ class _SessionCard extends StatelessWidget {
                     ),
                     child: Text(
                       session.notes ??
-                          'Good form of squats', // Placeholder matching image if null
+                          (strings['noNotesProvided'] ?? 'No notes provided.'),
                       style: GoogleFonts.workSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -606,54 +654,41 @@ class _SessionCard extends StatelessWidget {
 
                 const SizedBox(height: 16),
 
-                // Action Buttons based on status
-                if (isDone)
-                  _OutlineBtn(
-                    icon: Icons.edit_outlined,
-                    label: 'Edit notes',
-                    onTap: () {},
-                  )
-                else if (isLive)
-                  Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: _SolidBtn(
-                          icon: Icons.check,
-                          label: 'Complete',
-                          color: _TrainerSchedulesScreenState.primaryRed,
-                          onTap: () {},
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: _OutlineBtn(
-                          icon: Icons.edit_outlined,
-                          label: 'Add notes',
-                          bgColor: Colors.white,
-                          onTap: () {},
-                        ),
-                      ),
-                    ],
-                  )
-                else if (isUpcoming)
-                  Row(
-                    children: [
-                      _SolidBtn(
-                        icon: Icons.check,
-                        label: 'Mark done',
-                        color: _TrainerSchedulesScreenState.darkBlue,
-                        onTap: () {},
-                      ),
-                      const SizedBox(width: 12),
-                      _OutlineBtn(
+                // Action Buttons Row (Toggles Done/Undone and Navigates to Notes)
+                Row(
+                  children: [
+                    Expanded(
+                      child: isDone
+                          ? _OutlineBtn(
+                              icon: Icons.undo_rounded,
+                              label: strings['markUndone'] ?? 'Mark undone',
+                              onTap: onToggle,
+                            )
+                          : _SolidBtn(
+                              icon: Icons.check,
+                              label: strings['complete'] ?? 'Complete',
+                              color: _TrainerSchedulesScreenState.darkBlue,
+                              onTap: onToggle,
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _OutlineBtn(
                         icon: Icons.edit_outlined,
-                        label: 'Add notes',
-                        onTap: () {},
+                        label: isDone
+                            ? (strings['editNotes'] ?? 'Edit notes')
+                            : (strings['addNotes'] ?? 'Add notes'),
+                        onTap: () {
+                          Navigator.of(context).pushReplacement(
+                            MaterialPageRoute(
+                              builder: (_) => const TrainerNotesScreen(),
+                            ),
+                          );
+                        },
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -684,7 +719,7 @@ class _SolidBtn extends StatelessWidget {
         backgroundColor: color,
         foregroundColor: Colors.white,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       icon: Icon(icon, size: 16),
@@ -701,22 +736,20 @@ class _OutlineBtn extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.bgColor,
   });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color? bgColor;
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        backgroundColor: bgColor ?? Colors.transparent,
+        backgroundColor: Colors.transparent,
         foregroundColor: _TrainerSchedulesScreenState.darkBlue,
         side: const BorderSide(color: Color(0xFF6B7280)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       icon: Icon(icon, size: 16, color: _TrainerSchedulesScreenState.darkBlue),
@@ -817,7 +850,7 @@ class _TopHeaderBand extends StatelessWidget {
             ),
           ),
 
-          // Right: Notification Icon (WIRED WITH RED DOT!)
+          // Right: Notification Icon
           Align(
             alignment: Alignment.centerRight,
             child: GestureDetector(
@@ -844,16 +877,12 @@ class _TopHeaderBand extends StatelessWidget {
                       color: Color(0xFF00225D),
                       size: 20,
                     ),
-                    // Only fetch notifications if user is logged in
                     if (uid != null)
                       StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
                             .collection('notifications')
                             .where('trainerId', isEqualTo: uid)
-                            .where(
-                              'isRead',
-                              isEqualTo: false,
-                            ) // Check for unread
+                            .where('isRead', isEqualTo: false)
                             .snapshots(),
                         builder: (context, snapshot) {
                           if (snapshot.hasData &&
@@ -865,13 +894,13 @@ class _TopHeaderBand extends StatelessWidget {
                                 width: 8,
                                 height: 8,
                                 decoration: const BoxDecoration(
-                                  color: Color(0xFFC7001A), // Primary Red
+                                  color: Color(0xFFC7001A),
                                   shape: BoxShape.circle,
                                 ),
                               ),
                             );
                           }
-                          return const SizedBox.shrink(); // No unread
+                          return const SizedBox.shrink();
                         },
                       ),
                   ],
@@ -886,17 +915,27 @@ class _TopHeaderBand extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.currentIndex});
+  const _BottomNav({required this.currentIndex, required this.strings});
+
   final int currentIndex;
+  final Map<String, String> strings;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      (Icons.home_outlined, Icons.home, 'Home'),
-      (Icons.calendar_today_outlined, Icons.calendar_today, 'Schedules'),
-      (Icons.group_outlined, Icons.group, 'Users'),
-      (Icons.description_outlined, Icons.description, 'Notes'),
-      (Icons.person_outline, Icons.person, 'Profile'),
+    final items = [
+      (Icons.home_outlined, Icons.home, strings['home'] ?? 'Home'),
+      (
+        Icons.calendar_today_outlined,
+        Icons.calendar_today,
+        strings['schedules'] ?? 'Schedules',
+      ),
+      (Icons.group_outlined, Icons.group, strings['users'] ?? 'Users'),
+      (
+        Icons.description_outlined,
+        Icons.description,
+        strings['notes'] ?? 'Notes',
+      ),
+      (Icons.person_outline, Icons.person, strings['profile'] ?? 'Profile'),
     ];
 
     return Container(
@@ -938,7 +977,6 @@ class _BottomNav extends StatelessWidget {
         ],
         onTap: (index) {
           if (index == 0) {
-            // FIX: Using pushAndRemoveUntil to clean stack to prevent freezing
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
               (route) => false,

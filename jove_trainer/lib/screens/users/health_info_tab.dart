@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../../services/language_service.dart';
+
 class HealthInfoTab extends StatefulWidget {
   const HealthInfoTab({super.key, required this.clientId});
   final String clientId;
@@ -44,20 +47,20 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   List<_Medication> _medications = [];
   List<_HealthCondition> _conditions = [];
 
-  static const _months = [
+  static const _monthKeys = [
     '',
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    'monthJan',
+    'monthFeb',
+    'monthMar',
+    'monthApr',
+    'monthMay',
+    'monthJun',
+    'monthJul',
+    'monthAug',
+    'monthSep',
+    'monthOct',
+    'monthNov',
+    'monthDec',
   ];
 
   @override
@@ -67,6 +70,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   }
 
   Future<void> _loadData() async {
+    final strings = languageService.strings;
     try {
       // 1. Fetch Procedures
       final proceduresSnap = await FirebaseFirestore.instance
@@ -82,12 +86,14 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
         if (dateStr != null) {
           final parsed = DateTime.tryParse(dateStr);
           if (parsed != null) {
-            dateLabel = '${_months[parsed.month]} ${parsed.year}';
+            final monthStr =
+                strings[_monthKeys[parsed.month]] ?? _monthKeys[parsed.month];
+            dateLabel = '$monthStr ${parsed.year}';
           }
         }
         return _Procedure(
           id: d.id,
-          name: data['procedureName'] ?? 'Procedure',
+          name: data['procedureName'] ?? (strings['procedure'] ?? 'Procedure'),
           date: dateLabel,
           rawDate: dateStr,
           recoveryStatus: data['recoveryStatus'],
@@ -103,7 +109,9 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
       final medications = medsSnap.docs.map((d) {
         return _Medication(
           id: d.id,
-          name: (d.data()['name'] as String?) ?? 'Medication',
+          name:
+              (d.data()['name'] as String?) ??
+              (strings['medication'] ?? 'Medication'),
         );
       }).toList();
 
@@ -116,7 +124,9 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
       final conditions = conditionsSnap.docs.map((d) {
         return _HealthCondition(
           id: d.id,
-          name: (d.data()['conditionName'] as String?) ?? 'Condition',
+          name:
+              (d.data()['conditionName'] as String?) ??
+              (strings['condition'] ?? 'Condition'),
         );
       }).toList();
 
@@ -136,6 +146,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   // --- ADD / MANAGE METHODS ---
 
   Future<void> _addProcedure() async {
+    final strings = languageService.strings;
     final nameCtrl = TextEditingController();
     final statusCtrl = TextEditingController();
     DateTime? selectedDate;
@@ -146,7 +157,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
         builder: (context, setStateDialog) {
           return AlertDialog(
             title: Text(
-              'Add Procedure',
+              strings['addProcedure'] ?? 'Add Procedure',
               style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
             ),
             content: Column(
@@ -154,15 +165,15 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Procedure Name',
+                  decoration: InputDecoration(
+                    labelText: strings['procedureName'] ?? 'Procedure Name',
                   ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: statusCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Recovery Status',
+                  decoration: InputDecoration(
+                    labelText: strings['recoveryStatus'] ?? 'Recovery Status',
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -170,7 +181,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                   contentPadding: EdgeInsets.zero,
                   title: Text(
                     selectedDate == null
-                        ? 'Select Date'
+                        ? (strings['selectDate'] ?? 'Select Date')
                         : '${selectedDate!.month}/${selectedDate!.year}',
                   ),
                   trailing: const Icon(Icons.calendar_today),
@@ -191,7 +202,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel'),
+                child: Text(strings['cancel'] ?? 'Cancel'),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -208,7 +219,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                   if (context.mounted) Navigator.pop(ctx);
                   _loadData();
                 },
-                child: const Text('Add'),
+                child: Text(strings['addWord'] ?? 'Add'),
               ),
             ],
           );
@@ -218,22 +229,25 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   }
 
   Future<void> _addMedication() async {
+    final strings = languageService.strings;
     final ctrl = TextEditingController();
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Add Medication',
+          strings['addMedication'] ?? 'Add Medication',
           style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
         ),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(hintText: 'e.g. Ibuprofen'),
+          decoration: InputDecoration(
+            hintText: strings['egIbuprofen'] ?? 'e.g. Ibuprofen',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(strings['cancel'] ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -246,7 +260,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
               if (context.mounted) Navigator.pop(ctx);
               _loadData();
             },
-            child: const Text('Add'),
+            child: Text(strings['addWord'] ?? 'Add'),
           ),
         ],
       ),
@@ -254,22 +268,25 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   }
 
   Future<void> _addCondition() async {
+    final strings = languageService.strings;
     final ctrl = TextEditingController();
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Add Condition',
+          strings['addCondition'] ?? 'Add Condition',
           style: GoogleFonts.workSans(fontWeight: FontWeight.bold),
         ),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(hintText: 'e.g. Hypertension'),
+          decoration: InputDecoration(
+            hintText: strings['egHypertension'] ?? 'e.g. Hypertension',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(strings['cancel'] ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -282,7 +299,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
               if (context.mounted) Navigator.pop(ctx);
               _loadData();
             },
-            child: const Text('Add'),
+            child: Text(strings['addWord'] ?? 'Add'),
           ),
         ],
       ),
@@ -300,6 +317,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
   }
 
   void _manageCondition(_HealthCondition condition) {
+    final strings = languageService.strings;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -313,7 +331,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Manage: ${condition.name}',
+                  '${strings['manage'] ?? 'Manage'}: ${condition.name}',
                   style: GoogleFonts.workSans(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -323,7 +341,7 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
                   title: Text(
-                    'Delete Condition',
+                    strings['deleteCondition'] ?? 'Delete Condition',
                     style: GoogleFonts.workSans(color: Colors.red),
                   ),
                   onTap: () {
@@ -333,7 +351,10 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.close),
-                  title: Text('Cancel', style: GoogleFonts.workSans()),
+                  title: Text(
+                    strings['cancel'] ?? 'Cancel',
+                    style: GoogleFonts.workSans(),
+                  ),
                   onTap: () => Navigator.pop(ctx),
                 ),
               ],
@@ -346,6 +367,8 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
+
     if (_loading) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFF00225D)),
@@ -381,7 +404,8 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Physical Conditions Profile',
+                    strings['physicalConditionsProfile'] ??
+                        'Physical Conditions Profile',
                     style: GoogleFonts.workSans(
                       color: Colors.white,
                       fontSize: 15,
@@ -404,7 +428,8 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: Text(
-                        'No health information recorded yet.',
+                        strings['noHealthInfo'] ??
+                            'No health information recorded yet.',
                         style: GoogleFonts.workSans(
                           color: Colors.white70,
                           fontSize: 13,
@@ -413,10 +438,13 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                     ),
 
                   // 1. Procedures
-                  _SectionLabel('Procedures & Surgeries', onAdd: _addProcedure),
+                  _SectionLabel(
+                    strings['proceduresSurgeries'] ?? 'Procedures & Surgeries',
+                    onAdd: _addProcedure,
+                  ),
                   const SizedBox(height: 8),
                   if (_procedures.isEmpty)
-                    const _EmptyNote('None recorded.')
+                    _EmptyNote(strings['noneRecorded'] ?? 'None recorded.')
                   else
                     ..._procedures.map(
                       (p) => Padding(
@@ -433,12 +461,12 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
 
                   // 2. Medications
                   _SectionLabel(
-                    'Medications (Physical)',
+                    strings['medicationsPhysical'] ?? 'Medications (Physical)',
                     onAdd: _addMedication,
                   ),
                   const SizedBox(height: 8),
                   if (_medications.isEmpty)
-                    const _EmptyNote('None recorded.')
+                    _EmptyNote(strings['noneRecorded'] ?? 'None recorded.')
                   else
                     Wrap(
                       spacing: 8,
@@ -456,10 +484,13 @@ class _HealthInfoTabState extends State<HealthInfoTab> {
                   const SizedBox(height: 18),
 
                   // 3. Conditions
-                  _SectionLabel('Health Conditions', onAdd: _addCondition),
+                  _SectionLabel(
+                    strings['healthConditions'] ?? 'Health Conditions',
+                    onAdd: _addCondition,
+                  ),
                   const SizedBox(height: 8),
                   if (_conditions.isEmpty)
-                    const _EmptyNote('None recorded.')
+                    _EmptyNote(strings['noneRecorded'] ?? 'None recorded.')
                   else
                     ..._conditions.map(
                       (c) => Padding(
@@ -491,6 +522,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
     return Row(
       children: [
         Container(
@@ -525,7 +557,7 @@ class _SectionLabel extends StatelessWidget {
                 const Icon(Icons.add, color: Colors.white, size: 14),
                 const SizedBox(width: 4),
                 Text(
-                  'Add',
+                  strings['addWord'] ?? 'Add',
                   style: GoogleFonts.workSans(
                     color: Colors.white,
                     fontSize: 11,
@@ -561,6 +593,7 @@ class _ProcedureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -587,10 +620,11 @@ class _ProcedureCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     [
-                      if (procedure.date != null) 'Date: ${procedure.date}',
+                      if (procedure.date != null)
+                        '${strings['dateWord'] ?? 'Date'}: ${procedure.date}',
                       if (procedure.recoveryStatus != null &&
                           procedure.recoveryStatus!.isNotEmpty)
-                        'Recovery: ${procedure.recoveryStatus}',
+                        '${strings['recoveryWord'] ?? 'Recovery'}: ${procedure.recoveryStatus}',
                     ].join(' • '),
                     style: GoogleFonts.workSans(
                       color: Colors.white60,
@@ -655,6 +689,7 @@ class _ConditionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = languageService.strings;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -685,7 +720,7 @@ class _ConditionRow extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
-              'Manage',
+              strings['manage'] ?? 'Manage',
               style: GoogleFonts.workSans(
                 color: Colors.white,
                 fontSize: 11,
