@@ -56,7 +56,6 @@ class DefaultFirebaseOptions {
     projectId: 'joev-fintess',
     storageBucket: 'joev-fintess.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCJjkt7IMd9T3fAWvxSvWPES5LMWKKspuw',
     appId: '1:945455108126:ios:c95d55be8ab559c85c9e0f',
