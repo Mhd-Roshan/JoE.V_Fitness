@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Added for input formatters!
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_svg/flutter_svg.dart'; // <-- IMPORTED SVG PACKAGE
+
 import 'auth_background.dart';
 import 'login_screen.dart';
 
@@ -17,27 +19,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _phoneController = TextEditingController();
 
   bool _isLoading = false;
-
-  // Error tracking variables for red borders
-  bool _nameError = false;
-  bool _emailError = false;
-  bool _phoneError = false;
-  String _phoneErrorMessage = 'Please enter your phone number';
-
-  @override
-  void initState() {
-    super.initState();
-    // Listeners to clear the red error borders when the user starts typing
-    _nameController.addListener(() {
-      if (_nameError) setState(() => _nameError = false);
-    });
-    _emailController.addListener(() {
-      if (_emailError) setState(() => _emailError = false);
-    });
-    _phoneController.addListener(() {
-      if (_phoneError) setState(() => _phoneError = false);
-    });
-  }
+  String? _nameError;
+  String? _emailError;
+  String? _phoneError;
 
   @override
   void dispose() {
@@ -52,69 +36,78 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
 
-    // 1. VALIDATION: Check for empty fields and trigger red borders
-    bool isPhoneEmpty = phone.isEmpty;
-    bool isPhoneShort = phone.isNotEmpty && phone.length < 10;
-
     setState(() {
-      _nameError = name.isEmpty;
-      _emailError = email.isEmpty;
-      _phoneError = isPhoneEmpty || isPhoneShort;
-
-      if (isPhoneEmpty) {
-        _phoneErrorMessage = 'Please enter your phone number';
-      } else if (isPhoneShort) {
-        _phoneErrorMessage = 'Please enter a valid 10-digit number';
-      }
+      _nameError = name.isEmpty ? 'Please enter your name' : null;
+      _emailError = (email.isEmpty || !email.contains('@'))
+          ? 'Please enter a valid email'
+          : null;
+      _phoneError = phone.length < 10
+          ? 'Please enter a valid 10-digit number'
+          : null;
     });
 
-    if (_nameError || _emailError || _phoneError) {
-      return; // Stop here if there are errors
+    if (_nameError != null || _emailError != null || _phoneError != null) {
+      return;
     }
 
     setState(() => _isLoading = true);
 
-    // 2. Format Phone Number for Firebase (Automatically adds +91)
-    String formattedPhone = '+91$phone';
-
     try {
-      // 3. SAVE REAL DATA TO FIRESTORE DATABASE
-      await FirebaseFirestore.instance.collection('users').doc(email).set({
-        'name': name,
-        'email': email,
-        'phone': formattedPhone,
-        'assessmentCompleted': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      final formattedPhone = '+91$phone';
 
-      // 4. CHECK IF SCREEN IS STILL OPEN BEFORE USING CONTEXT
+      final existingUserQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('phone', isEqualTo: formattedPhone)
+          .where('role', isEqualTo: 'client')
+          .limit(1)
+          .get();
+
       if (!mounted) return;
 
+      if (existingUserQuery.docs.isNotEmpty) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This number is already registered. Please Sign In.'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('pending_users')
+          .doc(formattedPhone)
+          .set({
+            'name': name,
+            'email': email,
+            'phone': formattedPhone,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+      if (!mounted) return;
       setState(() => _isLoading = false);
 
-      // SHOW SUCCESS MESSAGE
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            "Account created successfully! Please log in to verify.",
-            style: TextStyle(fontWeight: FontWeight.bold),
+            'Registration successful! Please Sign In to verify your number.',
           ),
           backgroundColor: Colors.green,
         ),
       );
 
-      // NAVIGATE TO LOGIN SCREEN
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     } catch (e) {
       if (!mounted) return;
-
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error creating account: $e"),
+        const SnackBar(
+          content: Text('An error occurred. Please check your connection.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -123,149 +116,222 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AuthBackground(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 60),
+    return Scaffold(
+      body: AuthBackground(
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: IntrinsicHeight(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 40),
 
-            // Logo
-            Image.asset(
-              'assets/images/landing_photo.png',
-              height: 120,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(height: 30),
-
-            // Titles
-            const Text(
-              'Sign Up To JoE.V',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 32,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Register account to beginning journey',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 40),
-
-            // Input Fields with Dynamic Error Logic
-            _buildInputField(
-              label: 'Name',
-              hint: 'Enter Name',
-              icon: Icons.person_outline,
-              controller: _nameController,
-              hasError: _nameError,
-              errorMsg: 'Please enter your name',
-            ),
-            const SizedBox(height: 20),
-
-            _buildInputField(
-              label: 'Email',
-              hint: 'Joevfitness@gmail.com',
-              icon: Icons.email_outlined,
-              controller: _emailController,
-              hasError: _emailError,
-              errorMsg: 'Please enter your email',
-            ),
-            const SizedBox(height: 20),
-
-            // UPDATED PHONE FIELD
-            _buildInputField(
-              label: 'Phone',
-              hint: '9087654321',
-              icon: Icons.phone_outlined,
-              controller: _phoneController,
-              hasError: _phoneError,
-              errorMsg: _phoneErrorMessage,
-              isPhone: true,
-            ),
-            const SizedBox(height: 40),
-
-            // Sign Up Button
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _handleSignUp,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFBA0C19), // Red
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Sign Up',
-                            style: TextStyle(
+                        // --- Logo ---
+                        Image.asset(
+                          'assets/images/landing_photo.png',
+                          height: 120,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(
+                              Icons.fitness_center,
+                              size: 100,
                               color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward, color: Colors.white),
-                        ],
-                      ),
-              ),
-            ),
-            const SizedBox(height: 40),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 40),
 
-            // Bottom Text
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  "Already have an account? ",
-                  style: TextStyle(color: Colors.white),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const LoginScreen(),
+                        // --- Titles with Custom SVG Kettlebell Icon ---
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Sign Up To JoE',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 3.0,
+                              ),
+                              child: Transform.translate(
+                                offset: const Offset(
+                                  0,
+                                  4,
+                                ), // Lowers the icon to align with text
+                                child: SvgPicture.asset(
+                                  'assets/images/kettlebell-icon.svg',
+                                  height: 24,
+                                  colorFilter: const ColorFilter.mode(
+                                    Colors.white,
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              'V',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Register account to beginning journey',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+
+                        // --- Input Fields ---
+                        _field(
+                          label: 'Name',
+                          hint: 'Enter Name',
+                          icon: Icons.person_outline,
+                          controller: _nameController,
+                          error: _nameError,
+                        ),
+                        const SizedBox(height: 20),
+
+                        _field(
+                          label: 'Email',
+                          hint: 'Joevfitness@gmail.com',
+                          icon: Icons.email_outlined,
+                          controller: _emailController,
+                          error: _emailError,
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                        const SizedBox(height: 20),
+
+                        _field(
+                          label: 'Phone',
+                          hint: '+91 9087654321',
+                          icon: Icons.phone_outlined,
+                          controller: _phoneController,
+                          error: _phoneError,
+                          keyboardType: TextInputType.phone,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(10),
+                          ],
+                        ),
+                        const SizedBox(height: 32),
+
+                        // --- Sign Up Button ---
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _handleSignUp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFBB0013), // Red
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: _isLoading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                  )
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Sign Up',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Icon(
+                                        Icons.arrow_forward,
+                                        color: Colors.white,
+                                        size: 22,
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+
+                        // Flexible spacer to push the footer down
+                        const Spacer(),
+
+                        // --- Footer ---
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: 24.0,
+                            top: 32.0,
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Text(
+                                "Already have an account? ",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const LoginScreen(),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Sign In.',
+                                  style: TextStyle(
+                                    color: Color(0xFF01BCE3), // Light blue
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: Color(0xFF01BCE3),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: const Text(
-                    'Sign In.',
-                    style: TextStyle(
-                      color: Color(0xFF00CBE6),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 40),
-          ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  // Custom Input Field upgraded with +91 logic and Red Error Borders!
-  Widget _buildInputField({
+  // --- Reusable Text Field Widget ---
+  Widget _field({
     required String label,
     required String hint,
     required IconData icon,
     required TextEditingController controller,
-    required bool hasError,
-    required String errorMsg,
-    bool isPhone = false,
+    required String? error,
+    TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,86 +340,48 @@ class _SignUpScreenState extends State<SignUpScreen> {
           label,
           style: const TextStyle(
             color: Colors.white,
+            fontSize: 14,
             fontWeight: FontWeight.bold,
-            fontSize: 16,
           ),
         ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
-          keyboardType: isPhone
-              ? TextInputType.phone
-              : TextInputType.emailAddress,
+          keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           style: const TextStyle(
             color: Colors.black87,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
           ),
-
-          // STRICT 10-DIGIT LIMIT IF IT IS A PHONE FIELD
-          inputFormatters: isPhone
-              ? [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ]
-              : null,
-
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.grey),
-            filled: true,
-            fillColor: Colors.white,
-
-            // IF IT IS A PHONE NUMBER, ADD THE FANCY +91 PREFIX
-            prefixIcon: isPhone
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(icon, color: Colors.black87),
-                        const SizedBox(width: 8),
-                        const Text(
-                          '+91',
-                          style: TextStyle(
-                            color: Colors.black87,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(width: 1, height: 24, color: Colors.grey),
-                        const SizedBox(width: 8),
-                      ],
-                    ),
-                  )
-                : Icon(
-                    icon,
-                    color: Colors.black87,
-                  ), // Normal Icon for Name/Email
-            // RED ERROR BORDER LOGIC
-            errorText: hasError ? errorMsg : null,
-            errorStyle: const TextStyle(
-              color: Colors.redAccent,
-              fontWeight: FontWeight.bold,
+            hintStyle: const TextStyle(
+              color: Colors.grey,
+              fontWeight: FontWeight.w400,
             ),
-
-            // Standard Borders
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
+            prefixIcon: Icon(icon, color: Colors.black87),
+            filled: true,
+            fillColor: const Color(0xFFF4F4F4), // Light grey fill
+            errorText: error,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 18,
+              horizontal: 20,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF01BCE3), width: 2),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFF00CBE6), width: 2),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF01BCE3), width: 2),
             ),
-            // Error Borders
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
             focusedErrorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.redAccent, width: 2),
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
           ),
         ),
