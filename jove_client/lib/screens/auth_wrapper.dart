@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// --- UPDATE THESE IMPORTS TO MATCH YOUR ACTUAL FILE LOCATIONS ---
-import 'welcome_screen.dart'; // <--- Put your actual 'Get Started' screen here
+// --- YOUR IMPORTS ---
+import 'welcome_screen.dart'; // <--- Now pointing to Welcome Screen first!
 import 'auth/assessment_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'home_dashboard_screen.dart';
@@ -13,26 +13,26 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Check if the user is authenticated in Firebase
     return StreamBuilder<User?>(
+      // 👇 THIS IS THE MAGIC LINE THAT FIXES THE RESTART BUG 👇
+      initialData: FirebaseAuth.instance.currentUser,
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, authSnapshot) {
-        // Show loading while checking auth state
         if (authSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            backgroundColor: Colors.white,
+            backgroundColor: Colors.black,
             body: Center(
               child: CircularProgressIndicator(color: Color(0xFFBA0C19)),
             ),
           );
         }
 
-        // 2. If NO user is logged in, show the Get Started / Welcome Screen
+        // If NO user is logged in, go to WelcomeScreen
         if (!authSnapshot.hasData || authSnapshot.data == null) {
-          return const WelcomeScreen(); // <-- Change to your actual Get Started Screen class
+          return const WelcomeScreen();
         }
 
-        // 3. If user IS logged in, fetch their Firestore profile to see where they left off
+        // If user IS logged in, fetch their Firestore profile
         return FutureBuilder<DocumentSnapshot>(
           future: FirebaseFirestore.instance
               .collection('users')
@@ -48,7 +48,6 @@ class AuthWrapper extends StatelessWidget {
               );
             }
 
-            // If user doc doesn't exist yet (very rare edge case), send to Assessment
             if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
               return const AssessmentScreen();
             }
@@ -59,13 +58,13 @@ class AuthWrapper extends StatelessWidget {
                 userData['assessmentCompleted'] ?? false;
             final String? assignedTrainerId = userData['assignedTrainerId'];
 
-            // 4. Perfect Routing Logic!
+            // Perfect Routing!
             if (!hasCompletedAssessment) {
-              return const AssessmentScreen(); // Needs to finish assessment
+              return const AssessmentScreen();
             } else if (assignedTrainerId == null || assignedTrainerId.isEmpty) {
-              return const SelectTrainerScreen(); // Needs to pick a trainer
+              return const SelectTrainerScreen();
             } else {
-              return const HomeDashboardScreen(); // Everything is done, go to Home!
+              return const HomeDashboardScreen();
             }
           },
         );

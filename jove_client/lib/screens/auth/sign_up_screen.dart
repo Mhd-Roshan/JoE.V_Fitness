@@ -1,7 +1,9 @@
+import 'dart:ui'; // <-- REQUIRED FOR BLUR EFFECT
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // <-- IMPORTED SVG PACKAGE
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'auth_background.dart';
 import 'login_screen.dart';
@@ -29,6 +31,157 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     super.dispose();
+  }
+
+  // --- MODERN FLOATING SNACKBAR FOR ERRORS ---
+  void _showModernSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.info_outline,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError
+            ? const Color(0xFFBB0013)
+            : const Color(0xFFE67E22), // Red for error, Orange for info
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.all(20),
+        elevation: 10,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  // --- MODERN GLASSMORPHISM SUCCESS DIALOG ---
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Forces user to tap the button
+      builder: (context) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(
+                  alpha: 0.7,
+                ), // Semi-transparent dark
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Success Icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00CBE6).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_outline,
+                      color: Color(0xFF00CBE6),
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'Registration\nSuccessful!',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Subtitle
+                  Text(
+                    'Your account has been created. Please sign in to verify your phone number.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Action Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Close dialog and go to Login
+                        Navigator.pop(context);
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00CBE6), // Cyan accent
+                        foregroundColor: Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        'Sign In Now',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _handleSignUp() async {
@@ -66,12 +219,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       if (existingUserQuery.docs.isNotEmpty) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('This number is already registered. Please Sign In.'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
+        // Show Modern Warning SnackBar
+        _showModernSnackBar(
+          'This number is already registered. Please Sign In.',
+          isError: false,
         );
         return;
       }
@@ -89,27 +240,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (!mounted) return;
       setState(() => _isLoading = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Registration successful! Please Sign In to verify your number.',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+      // SHOW THE BEAUTIFUL MODERN SUCCESS POPUP
+      _showSuccessDialog();
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('An error occurred. Please check your connection.'),
-          backgroundColor: Colors.red,
-        ),
+      // Show Modern Error SnackBar
+      _showModernSnackBar(
+        'An error occurred. Please check your connection.',
+        isError: true,
       );
     }
   }
@@ -164,10 +303,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 horizontal: 3.0,
                               ),
                               child: Transform.translate(
-                                offset: const Offset(
-                                  0,
-                                  4,
-                                ), // Lowers the icon to align with text
+                                offset: const Offset(0, 4),
                                 child: SvgPicture.asset(
                                   'assets/images/kettlebell-icon.svg',
                                   height: 24,
@@ -271,7 +407,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           ),
                         ),
 
-                        // Flexible spacer to push the footer down
                         const Spacer(),
 
                         // --- Footer ---

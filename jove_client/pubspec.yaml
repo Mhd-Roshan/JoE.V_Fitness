@@ -34,10 +34,10 @@ flutter:
   assets:
     - assets/images/landing_photo.png
     - assets/images/sc1.png 
-    - assets/images/sc2.png 
-    - assets/images/sc3.png 
-    - assets/images/sc4.png
-    - assets/images/sc5.png 
+    - assets/images/sc2.jpg 
+    - assets/images/sc3.jpg
+    - assets/images/sc4.jpg
+    - assets/images/sc5.jpg
     - assets/images/kettlebell-icon.svg 
     - assets/images/apps.png
     # It's good practice to declare your new icon assets here too

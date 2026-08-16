@@ -1,9 +1,11 @@
+import 'dart:ui'; // <-- REQUIRED FOR BLUR EFFECT
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_svg/flutter_svg.dart'; // <-- IMPORTED SVG PACKAGE
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart'; // <-- REQUIRED FOR PREMIUM FONTS
 
 import 'auth_background.dart';
 import 'sign_up_screen.dart';
@@ -27,6 +29,177 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _phoneController.dispose();
     super.dispose();
+  }
+
+  // --- MODERN FLOATING SNACKBAR FOR ERRORS/INFO ---
+  void _showModernSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError
+            ? const Color(0xFFBB0013)
+            : const Color(0xFF00CBE6).withValues(alpha: 0.9),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.all(20),
+        elevation: 10,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
+  // --- MODERN GLASSMORPHISM "NO ACCOUNT" DIALOG ---
+  void _showNoAccountPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(
+                  alpha: 0.7,
+                ), // Semi-transparent dark
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Missing Account Icon
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(
+                        0xFFE67E22,
+                      ).withValues(alpha: 0.2), // Soft orange warning
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_search_outlined,
+                      color: Color(0xFFE67E22),
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Title
+                  Text(
+                    'Account Not Found',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Subtitle
+                  Text(
+                    'This phone number is not registered yet. Please create an account to begin your journey.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Action Buttons (Cancel & Sign Up)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(
+                            "Cancel",
+                            style: GoogleFonts.poppins(
+                              color: Colors.white70,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: SizedBox(
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const SignUpScreen(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(
+                                0xFF00CBE6,
+                              ), // Cyan accent
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Sign Up',
+                              style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // ==========================================
@@ -75,7 +248,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (userQuery.docs.isEmpty && !pendingQuery.exists) {
         setState(() => _isLoading = false);
-        _showNoAccountPrompt();
+        _showNoAccountPrompt(); // <-- Called the new modern prompt
         return;
       }
 
@@ -90,13 +263,9 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Error verifying account. Please check your connection.',
-          ),
-          backgroundColor: Colors.red,
-        ),
+      _showModernSnackBar(
+        'Error verifying account. Please check your connection.',
+        isError: true,
       );
     }
   }
@@ -155,12 +324,9 @@ class _LoginScreenState extends State<LoginScreen> {
           //   MaterialPageRoute(builder: (_) => const HomeDashboardScreen()),
           //   (route) => false,
           // );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "Google Sign-In Successful! Route to Home Screen here.",
-              ),
-            ),
+          _showModernSnackBar(
+            "Google Sign-In Successful! Routing to Home Screen...",
+            isError: false,
           );
         } else {
           Navigator.pushAndRemoveUntil(
@@ -172,57 +338,10 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Google Sign-In failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showModernSnackBar('Google Sign-In failed: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  void _showNoAccountPrompt() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Text(
-          "Account Not Found",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          "This phone number is not registered yet. Please create an account to begin your journey.",
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const SignUpScreen()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF01BCE3),
-            ),
-            child: const Text(
-              "Sign Up",
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -276,10 +395,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 horizontal: 3.0,
                               ),
                               child: Transform.translate(
-                                offset: const Offset(
-                                  0,
-                                  4,
-                                ), // Lowers the icon to align with text
+                                offset: const Offset(0, 4),
                                 child: SvgPicture.asset(
                                   'assets/images/kettlebell-icon.svg',
                                   height: 24,

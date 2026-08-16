@@ -30,79 +30,101 @@ export default function Users() {
     const [search, setSearch] = useState("");
 
     useEffect(() => {
+        let isMounted = true;
+
         async function loadUsers() {
             try {
+                // Fetch all clients
                 const clientsQuery = query(
                     collection(db, "users"),
                     where("role", "==", "client")
                 );
                 const clientsSnap = await getDocs(clientsQuery);
 
+                console.log(`Found ${clientsSnap.docs.length} clients in database.`);
+
                 const rows: UserRow[] = await Promise.all(
                     clientsSnap.docs.map(async (clientDoc) => {
                         const clientData = clientDoc.data();
-
-                        // Real join: find this client's active subscription
-                        const subQuery = query(
-                            collection(db, "subscriptions"),
-                            where("clientId", "==", clientDoc.id),
-                            where("status", "==", "active"),
-                            limit(1)
-                        );
-                        const subSnap = await getDocs(subQuery);
 
                         let packageName = "—";
                         let trainerName = "—";
                         let status: UserRow["status"] = "No Subscription";
 
-                        if (!subSnap.empty) {
-                            const sub = subSnap.docs[0].data();
-                            status = sub.status === "active" ? "Active" : sub.status;
+                        // Wrap subscription fetch in try-catch so a missing index doesn't break the whole table
+                        try {
+                            const subQuery = query(
+                                collection(db, "subscriptions"),
+                                where("clientId", "==", clientDoc.id),
+                                where("status", "==", "active"),
+                                limit(1)
+                            );
+                            const subSnap = await getDocs(subQuery);
 
-                            // Join against packages collection for the real package name
-                            if (sub.packageId) {
-                                const packageSnap = await getDoc(doc(db, "packages", sub.packageId));
-                                packageName = packageSnap.exists()
-                                    ? packageSnap.data().name
-                                    : "—";
+                            if (!subSnap.empty) {
+                                const sub = subSnap.docs[0].data();
+                                status = sub.status === "active" ? "Active" : sub.status;
+
+                                // Join against packages collection
+                                if (sub.packageId) {
+                                    const packageSnap = await getDoc(doc(db, "packages", sub.packageId));
+                                    if (packageSnap.exists()) {
+                                        packageName = packageSnap.data().name || "—";
+                                    }
+                                }
+
+                                // Join against trainers collection
+                                if (sub.trainerId) {
+                                    const trainerSnap = await getDoc(doc(db, "users", sub.trainerId));
+                                    if (trainerSnap.exists()) {
+                                        trainerName = trainerSnap.data().fullName || trainerSnap.data().name || "—";
+                                    }
+                                }
                             }
+                        } catch (subError) {
+                            console.warn(`Error fetching sub for client ${clientDoc.id}. You might need to create a Firestore Index.`, subError);
+                        }
 
-                            // Join against trainers collection for the real trainer name
-                            if (sub.trainerId) {
-                                const trainerSnap = await getDoc(doc(db, "users", sub.trainerId));
-                                trainerName = trainerSnap.exists()
-                                    ? trainerSnap.data().fullName
-                                    : "—";
+                        // Safely parse the joined date (handles Firestore Timestamps & ISO strings)
+                        let joinedDate = "—";
+                        if (clientData.createdAt) {
+                            if (typeof clientData.createdAt.toDate === "function") {
+                                joinedDate = clientData.createdAt.toDate().toLocaleDateString("en-GB", {
+                                    day: "2-digit", month: "short", year: "numeric",
+                                });
+                            } else {
+                                joinedDate = new Date(clientData.createdAt).toLocaleDateString("en-GB", {
+                                    day: "2-digit", month: "short", year: "numeric",
+                                });
                             }
                         }
 
                         return {
                             id: clientDoc.id,
-                            name: clientData.fullName ?? "Unnamed",
-                            phone: clientData.phone ?? "—",
+                            // Fallback to check both fullName and name just in case
+                            name: clientData.fullName || clientData.name || "Unnamed",
+                            phone: clientData.phone || "—",
                             packageName,
                             trainerName,
-                            joined: clientData.createdAt?.toDate
-                                ? clientData.createdAt.toDate().toLocaleDateString("en-GB", {
-                                    day: "2-digit",
-                                    month: "short",
-                                    year: "numeric",
-                                })
-                                : "—",
+                            joined: joinedDate,
                             status,
                         };
                     })
                 );
 
-                setUsers(rows);
+                if (isMounted) setUsers(rows);
             } catch (err) {
                 console.error("Users load error:", err);
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         }
 
         loadUsers();
+
+        return () => {
+            isMounted = false;
+        };
     }, []);
 
     const filteredRows = users.filter((u) =>
@@ -163,8 +185,7 @@ export default function Users() {
                         {!loading && filteredRows.length === 0 && (
                             <tr>
                                 <td colSpan={7} className="users-empty-state">
-                                    No clients registered yet. Once someone signs up through the
-                                    client app (phone OTP), they'll appear here automatically.
+                                    No clients registered yet or found. Please ensure users have role="client" in the database.
                                 </td>
                             </tr>
                         )}
@@ -181,7 +202,11 @@ export default function Users() {
                                     <td>{user.joined}</td>
                                     <td>
                                         <span
-                                            className={`users-status-pill ${user.status === "Active" ? "active" : "due"
+                                            className={`users-status-pill ${user.status === "Active"
+                                                    ? "active"
+                                                    : user.status === "No Subscription"
+                                                        ? "expired"
+                                                        : "due"
                                                 }`}
                                         >
                                             {user.status}

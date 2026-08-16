@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'welcome_screen.dart';
+
+// --- IMPORTANT: Import your AuthWrapper here instead of WelcomeScreen ---
+import 'auth_wrapper.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -12,51 +14,52 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _fadeController;
   late final Animation<double> _fadeAnimation;
-  late final Animation<double> _scaleAnimation; // Added for smooth zooming
+  late final Animation<double> _scaleAnimation;
 
   @override
   void initState() {
     super.initState();
 
-    // QUICKER: Sped up the animation to 600ms
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
 
-    // SMOOTHER: Uses easeOut curve so it slows down beautifully at the end
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeOut));
 
-    // SMOOTHER: A very subtle zoom-in effect while it fades
-    _scaleAnimation =
-        Tween<double>(
-          begin: 0.85, // Starts at 85% size
-          end: 1.0, // Finishes at 100% size
-        ).animate(
-          CurvedAnimation(
-            parent: _fadeController,
-            curve: Curves.easeOutCubic, // Buttery smooth deceleration
-          ),
-        );
+    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _fadeController, curve: Curves.easeOutCubic),
+    );
 
     _fadeController.forward();
-    _navigateToWelcome();
+    _navigateToNext();
   }
 
-  Future<void> _navigateToWelcome() async {
-    // QUICKER: Reduced waiting time from 2200ms to just 1400ms!
-    await Future.delayed(const Duration(milliseconds: 1400));
+  Future<void> _navigateToNext() async {
+    // Wait for 1800ms
+    await Future.delayed(const Duration(milliseconds: 1800));
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        // QUICKER: Faster transition into the Welcome Screen
-        transitionDuration: const Duration(milliseconds: 300),
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            FadeTransition(opacity: animation, child: const WelcomeScreen()),
+        // 1. INCREASED TRANSITION TIME for a slow, premium crossfade
+        transitionDuration: const Duration(milliseconds: 1000),
+
+        pageBuilder: (context, animation, secondaryAnimation) {
+          // 2. ADDED A CURVE so the fade feels organic, not robotic
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          );
+
+          return FadeTransition(
+            opacity: curvedAnimation,
+            child: const AuthWrapper(),
+          );
+        },
       ),
     );
   }
@@ -95,7 +98,7 @@ class _SplashScreenState extends State<SplashScreen>
             child: FadeTransition(
               opacity: _fadeAnimation,
               child: ScaleTransition(
-                scale: _scaleAnimation, // Applied the new smooth scale
+                scale: _scaleAnimation,
                 child: Image.asset(
                   'assets/images/landing_photo.png',
                   width: 140,
@@ -114,7 +117,7 @@ class _SplashScreenState extends State<SplashScreen>
               child: FadeTransition(
                 opacity: _fadeAnimation,
                 child: ScaleTransition(
-                  scale: _scaleAnimation, // Applied the new smooth scale
+                  scale: _scaleAnimation,
                   child: const Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

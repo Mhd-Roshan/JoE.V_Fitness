@@ -1,3 +1,4 @@
+import 'dart:ui'; // Required for the blur effect
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -91,11 +92,46 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
 
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SuccessScreen(trainer: _selectedTrainer!),
-        ),
+      // ==========================================
+      // ✅ SLIDE FROM BOTTOM DIALOG WITH BLUR
+      // ==========================================
+      showGeneralDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withValues(alpha: 0.2), // Light shadow
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), // Blurs background
+            child: Align(
+              alignment:
+                  Alignment.bottomCenter, // Locks the popup to the bottom
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 40, left: 24, right: 24),
+                child: Material(
+                  color: Colors.transparent,
+                  child: SuccessDialog(trainer: _selectedTrainer!),
+                ),
+              ),
+            ),
+          );
+        },
+        transitionBuilder: (context, animation, secondaryAnimation, child) {
+          // Slide Animation
+          return SlideTransition(
+            position:
+                Tween<Offset>(
+                  begin: const Offset(0, 1), // Starts below the screen
+                  end: Offset.zero, // Ends at its original position
+                ).animate(
+                  CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.easeOutCubic, // Smooth deceleration
+                  ),
+                ),
+            child: child,
+          );
+        },
       );
     } catch (e) {
       if (mounted) {
@@ -244,9 +280,6 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ==========================================
-                              // ✅ RATING MOVED DIRECTLY UNDER THE IMAGE
-                              // ==========================================
                               Column(
                                 children: [
                                   CircleAvatar(
@@ -345,9 +378,6 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                           ),
                           const SizedBox(height: 16),
 
-                          // ==========================================
-                          // ✅ BUTTONS ONLY ROW (Responsive)
-                          // ==========================================
                           Row(
                             children: [
                               Expanded(
@@ -760,271 +790,124 @@ class TrainerProfileScreen extends StatelessWidget {
 }
 
 // ==========================================
-// SCREEN 3: SUCCESS & BOOKING
+// SCREEN 3: SUCCESS DIALOG COMPONENT
 // ==========================================
-class SuccessScreen extends StatelessWidget {
+class SuccessDialog extends StatelessWidget {
   final Trainer trainer;
 
-  const SuccessScreen({super.key, required this.trainer});
+  const SuccessDialog({super.key, required this.trainer});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-
-              // ==========================================
-              // ✅ POP-IN ANIMATION ADDED HERE
-              // ==========================================
-              TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0.0, end: 1.0),
-                duration: const Duration(milliseconds: 800),
-                curve:
-                    Curves.elasticOut, // Gives the satisfying "spring" effect
-                builder: (context, scale, child) {
-                  return Transform.scale(
-                    scale: scale,
-                    child: Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.greenAccent.withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Container(
-                          width: 70,
-                          height: 70,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF23D07B),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: Colors.white,
-                            size: 40,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Success!',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF00225D),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Your journey to peak performance starts now.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundImage: NetworkImage(trainer.imageUrl),
-                      onBackgroundImageError: (error, stackTrace) {},
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            trainer.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            trainer.designation,
-                            style: const TextStyle(
-                              color: Colors.grey,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              if (trainer.specializations.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE5F1FF),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    trainer.specializations.first,
-                                    style: const TextStyle(
-                                      color: Color(0xFF0044FF),
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.star,
-                                color: Colors.amber,
-                                size: 14,
-                              ),
-                              Text(
-                                ' ${trainer.rating}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              _infoBox(
-                icon: Icons.lock_outline,
-                title: 'Locked profile',
-                desc:
-                    'This trainer is fixed for your package. Consistency is the key to achieving your athletic goals.',
-                borderColor: const Color(0xFFBA0C19),
-              ),
-              const SizedBox(height: 16),
-
-              _infoBox(
-                icon: Icons.info_outline,
-                title: 'What\'s Next',
-                desc:
-                    '${trainer.name.split(' ').first} will contact you shortly to coordinate your initial assessment and scheduling.',
-                borderColor: const Color(0xFF0044FF),
-              ),
-
-              const Spacer(),
-
-              SizedBox(
-                height: 55,
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BookingScreen(trainer: trainer),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFBA0C19),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  label: const Text(
-                    'Continue to Booking',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  icon: const Icon(Icons.calendar_month, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _infoBox({
-    required IconData icon,
-    required String title,
-    required String desc,
-    required Color borderColor,
-  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(
+          40,
+        ), // Heavily rounded like the image
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: borderColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(icon, size: 18, color: const Color(0xFF00225D)),
-                      const SizedBox(width: 8),
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF00225D),
-                        ),
-                      ),
-                    ],
+      padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // Wraps content perfectly
+        children: [
+          // ==========================================
+          // WAVY GREEN CHECKMARK BADGE
+          // ==========================================
+          SizedBox(
+            width: 90,
+            height: 90,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Base Square (Rounded)
+                Container(
+                  width: 75,
+                  height: 75,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFCFF6C2),
+                    borderRadius: BorderRadius.circular(22),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    desc,
-                    style: const TextStyle(
-                      color: Color(0xFF0044FF),
-                      fontSize: 13,
-                      height: 1.4,
+                ),
+                // Rotated Square (Rounded) to create the wavy rosette
+                Transform.rotate(
+                  angle: 3.14159 / 4, // 45 degrees
+                  child: Container(
+                    width: 75,
+                    height: 75,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFCFF6C2),
+                      borderRadius: BorderRadius.circular(22),
                     ),
                   ),
-                ],
+                ),
+                // Dark Green Checkmark
+                const Icon(Icons.check, color: Color(0xFF0C5618), size: 45),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          const Text(
+            'Successful',
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          const Text(
+            'Your trainer is successfully\nselected.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+              height: 1.4,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+
+          const SizedBox(height: 48),
+
+          // ==========================================
+          // RED DONE BUTTON (#BB0013)
+          // ==========================================
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: () {
+                // Replaces the Select page & Dialog with the BookingScreen
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => BookingScreen(trainer: trainer),
+                  ),
+                  (Route<dynamic> route) => route.isFirst,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(
+                  0xFFBB0013,
+                ), // Requested Red Color!
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: const Text(
+                'Done',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

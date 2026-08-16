@@ -3,6 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
+import 'booking_screen.dart';
+import 'trainer_selection_screen.dart';
+import 'reschedule_screen.dart';
+
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key});
 
@@ -12,112 +16,209 @@ class HomeDashboardScreen extends StatefulWidget {
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
+  int _selectedIndex = 0;
+
+  late Stream<DocumentSnapshot> _userStream;
+  late Stream<QuerySnapshot> _bookingStream;
+  late Stream<QuerySnapshot> _chatStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final String uid = currentUser?.uid ?? '';
+
+    // Initialize streams exactly ONCE. Firestore will auto-push updates live!
+    _userStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .snapshots();
+    _bookingStream = FirebaseFirestore.instance
+        .collection('bookings')
+        .where('userId', isEqualTo: uid)
+        .snapshots();
+    _chatStream = FirebaseFirestore.instance
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .orderBy('lastMessageTime', descending: true)
+        .snapshots();
+  }
 
   String get _todayDate {
     return DateFormat('MMM dd yyyy').format(DateTime.now()).toUpperCase();
   }
 
+  Future<void> _handleBookingNavigation(Map<String, dynamic> userData) async {
+    String? trainerId = userData['assignedTrainerId'];
+
+    if (trainerId == null || trainerId.isEmpty) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const SelectTrainerScreen()),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF01BCE3)),
+      ),
+    );
+
+    try {
+      var trainerDoc = await FirebaseFirestore.instance
+          .collection('trainers')
+          .doc(trainerId)
+          .get();
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      if (trainerDoc.exists) {
+        Trainer assignedTrainer = Trainer.fromFirestore(trainerDoc);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => BookingScreen(trainer: assignedTrainer),
+          ),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SelectTrainerScreen()),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Error loading data.')));
+    }
+  }
+
+  // 2 HOUR RESTRICTION LOGIC
+  void _handleRescheduleClick(
+    String bookingId,
+    Map<String, dynamic> bookingData,
+  ) {
+    try {
+      String dateStr = bookingData['date'] ?? '';
+      String timeStr = bookingData['time'] ?? '';
+
+      // Check the 2 hour restriction
+      DateTime sessionDateTime = DateFormat(
+        'yyyy-MM-dd h:mm a',
+      ).parse('$dateStr $timeStr');
+      DateTime now = DateTime.now();
+
+      if (sessionDateTime.difference(now).inMinutes < 120 &&
+          sessionDateTime.isAfter(now)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Sessions cannot be rescheduled within 2 hours of start time.',
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+
+      // Navigate to Reschedule normally. Do NOT override the stream!
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              RescheduleScreen(bookingId: bookingId, bookingData: bookingData),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error processing session date/time.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Calculates exact width for half-screen cards (Accounting for padding)
     double screenWidth = MediaQuery.of(context).size.width;
     double exactCardWidth = (screenWidth - 48 - 16) / 2;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUser?.uid)
-            .snapshots(),
-        builder: (context, userSnapshot) {
-          if (userSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFBA0C19)),
-            );
-          }
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _userStream,
+      builder: (context, userSnapshot) {
+        if (!userSnapshot.hasData) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF01BCE3)),
+            ),
+          );
+        }
 
-          var userData =
-              userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
+        var userData = userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
 
-          // ==========================================
-          // PULLS THE CLIENT'S NAME FROM FIRESTORE HERE
-          // ==========================================
-          String userName =
-              userData['fullName'] ??
-              userData['name'] ??
-              userData['firstName'] ??
-              userData['displayName'] ??
-              'Athlete';
+        String userName =
+            userData['fullName'] ??
+            userData['name'] ??
+            userData['firstName'] ??
+            'Athlete';
+        String package = userData['subscriptionPackage'] ?? 'Premium Package 3';
+        String profilePic =
+            userData['profilePic'] ?? userData['imageUrl'] ?? '';
+        String currentWeight = userData['weight']?.toString() ?? '0';
+        String currentHydration = userData['hydration']?.toString() ?? '0';
+        String currentSleep = userData['sleep']?.toString() ?? '0';
+        String currentSteps = userData['steps']?.toString() ?? '0';
 
-          String package =
-              userData['subscriptionPackage'] ?? 'Premium Package 3';
-          String profilePic =
-              userData['profilePic'] ?? userData['imageUrl'] ?? '';
+        String weightBadge = userData['weightBadge']?.toString() ?? '-0.4kg';
+        String hydrationBadge = userData['hydrationBadge']?.toString() ?? '88%';
+        String sleepBadge = userData['sleepBadge']?.toString() ?? 'Good';
+        String stepsBadge = userData['stepsBadge']?.toString() ?? '50%';
 
-          String currentWeight = userData['weight']?.toString() ?? '0';
-          String currentHydration = userData['hydration']?.toString() ?? '0';
-          String currentSleep = userData['sleep']?.toString() ?? '0';
-          String currentSteps = userData['steps']?.toString() ?? '0';
-
-          String weightBadge = userData['weightBadge']?.toString() ?? '-0.4kg';
-          String hydrationBadge =
-              userData['hydrationBadge']?.toString() ?? '88%';
-          String sleepBadge = userData['sleepBadge']?.toString() ?? 'Good';
-          String stepsBadge = userData['stepsBadge']?.toString() ?? '50%';
-
-          return SingleChildScrollView(
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ==========================================
-                // 1. RESTRUCTURED HEADER (Slimmer & Bell aligned with Name)
-                // ==========================================
+                // 1. HEADER
                 Container(
                   width: double.infinity,
                   padding: EdgeInsets.only(
-                    top:
-                        MediaQuery.of(context).padding.top +
-                        8, // Reduced padding
+                    top: MediaQuery.of(context).padding.top + 8,
                     left: 24,
                     right: 24,
-                    bottom: 12, // Reduced bottom padding
+                    bottom: 12,
                   ),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF003297), // Deep blue
+                    color: Color(0xFF003297),
                     borderRadius: BorderRadius.vertical(
-                      bottom: Radius.circular(30), // Slightly reduced curve
+                      bottom: Radius.circular(30),
                     ),
                     border: Border(
-                      bottom: BorderSide(
-                        color: Color(0xFF01BCE3),
-                        width: 6,
-                      ), // Thicker bottom border
+                      bottom: BorderSide(color: Color(0xFF01BCE3), width: 6),
                     ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // --- DATE (Top Left) ---
                       Text(
                         _todayDate,
                         style: const TextStyle(
-                          color: Color(0xFF82D3FA), // Light blue text
+                          color: Color(0xFF82D3FA),
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2,
                         ),
                       ),
-
-                      const SizedBox(
-                        height: 6,
-                      ), // Reduced space between date and profile section
-                      // --- PROFILE IMAGE, NAME, & BELL ---
+                      const SizedBox(height: 6),
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           CircleAvatar(
-                            radius: 28, // Shrunk to make bar slimmer
+                            radius: 28,
                             backgroundColor: const Color(0xFF01BCE3),
                             backgroundImage: profilePic.isNotEmpty
                                 ? NetworkImage(profilePic)
@@ -136,31 +237,27 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                                 : null,
                           ),
                           const SizedBox(width: 12),
-                          // Name & Package (Expanded pushes the bell to the far right)
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                // CLIENT NAME
                                 Text(
                                   userName,
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize:
-                                        22, // Kept big and bold but fits slimmer bar
+                                    fontSize: 22,
                                     fontWeight: FontWeight.w900,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 4),
-                                // STAR & PACKAGE
                                 Row(
                                   children: [
                                     const Icon(
                                       Icons.star,
-                                      color: Color(0xFFFFD700), // Gold Star
+                                      color: Color(0xFFFFD700),
                                       size: 14,
                                     ),
                                     const SizedBox(width: 4),
@@ -177,7 +274,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                               ],
                             ),
                           ),
-                          // NOTIFICATION BELL (Now perfectly aligned with the Profile row)
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
@@ -196,208 +292,236 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   ),
                 ),
 
-                // ==========================================
-                // 2. TODAY'S SESSION
-                // ==========================================
+                // 2. UPCOMING SESSION
                 Padding(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0,
+                    vertical: 24.0,
+                  ),
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('bookings')
-                        .where('userId', isEqualTo: currentUser?.uid)
-                        .orderBy('createdAt', descending: true)
-                        .limit(1)
-                        .snapshots(),
+                    stream:
+                        _bookingStream, // Relies on live Firebase stream safely!
                     builder: (context, bookingSnapshot) {
-                      bool hasBooking =
-                          bookingSnapshot.hasData &&
-                          bookingSnapshot.data!.docs.isNotEmpty;
-                      var bookingData = hasBooking
-                          ? bookingSnapshot.data!.docs.first.data()
-                                as Map<String, dynamic>
-                          : null;
+                      bool hasBooking = false;
+                      Map<String, dynamic>? bookingData;
+                      String? bookingId;
+                      String displayDate = 'TBD';
+
+                      if (bookingSnapshot.hasData &&
+                          bookingSnapshot.data!.docs.isNotEmpty) {
+                        String todayFormatted = DateFormat(
+                          'yyyy-MM-dd',
+                        ).format(DateTime.now());
+
+                        var futureBookings = bookingSnapshot.data!.docs.where((
+                          doc,
+                        ) {
+                          var data = doc.data() as Map<String, dynamic>;
+                          String date = data['date'] ?? '';
+                          String status = data['status'] ?? '';
+                          return date.compareTo(todayFormatted) >= 0 &&
+                              status != 'cancelled';
+                        }).toList();
+
+                        if (futureBookings.isNotEmpty) {
+                          futureBookings.sort((a, b) {
+                            var dataA = a.data() as Map<String, dynamic>;
+                            var dataB = b.data() as Map<String, dynamic>;
+
+                            String dateA = dataA['date'] ?? '2099-01-01';
+                            String timeA = dataA['time'] ?? '12:00 AM';
+                            String dateB = dataB['date'] ?? '2099-01-01';
+                            String timeB = dataB['time'] ?? '12:00 AM';
+
+                            try {
+                              // h:mm a handles both "08:30 AM" and "8:30 AM" cleanly
+                              DateTime dtA = DateFormat(
+                                'yyyy-MM-dd h:mm a',
+                              ).parse('$dateA $timeA');
+                              DateTime dtB = DateFormat(
+                                'yyyy-MM-dd h:mm a',
+                              ).parse('$dateB $timeB');
+                              return dtA.compareTo(dtB);
+                            } catch (e) {
+                              return dateA.compareTo(dateB);
+                            }
+                          });
+
+                          hasBooking = true;
+                          bookingId = futureBookings.first.id;
+                          bookingData =
+                              futureBookings.first.data()
+                                  as Map<String, dynamic>;
+
+                          if (bookingData['date'] == todayFormatted) {
+                            displayDate = 'Today';
+                          } else {
+                            try {
+                              DateTime parsed = DateFormat(
+                                'yyyy-MM-dd',
+                              ).parse(bookingData['date']);
+                              displayDate = DateFormat('MMM d').format(parsed);
+                            } catch (e) {
+                              displayDate = bookingData['date'];
+                            }
+                          }
+                        }
+                      }
 
                       return Container(
                         height: 220,
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24),
+                          color: const Color(0xFF001233),
+                          borderRadius: BorderRadius.circular(32),
                           border: Border.all(
                             color: const Color(0xFF2859C5),
-                            width: 3,
-                          ),
-                          image: const DecorationImage(
-                            image: NetworkImage(
-                              'https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?q=80&w=2070',
-                            ),
-                            fit: BoxFit.cover,
+                            width: 3.5,
                           ),
                         ),
-                        child: Stack(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Positioned(
-                              top: 16,
-                              right: 16,
+                            Align(
+                              alignment: Alignment.topRight,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
+                                  horizontal: 16,
+                                  vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(
-                                    0xFF23D07B,
-                                  ).withValues(alpha: 0.8),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: hasBooking
+                                      ? const Color(0xFF23D07B)
+                                      : Colors.grey.shade600,
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
-                                  hasBooking ? "Today's session" : "No Session",
+                                  hasBooking ? 'Confirmed' : 'No Session',
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 10,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
                             ),
-
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  borderRadius: const BorderRadius.vertical(
-                                    bottom: Radius.circular(20),
+                            const Spacer(),
+                            if (hasBooking) ...[
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.self_improvement,
+                                    color: Color(0xFF23D07B),
+                                    size: 22,
                                   ),
-                                  gradient: LinearGradient(
-                                    begin: Alignment.bottomCenter,
-                                    end: Alignment.topCenter,
-                                    colors: [
-                                      Colors.black.withValues(alpha: 0.9),
-                                      Colors.transparent,
-                                    ],
-                                  ),
-                                ),
-                                child: hasBooking
-                                    ? Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              const Icon(
-                                                Icons.self_improvement,
-                                                color: Color(0xFF23D07B),
-                                                size: 20,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  bookingData!['sessionType'] ??
-                                                      'Training Session',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 20,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '👤 Trainer : ${bookingData['trainerName'] ?? 'Trainer'} • ${bookingData['time'] ?? 'TBD'}',
-                                            style: const TextStyle(
-                                              color: Colors.grey,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 16),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: ElevatedButton.icon(
-                                                  onPressed: () {},
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        const Color(0xFF2859C5),
-                                                    elevation: 0,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  icon: const Icon(
-                                                    Icons.access_time,
-                                                    color: Colors.white,
-                                                    size: 16,
-                                                  ),
-                                                  label: Text(
-                                                    bookingData['status'] ==
-                                                            'pending'
-                                                        ? 'Pending'
-                                                        : 'Arriving',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: ElevatedButton(
-                                                  onPressed: () {},
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        const Color(0xFFBA0C19),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                  child: const Text(
-                                                    'Reschedule',
-                                                    style: TextStyle(
-                                                      color: Colors.white,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      )
-                                    : const Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Rest Day',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          SizedBox(height: 4),
-                                          Text(
-                                            'Take time to recover, or book a new session.',
-                                            style: TextStyle(
-                                              color: Colors.grey,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      bookingData!['sessionType'] ??
+                                          'Training Session',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '👤 ${bookingData['trainerName'] ?? 'Trainer'} • 📅 $displayDate • ⏰ ${bookingData['time'] ?? 'TBD'}',
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {},
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFF2859C5,
+                                        ),
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      icon: const Icon(
+                                        Icons.access_time,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                      label: Text(
+                                        bookingData['status'] == 'pending'
+                                            ? 'Pending'
+                                            : 'Arriving',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _handleRescheduleClick(
+                                        bookingId!,
+                                        bookingData!,
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(
+                                          0xFFBA0C19,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Reschedule',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ] else ...[
+                              const Text(
+                                'Rest Day',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Take time to recover, or book a new session.',
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       );
@@ -405,9 +529,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                   ),
                 ),
 
-                // ==========================================
                 // 3. QUICK ACTION
-                // ==========================================
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
@@ -432,6 +554,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                         const Color(0xFFBA0C19),
                         Colors.white,
                         exactCardWidth,
+                        onTap: () => _handleBookingNavigation(userData),
                       ),
                       _quickActionCard(
                         'Health',
@@ -452,9 +575,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 ),
                 const SizedBox(height: 30),
 
-                // ==========================================
                 // 4. TODAY PROGRESS
-                // ==========================================
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
@@ -532,9 +653,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 ),
                 const SizedBox(height: 30),
 
-                // ==========================================
                 // 5. CHATS SECTION
-                // ==========================================
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Row(
@@ -556,11 +675,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 SizedBox(
                   height: 110,
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('chats')
-                        .where('participants', arrayContains: currentUser?.uid)
-                        .orderBy('lastMessageTime', descending: true)
-                        .snapshots(),
+                    stream: _chatStream,
                     builder: (context, chatSnapshot) {
                       if (!chatSnapshot.hasData ||
                           chatSnapshot.data!.docs.isEmpty) {
@@ -595,7 +710,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                           ),
                         );
                       }
-
                       return ListView.builder(
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -620,41 +734,108 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 const SizedBox(height: 40),
               ],
             ),
-          );
-        },
-      ),
-      // ==========================================
-      // BOTTOM NAV
-      // ==========================================
-      bottomNavigationBar: Container(
-        height: 75,
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          ),
+          bottomNavigationBar: Container(
+            height: 70,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF001233),
+              borderRadius: BorderRadius.circular(35),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildStaticNavItem(0, Icons.home_filled, 'Home', userData),
+                _buildStaticNavItem(
+                  1,
+                  Icons.calendar_month,
+                  'Booking',
+                  userData,
+                ),
+                _buildStaticNavItem(
+                  2,
+                  Icons.insert_chart_rounded,
+                  'Stats',
+                  userData,
+                ),
+                _buildStaticNavItem(
+                  3,
+                  Icons.chat_bubble_rounded,
+                  'Chats',
+                  userData,
+                ),
+                _buildStaticNavItem(
+                  4,
+                  Icons.person_rounded,
+                  'Profile',
+                  userData,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStaticNavItem(
+    int index,
+    IconData icon,
+    String label,
+    Map<String, dynamic> userData,
+  ) {
+    bool isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () {
+        if (index == 1) {
+          _handleBookingNavigation(userData);
+          return;
+        }
+        setState(() {
+          _selectedIndex = index;
+        });
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 10.0 : 6.0,
+          vertical: 8.0,
+        ),
         decoration: BoxDecoration(
-          color: const Color(0xFF00225D),
-          borderRadius: BorderRadius.circular(35),
+          color: isSelected ? const Color(0xFF01BCE3) : Colors.transparent,
+          borderRadius: BorderRadius.circular(30),
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF01BCE3),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.home, color: Colors.white),
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.grey.shade400,
+              size: 22,
             ),
-            const Icon(Icons.calendar_month, color: Colors.grey),
-            const Icon(Icons.insert_chart_outlined, color: Colors.grey),
-            const Icon(Icons.chat_bubble_outline, color: Colors.grey),
-            const Icon(Icons.person_outline, color: Colors.grey),
+            if (isSelected)
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
   }
-
-  // --- UI HELPER WIDGETS ---
 
   Widget _forwardIcon() {
     return Container(
@@ -679,34 +860,38 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     IconData icon,
     Color bgColor,
     Color iconColor,
-    double exactWidth,
-  ) {
-    return Container(
-      width: exactWidth,
-      margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFF2859C5), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(icon, color: iconColor.withValues(alpha: 0.8), size: 24),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+    double exactWidth, {
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: exactWidth,
+        margin: const EdgeInsets.only(right: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF2859C5), width: 2),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Icon(icon, color: iconColor.withValues(alpha: 0.8), size: 24),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

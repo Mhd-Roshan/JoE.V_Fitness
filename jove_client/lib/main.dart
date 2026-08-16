@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // Wakes up Firebase!
-import 'screens/auth_wrapper.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'screens/splash_screen.dart'; // <-- IMPORTANT: Point to your splash screen
 
 void main() async {
-  // 1. You must ensure Flutter bindings are ready before launching Firebase
+  // 1. Ensure Flutter bindings are ready before launching Firebase
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. Initialize Firebase database and authentication
+  // 2. Initialize Firebase
   await Firebase.initializeApp();
 
-  // 3. Run your UI
+  // 3. Run UI
   runApp(const MyApp());
 }
 
@@ -26,8 +26,8 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
 
-      // 4. Set the AuthWrapper as the first thing the app sees
-      home: const AuthWrapper(),
+      // 4. Set the Splash Screen as the VERY FIRST thing the app sees
+      home: const SplashScreen(),
     );
   }
 }

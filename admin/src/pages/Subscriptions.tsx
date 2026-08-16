@@ -120,13 +120,14 @@ export default function Subscriptions() {
     if (loading) {
         return (
             <Layout title="Subscription">
-                <p style={{ color: "#999" }}>Loading subscriptions...</p>
+                <p style={{ color: "#999", padding: "24px" }}>Loading subscriptions...</p>
             </Layout>
         );
     }
 
     return (
         <Layout title="Subscription">
+            {/* HEADER */}
             <div className="subs-header">
                 <div>
                     <div className="subs-title">Subscription Manage</div>
@@ -144,70 +145,101 @@ export default function Subscriptions() {
                 </div>
             </div>
 
+            {/* STATS ROW (3 Cards Up) */}
+            <div className="subs-stats-row">
+                <div className="subs-stat-card dark">
+                    <div className="subs-stat-label">MONTHLY REVENUE</div>
+                    <div className="subs-stat-value">
+                        ₹{monthlyRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="subs-stat-footnote">
+                        <i className="bx bx-up-arrow-alt" /> 12% from last month
+                    </div>
+                </div>
+
+                <div className="subs-stat-card">
+                    <div className="subs-stat-label">ACTIVE SUBSCRIPTIONS</div>
+                    <div className="subs-stat-value">{activeCount}</div>
+                    <div className="subs-stat-footnote success">
+                        <i className="bx bx-check-circle" /> Healthy retention rate (94%)
+                    </div>
+                </div>
+
+                <div className="subs-stat-card">
+                    <div className="subs-stat-label">PENDING RENEWALS</div>
+                    <div className="subs-stat-value danger">{pendingCount}</div>
+                    <div className="subs-stat-footnote warning">
+                        <i className="bx bx-time-five" /> Requires manual approval
+                    </div>
+                </div>
+            </div>
+
+            {/* TABLE SECTION (Table Down) */}
             <div className="subs-table-card">
                 {subs.length === 0 ? (
-                    <div className="profile-empty" style={{ padding: 24 }}>
+                    <div className="profile-empty" style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
                         No subscriptions yet.
                     </div>
                 ) : (
                     <>
-                        <table className="subs-table">
-                            <thead>
-                                <tr>
-                                    <th>Client Name</th>
-                                    <th>Package</th>
-                                    <th>Start Date</th>
-                                    <th>End Date</th>
-                                    <th style={{ textAlign: "center" }}>Renewal</th>
-                                    <th style={{ textAlign: "center" }}>Status</th>
-                                    <th style={{ textAlign: "right" }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {pageRows.map((s) => (
-                                    <tr key={s.id}>
-                                        <td>
-                                            <div className="subs-client-cell">
-                                                <span className="subs-client-avatar">
-                                                    {s.clientInitials}
-                                                </span>
-                                                <span className="subs-client-name">
-                                                    {s.clientName}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span className="subs-package-pill">
-                                                {s.packageName}
-                                            </span>
-                                        </td>
-                                        <td className="subs-mono">{s.startDate}</td>
-                                        <td className="subs-mono">{s.endDate}</td>
-                                        <td style={{ textAlign: "center" }}>
-                                            {s.renewalType === "auto" ? "Auto" : "Manual"}
-                                        </td>
-                                        <td style={{ textAlign: "center" }}>
-                                            <span className={`subs-status-pill status-${s.status}`}>
-                                                {s.status.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <div className="subs-actions-cell">
-                                                <button
-                                                    className="subs-action-btn"
-                                                    onClick={() =>
-                                                        navigate(`/subscriptions/${s.id}`)
-                                                    }
-                                                >
-                                                    <i className="bx bx-show" />
-                                                </button>
-                                            </div>
-                                        </td>
+                        <div style={{ overflowX: "auto" }}>
+                            <table className="subs-table">
+                                <thead>
+                                    <tr>
+                                        <th>CLIENT NAME</th>
+                                        <th>PACKAGE</th>
+                                        <th>START DATE</th>
+                                        <th>END DATE</th>
+                                        <th style={{ textAlign: "center" }}>RENEWAL</th>
+                                        <th style={{ textAlign: "center" }}>STATUS</th>
+                                        <th style={{ textAlign: "center" }}>ACTIONS</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {pageRows.map((s) => (
+                                        <tr key={s.id}>
+                                            <td>
+                                                <div className="subs-client-cell">
+                                                    <span className="subs-client-avatar">
+                                                        {s.clientInitials}
+                                                    </span>
+                                                    <span className="subs-client-name">
+                                                        {s.clientName}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span className="subs-package-pill">
+                                                    {s.packageName}
+                                                </span>
+                                            </td>
+                                            <td className="subs-mono">{s.startDate}</td>
+                                            <td className="subs-mono">{s.endDate}</td>
+                                            <td style={{ textAlign: "center", fontWeight: 500 }}>
+                                                {s.renewalType === "auto" ? "Auto" : "Manual"}
+                                            </td>
+                                            <td style={{ textAlign: "center" }}>
+                                                <span className={`subs-status-pill status-${s.status}`}>
+                                                    {s.status.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div className="subs-actions-cell">
+                                                    <button
+                                                        className="subs-action-btn"
+                                                        onClick={() => navigate(`/subscriptions/${s.id}`)}
+                                                    >
+                                                        <i className="bx bx-dots-vertical-rounded" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
 
+                        {/* PAGINATION */}
                         <div className="subs-pagination">
                             <span className="subs-pagination-count">
                                 Showing {pageRows.length} of {subs.length} subscriptions
@@ -242,34 +274,7 @@ export default function Subscriptions() {
                 )}
             </div>
 
-            <div className="subs-stats-row">
-                <div className="subs-stat-card">
-                    <div className="subs-stat-label">ACTIVE SUBSCRIPTIONS</div>
-                    <div className="subs-stat-value">{activeCount}</div>
-                    <div className="subs-stat-footnote success">
-                        <i className="bx bx-trending-up" /> Live count from active subscriptions
-                    </div>
-                </div>
-
-                <div className="subs-stat-card">
-                    <div className="subs-stat-label">PENDING RENEWALS</div>
-                    <div className="subs-stat-value danger">{pendingCount}</div>
-                    <div className="subs-stat-footnote warning">
-                        <i className="bx bx-error" /> Requires manual approval
-                    </div>
-                </div>
-
-                <div className="subs-stat-card dark">
-                    <div className="subs-stat-label">MONTHLY REVENUE</div>
-                    <div className="subs-stat-value">
-                        ₹{monthlyRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </div>
-                    <div className="subs-stat-footnote">
-                        <i className="bx bx-bar-chart-alt-2" /> From active subscriptions
-                    </div>
-                </div>
-            </div>
-
+            {/* ANALYTICS SECTION (Bottom) */}
             <div className="subs-analytics-card">
                 <div className="subs-analytics-left">
                     <span className="subs-analytics-icon">

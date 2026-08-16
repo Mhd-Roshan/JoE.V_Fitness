@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FirebaseError } from "firebase/app";
 import {
@@ -47,15 +47,6 @@ const STEPS = [
     { id: 4, label: "Review" },
 ];
 
-const SPECIALIZATION_OPTIONS = [
-    "Strength",
-    "HIIT",
-    "Rehab",
-    "Nutrition",
-    "Cardio",
-    "Mobility",
-];
-
 const ROLE_OPTIONS = [
     "Personal Trainer",
     "Senior Trainer",
@@ -87,6 +78,18 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
             setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
         ),
     ]);
+}
+
+// ==============================================================
+// 12-HOUR TIME CONVERTER HELPER
+// ==============================================================
+function convertTo12Hour(time24: string) {
+    if (!time24) return "";
+    const [hours, minutes] = time24.split(":");
+    let h = parseInt(hours, 10);
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12; // Converts 17 to 5, 0 to 12, etc.
+    return `${h.toString().padStart(2, "0")}:${minutes} ${ampm}`;
 }
 
 // ==============================================================
@@ -326,7 +329,7 @@ export default function AddTrainer() {
     function formatDaySlots(day: string): string {
         const slots = form.availability[day];
         if (slots.length === 0) return "";
-        return slots.map((s) => `${s.start} - ${s.end}`).join(", ");
+        return slots.map((s) => `${convertTo12Hour(s.start)} - ${convertTo12Hour(s.end)}`).join(", ");
     }
 
     function validateStep1(): boolean {
@@ -373,7 +376,7 @@ export default function AddTrainer() {
             newErrors.yearsExperience = "Enter a valid number.";
         }
         if (form.specializations.length === 0) {
-            newErrors.specializations = "Select at least one specialization.";
+            newErrors.specializations = "Add at least one specialization.";
         }
         if (!form.educationBackground.trim()) {
             newErrors.educationBackground = "This field is required.";
@@ -425,7 +428,6 @@ export default function AddTrainer() {
         try {
             console.log("[onboarding] creating auth account...");
 
-            // Uses the password typed into the input field!
             const credential = await withTimeout(
                 createUserWithEmailAndPassword(secondaryAuth, form.email, form.password),
                 15000,
@@ -465,6 +467,8 @@ export default function AddTrainer() {
 
             batch.set(doc(db, "trainers", trainerId), {
                 trainerId,
+                fullName: form.fullName,
+                photoURL: photoURL ?? null,
                 designation: form.designation,
                 yearsExperience: Number(form.yearsExperience) || 0,
                 specializations: form.specializations,
@@ -486,8 +490,8 @@ export default function AddTrainer() {
                     );
                     batch.set(availRef, {
                         dayOfWeek: day,
-                        startTime: slot.start,
-                        endTime: slot.end,
+                        startTime: convertTo12Hour(slot.start),
+                        endTime: convertTo12Hour(slot.end),
                         timezone: form.timezone,
                     });
                 });
@@ -580,29 +584,68 @@ export default function AddTrainer() {
 
                             <div className="form-field">
                                 <label className="form-label">PROFILE PHOTO</label>
-                                <label className="photo-dropzone">
-                                    <i className="bx bx-user-circle photo-dropzone-icon" />
-                                    <div className="photo-dropzone-text">
-                                        {isCompressing
-                                            ? "Compressing image..."
-                                            : form.photoFile
-                                                ? form.photoFile.name
-                                                : "CLICK TO UPLOAD OR DRAG AND DROP"}
-                                    </div>
-                                    <div className="photo-dropzone-hint">
-                                        SVG, PNG, JPG OR GIF (Images are auto-compressed)
-                                    </div>
-                                    <span className="photo-choose-btn">
-                                        <i className="bx bx-upload" /> Choose File
-                                    </span>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handlePhotoChange}
-                                        style={{ display: "none" }}
-                                        disabled={isCompressing}
-                                    />
-                                </label>
+
+                                {/* UPDATED: Removable Dropzone */}
+                                <div className="photo-dropzone" style={{ padding: form.photoFile ? "20px" : undefined }}>
+                                    {form.photoFile && !isCompressing ? (
+                                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", width: "100%" }}>
+                                            <img
+                                                src={URL.createObjectURL(form.photoFile)}
+                                                alt="Preview"
+                                                style={{ width: "80px", height: "80px", borderRadius: "50%", objectFit: "cover" }}
+                                            />
+                                            <span style={{ fontSize: "0.9rem", color: "#333", fontWeight: 500 }}>
+                                                {form.photoFile.name}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => update("photoFile", null)}
+                                                style={{
+                                                    padding: "6px 16px",
+                                                    backgroundColor: "#fee2e2",
+                                                    color: "#ef4444",
+                                                    border: "none",
+                                                    borderRadius: "50px",
+                                                    cursor: "pointer",
+                                                    fontSize: "0.85rem",
+                                                    fontWeight: 600,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "6px",
+                                                    marginTop: "5px"
+                                                }}
+                                            >
+                                                <i className="bx bx-trash" /> Remove Photo
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <label style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", cursor: "pointer" }}>
+                                            <i className="bx bx-user-circle photo-dropzone-icon" />
+                                            <div className="photo-dropzone-text">
+                                                {isCompressing
+                                                    ? "Compressing image..."
+                                                    : "CLICK TO UPLOAD OR DRAG AND DROP"}
+                                            </div>
+                                            <div className="photo-dropzone-hint">
+                                                SVG, PNG, JPG OR GIF (Images are auto-compressed)
+                                            </div>
+                                            <span className="photo-choose-btn">
+                                                <i className="bx bx-upload" /> Choose File
+                                            </span>
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={handlePhotoChange}
+                                                style={{ display: "none" }}
+                                                disabled={isCompressing}
+                                                onClick={(e) => {
+                                                    // Allow re-selecting the same file if removed
+                                                    (e.target as HTMLInputElement).value = '';
+                                                }}
+                                            />
+                                        </label>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="form-field">
@@ -679,7 +722,6 @@ export default function AddTrainer() {
                                 )}
                             </div>
 
-                            {/* RESTORED PASSWORD FIELDS */}
                             <div className="form-field">
                                 <label className="form-label">LOGIN PASSWORD</label>
                                 <div className="input-with-icon">
@@ -779,38 +821,25 @@ export default function AddTrainer() {
                             </div>
 
                             <div className="form-field">
-                                <label className="form-label">SPECIALIZATIONS</label>
+                                <label className="form-label">SPECIALIZATIONS / WORKOUTS</label>
                                 <div className="chip-row">
-                                    {SPECIALIZATION_OPTIONS.map((spec) => (
+                                    {form.specializations.map((spec) => (
                                         <button
                                             type="button"
                                             key={spec}
-                                            className={`spec-chip ${form.specializations.includes(spec) ? "selected" : ""
-                                                }`}
+                                            className="spec-chip selected"
                                             onClick={() => toggleSpecialization(spec)}
                                         >
-                                            {spec}
+                                            {spec} <i className="bx bx-x" />
                                         </button>
                                     ))}
-                                    {form.specializations
-                                        .filter((s) => !SPECIALIZATION_OPTIONS.includes(s))
-                                        .map((spec) => (
-                                            <button
-                                                type="button"
-                                                key={spec}
-                                                className="spec-chip selected"
-                                                onClick={() => toggleSpecialization(spec)}
-                                            >
-                                                {spec} <i className="bx bx-x" />
-                                            </button>
-                                        ))}
 
                                     {showCustomSpecInput ? (
                                         <div className="spec-chip-input-wrap">
                                             <input
                                                 autoFocus
                                                 className="spec-chip-input"
-                                                placeholder="Custom..."
+                                                placeholder="Type and press Enter..."
                                                 value={customSpecInput}
                                                 onChange={(e) => setCustomSpecInput(e.target.value)}
                                                 onKeyDown={(e) => {
@@ -826,7 +855,7 @@ export default function AddTrainer() {
                                             className="spec-chip-add"
                                             onClick={() => setShowCustomSpecInput(true)}
                                         >
-                                            <i className="bx bx-plus" /> Add Other
+                                            <i className="bx bx-plus" /> Add Specialization
                                         </button>
                                     )}
                                 </div>
@@ -1029,10 +1058,24 @@ export default function AddTrainer() {
                                     <div className="review-card-title">
                                         <i className="bx bx-user" /> Personal Information
                                     </div>
+                                    {/* UPDATED: Pill-shaped Edit Button */}
                                     <button
                                         type="button"
                                         className="edit-section-btn"
                                         onClick={() => setStep(1)}
+                                        style={{
+                                            borderRadius: "50px",
+                                            padding: "6px 16px",
+                                            backgroundColor: "#e2e8f0",
+                                            color: "#1e293b",
+                                            border: "none",
+                                            fontSize: "0.85rem",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "6px"
+                                        }}
                                     >
                                         <i className="bx bx-pencil" /> Edit Section
                                     </button>
@@ -1086,10 +1129,24 @@ export default function AddTrainer() {
                                     <div className="review-card-title">
                                         <i className="bx bx-medal" /> Professional Experience
                                     </div>
+                                    {/* UPDATED: Pill-shaped Edit Button */}
                                     <button
                                         type="button"
                                         className="edit-section-btn"
                                         onClick={() => setStep(2)}
+                                        style={{
+                                            borderRadius: "50px",
+                                            padding: "6px 16px",
+                                            backgroundColor: "#e2e8f0",
+                                            color: "#1e293b",
+                                            border: "none",
+                                            fontSize: "0.85rem",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "6px"
+                                        }}
                                     >
                                         <i className="bx bx-pencil" /> Edit Section
                                     </button>
@@ -1151,10 +1208,24 @@ export default function AddTrainer() {
                                     <div className="review-card-title">
                                         <i className="bx bx-calendar" /> Weekly Availability
                                     </div>
+                                    {/* UPDATED: Pill-shaped Edit Button */}
                                     <button
                                         type="button"
                                         className="edit-section-btn"
                                         onClick={() => setStep(3)}
+                                        style={{
+                                            borderRadius: "50px",
+                                            padding: "6px 16px",
+                                            backgroundColor: "#e2e8f0",
+                                            color: "#1e293b",
+                                            border: "none",
+                                            fontSize: "0.85rem",
+                                            fontWeight: 600,
+                                            cursor: "pointer",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "6px"
+                                        }}
                                     >
                                         <i className="bx bx-pencil" /> Edit Section
                                     </button>

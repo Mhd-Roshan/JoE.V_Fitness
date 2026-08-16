@@ -1,70 +1,63 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, useMemo } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
-import "../styles/subscriptions.css";
 
-interface SubRow {
+interface SessionRow {
     id: string;
-    clientName: string;
-    clientInitials: string;
-    packageName: string;
-    startDate: string;
-    endDate: string;
-    renewalType: "auto" | "manual";
-    status: "active" | "paused" | "expired" | "pending";
-    monthlyPrice: number;
+    dateObj: Date | null;
+    time: string;
+    trainer: string;
+    client: string;
+    service: string;
+    status: string;
+    notes: string;
 }
 
 const PAGE_SIZE = 5;
 
-function fmtDate(v: unknown): string {
-    if (!v) return "—";
-    const d =
-        typeof v === "object" && v !== null && "toDate" in v
-            ? (v as { toDate: () => Date }).toDate()
-            : new Date(v as string);
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-export default function Subscriptions() {
-    const navigate = useNavigate();
-    const [subs, setSubs] = useState<SubRow[]>([]);
+export default function Sessions() {
+    const [allSessions, setAllSessions] = useState<SessionRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
+    const [activeTab, setActiveTab] = useState<"Today" | "This Week" | "Rescheduled">("Today");
 
     useEffect(() => {
         let cancelled = false;
 
         async function load() {
             try {
-                const snap = await getDocs(collection(db, "subscriptions"));
+                const snap = await getDocs(collection(db, "sessions"));
                 if (cancelled) return;
 
-                const rows: SubRow[] = snap.docs.map((d) => {
+                const rows: SessionRow[] = snap.docs.map((d) => {
                     const data = d.data();
-                    const name: string = data.clientName ?? "Unknown Client";
+
+                    let dateObj: Date | null = null;
+                    const rawDate = data.date || data.sessionDate || data.createdAt;
+                    if (rawDate) {
+                        if (typeof rawDate.toDate === "function") {
+                            dateObj = rawDate.toDate();
+                        } else {
+                            dateObj = new Date(rawDate);
+                        }
+                    }
+
                     return {
                         id: d.id,
-                        clientName: name,
-                        clientInitials: name
-                            .split(" ")
-                            .map((p: string) => p[0])
-                            .join("")
-                            .slice(0, 2)
-                            .toUpperCase(),
-                        packageName: data.packageName ?? "—",
-                        startDate: fmtDate(data.startDate),
-                        endDate: fmtDate(data.endDate),
-                        renewalType: data.renewalType ?? "manual",
-                        status: data.status ?? "active",
-                        monthlyPrice: data.monthlyPrice ?? 0,
+                        dateObj,
+                        time: data.time || "—",
+                        trainer: data.trainerName || data.trainer || "—",
+                        client: data.clientName || data.client || "—",
+                        service: data.serviceType || data.service || "—",
+                        status: data.status || "",
+                        notes: data.notes || data.trainerNotes || data.sessionNotes || "",
                     };
                 });
-                setSubs(rows);
+
+                setAllSessions(rows);
             } catch (err) {
-                console.error("Subscriptions load error:", err);
+                console.error("Sessions load error:", err);
             } finally {
                 if (!cancelled) setLoading(false);
             }
@@ -76,218 +69,276 @@ export default function Subscriptions() {
         };
     }, []);
 
-    const activeCount = subs.filter((s) => s.status === "active").length;
-    const pendingCount = subs.filter((s) => s.status === "pending").length;
-    const monthlyRevenue = subs
-        .filter((s) => s.status === "active")
-        .reduce((sum, s) => sum + s.monthlyPrice, 0);
+    const filteredSessions = useMemo(() => {
+        const now = new Date();
 
-    const totalPages = Math.max(1, Math.ceil(subs.length / PAGE_SIZE));
-    const pageRows = subs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
 
-    function handleExportCsv() {
-        const header = [
-            "Client Name",
-            "Package",
-            "Start Date",
-            "End Date",
-            "Renewal",
-            "Status",
-            "Monthly Price",
-        ];
-        const rows = subs.map((s) => [
-            s.clientName,
-            s.packageName,
-            s.startDate,
-            s.endDate,
-            s.renewalType,
-            s.status,
-            String(s.monthlyPrice),
-        ]);
-        const csv = [header, ...rows]
-            .map((r) => r.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(","))
-            .join("\n");
+        const dayOfWeek = now.getDay();
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - dayOfWeek);
+        const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
 
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `subscriptions-${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
-    }
+        return allSessions.filter(session => {
+            if (activeTab === "Rescheduled") {
+                return session.status.toLowerCase() === "rescheduled";
+            }
+
+            if (!session.dateObj || isNaN(session.dateObj.getTime())) {
+                return false;
+            }
+
+            if (activeTab === "Today") {
+                return session.dateObj >= todayStart && session.dateObj <= todayEnd;
+            }
+
+            if (activeTab === "This Week") {
+                return session.dateObj >= weekStart && session.dateObj <= weekEnd;
+            }
+
+            return true;
+        });
+    }, [allSessions, activeTab]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredSessions.length / PAGE_SIZE));
+    const pageRows = filteredSessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     if (loading) {
         return (
-            <Layout title="Subscription">
-                <p style={{ color: "#999", padding: "24px" }}>Loading subscriptions...</p>
+            <Layout title="All Sessions">
+                <p style={{ color: "#999", padding: "24px" }}>Loading sessions...</p>
             </Layout>
         );
     }
 
     return (
-        <Layout title="Subscription">
-            {/* HEADER */}
-            <div className="subs-header">
+        <Layout title="All Sessions">
+            {/* TOP HEADER SECTION */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
                 <div>
-                    <div className="subs-title">Subscription Manage</div>
-                    <div className="subs-subtitle">
-                        Manage active and historical client subscriptions.
-                    </div>
+                    <h2 style={{ margin: 0, fontSize: "1.25rem", color: "#1e293b", fontWeight: 700 }}>
+                        Sessions Management
+                    </h2>
+                    <p style={{ margin: "4px 0 0 0", color: "#64748b", fontSize: "0.875rem" }}>
+                        Monitor real-time training activity and trainer notes.
+                    </p>
                 </div>
-                <div className="subs-header-actions">
-                    <button className="subs-filter-btn">
-                        <i className="bx bx-filter-alt" /> Filter
-                    </button>
-                    <button className="subs-export-btn" onClick={handleExportCsv}>
-                        <i className="bx bx-download" /> Export CSV
-                    </button>
+
+                {/* UPDATED SEGMENTED CONTROL TO MATCH DESIGN */}
+                <div style={{
+                    display: "flex",
+                    border: "1px solid #cbd5e1", // Light border
+                    borderRadius: "10px",        // Rounded outer container
+                    padding: "4px",              // Padding creates the gap between border and active tab
+                    backgroundColor: "#ffffff",
+                    gap: "4px"                   // Small gap between buttons
+                }}>
+                    {(["Today", "This Week", "Rescheduled"] as const).map((tab) => (
+                        <button
+                            key={tab}
+                            onClick={() => {
+                                setActiveTab(tab);
+                                setPage(1);
+                            }}
+                            style={{
+                                padding: "6px 16px",
+                                border: "none",
+                                outline: "none",
+                                cursor: "pointer",
+                                fontSize: "0.875rem",
+                                fontWeight: 500,
+                                borderRadius: "6px", // Inner button rounding
+                                // Dark navy for active background, transparent for inactive
+                                backgroundColor: activeTab === tab ? "#0a1930" : "transparent",
+                                // White text for active, dark navy text for inactive
+                                color: activeTab === tab ? "#ffffff" : "#0a1930",
+                                transition: "all 0.2s ease"
+                            }}
+                        >
+                            {tab}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            {/* STATS ROW (3 Cards Up) */}
-            <div className="subs-stats-row">
-                <div className="subs-stat-card dark">
-                    <div className="subs-stat-label">MONTHLY REVENUE</div>
-                    <div className="subs-stat-value">
-                        ₹{monthlyRevenue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                    </div>
-                    <div className="subs-stat-footnote">
-                        <i className="bx bx-up-arrow-alt" /> 12% from last month
-                    </div>
+            {/* TABLE CARD */}
+            <div style={{
+                backgroundColor: "#fff",
+                border: "1px solid #e2e8f0",
+                borderRadius: "12px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                overflow: "hidden"
+            }}>
+                {/* CARD HEADER */}
+                <div style={{
+                    padding: "16px 24px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    borderBottom: "1px solid #e2e8f0"
+                }}>
+                    <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#002069ff", fontWeight: 700 }}>
+                        {activeTab} Sessions
+                    </h3>
+                    <button style={{
+                        background: "none",
+                        border: "none",
+                        color: "#ef4444",
+                        fontSize: "0.875rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px"
+                    }}>
+                        <i className="bx bx-filter-alt" /> Filter View
+                    </button>
                 </div>
 
-                <div className="subs-stat-card">
-                    <div className="subs-stat-label">ACTIVE SUBSCRIPTIONS</div>
-                    <div className="subs-stat-value">{activeCount}</div>
-                    <div className="subs-stat-footnote success">
-                        <i className="bx bx-check-circle" /> Healthy retention rate (94%)
-                    </div>
-                </div>
-
-                <div className="subs-stat-card">
-                    <div className="subs-stat-label">PENDING RENEWALS</div>
-                    <div className="subs-stat-value danger">{pendingCount}</div>
-                    <div className="subs-stat-footnote warning">
-                        <i className="bx bx-time-five" /> Requires manual approval
-                    </div>
-                </div>
-            </div>
-
-            {/* TABLE SECTION (Table Down) */}
-            <div className="subs-table-card">
-                {subs.length === 0 ? (
-                    <div className="profile-empty" style={{ padding: 24, textAlign: 'center', color: '#6b7280' }}>
-                        No subscriptions yet.
-                    </div>
-                ) : (
-                    <>
-                        <div style={{ overflowX: "auto" }}>
-                            <table className="subs-table">
-                                <thead>
-                                    <tr>
-                                        <th>CLIENT NAME</th>
-                                        <th>PACKAGE</th>
-                                        <th>START DATE</th>
-                                        <th>END DATE</th>
-                                        <th style={{ textAlign: "center" }}>RENEWAL</th>
-                                        <th style={{ textAlign: "center" }}>STATUS</th>
-                                        <th style={{ textAlign: "center" }}>ACTIONS</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {pageRows.map((s) => (
-                                        <tr key={s.id}>
-                                            <td>
-                                                <div className="subs-client-cell">
-                                                    <span className="subs-client-avatar">
-                                                        {s.clientInitials}
-                                                    </span>
-                                                    <span className="subs-client-name">
-                                                        {s.clientName}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span className="subs-package-pill">
-                                                    {s.packageName}
-                                                </span>
-                                            </td>
-                                            <td className="subs-mono">{s.startDate}</td>
-                                            <td className="subs-mono">{s.endDate}</td>
-                                            <td style={{ textAlign: "center", fontWeight: 500 }}>
-                                                {s.renewalType === "auto" ? "Auto" : "Manual"}
-                                            </td>
-                                            <td style={{ textAlign: "center" }}>
-                                                <span className={`subs-status-pill status-${s.status}`}>
-                                                    {s.status.toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div className="subs-actions-cell">
-                                                    <button
-                                                        className="subs-action-btn"
-                                                        onClick={() => navigate(`/subscriptions/${s.id}`)}
-                                                    >
-                                                        <i className="bx bx-dots-vertical-rounded" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* PAGINATION */}
-                        <div className="subs-pagination">
-                            <span className="subs-pagination-count">
-                                Showing {pageRows.length} of {subs.length} subscriptions
-                            </span>
-                            <div className="subs-pagination-controls">
-                                <button
-                                    className="subs-page-btn"
-                                    disabled={page === 1}
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                >
-                                    <i className="bx bx-chevron-left" />
-                                </button>
-                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                                    <button
-                                        key={p}
-                                        className={`subs-page-btn ${p === page ? "active" : ""}`}
-                                        onClick={() => setPage(p)}
-                                    >
-                                        {p}
-                                    </button>
+                {/* TABLE */}
+                <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
+                        <thead>
+                            <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
+                                {["TIME", "TRAINER", "CLIENT", "SERVICE", "STATUS", "NOTES"].map((header) => (
+                                    <th key={header} style={{
+                                        padding: "16px 24px",
+                                        textAlign: "left",
+                                        fontSize: "0.75rem",
+                                        fontWeight: 700,
+                                        color: "#475569",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.05em"
+                                    }}>
+                                        {header}
+                                    </th>
                                 ))}
-                                <button
-                                    className="subs-page-btn"
-                                    disabled={page === totalPages}
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                >
-                                    <i className="bx bx-chevron-right" />
-                                </button>
-                            </div>
-                        </div>
-                    </>
-                )}
-            </div>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pageRows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontSize: "0.875rem" }}>
+                                        No sessions found for {activeTab.toLowerCase()}.
+                                    </td>
+                                </tr>
+                            ) : (
+                                pageRows.map((row) => (
+                                    <tr key={row.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                                        <td style={{
+                                            padding: "16px 24px",
+                                            fontSize: "0.875rem",
+                                            fontWeight: 600,
+                                            color: "#475569"
+                                        }}>
+                                            {activeTab === "This Week" && row.dateObj ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>
+                                                        {row.dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                    </span>
+                                                    <span>{row.time}</span>
+                                                </div>
+                                            ) : (
+                                                row.time
+                                            )}
+                                        </td>
+                                        <td style={{ padding: "16px 24px", fontSize: "0.875rem", color: "#475569" }}>
+                                            {row.trainer}
+                                        </td>
+                                        <td style={{ padding: "16px 24px", fontSize: "0.875rem", color: "#1e3a8a", fontWeight: 600 }}>
+                                            {row.client}
+                                        </td>
+                                        <td style={{ padding: "16px 24px" }}>
+                                            <span style={{
+                                                backgroundColor: "#e0e7ff",
+                                                color: "#6366f1",
+                                                padding: "4px 10px",
+                                                borderRadius: "50px",
+                                                fontSize: "0.7rem",
+                                                fontWeight: 700,
+                                                textTransform: "uppercase"
+                                            }}>
+                                                {row.service}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: "16px 24px" }}>
+                                            {row.status && (
+                                                <span style={{
+                                                    backgroundColor: row.status.toLowerCase() === "done" ? "#dcfce7" :
+                                                        row.status.toLowerCase() === "rescheduled" ? "#ffedd5" : "#f1f5f9",
+                                                    color: row.status.toLowerCase() === "done" ? "#22c55e" :
+                                                        row.status.toLowerCase() === "rescheduled" ? "#f97316" : "#475569",
+                                                    padding: "4px 10px",
+                                                    borderRadius: "4px",
+                                                    fontSize: "0.75rem",
+                                                    fontWeight: 600
+                                                }}>
+                                                    {row.status}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td style={{ padding: "16px 24px", fontSize: "0.875rem", color: "#64748b" }}>
+                                            {row.notes}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-            {/* ANALYTICS SECTION (Bottom) */}
-            <div className="subs-analytics-card">
-                <div className="subs-analytics-left">
-                    <span className="subs-analytics-icon">
-                        <i className="bx bx-line-chart" />
+                {/* CARD FOOTER (PAGINATION) */}
+                <div style={{
+                    padding: "16px 24px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    borderTop: "1px solid #e2e8f0"
+                }}>
+                    <span style={{ fontSize: "0.875rem", color: "#64748b" }}>
+                        Showing {pageRows.length} of {filteredSessions.length} sessions
                     </span>
-                    <div>
-                        <div className="subs-analytics-title">Subscription Analytics</div>
-                        <div className="subs-analytics-desc">
-                            Deep dive into churn rates, LTV, and package performance metrics.
-                        </div>
+
+                    <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                            disabled={page === 1}
+                            onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            style={{
+                                width: "32px",
+                                height: "32px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "1px solid #e2e8f0",
+                                borderRadius: "6px",
+                                backgroundColor: "#fff",
+                                cursor: page === 1 ? "not-allowed" : "pointer",
+                                color: "#64748b"
+                            }}
+                        >
+                            <i className="bx bx-chevron-left" />
+                        </button>
+                        <button
+                            disabled={page === totalPages || filteredSessions.length === 0}
+                            onClick={() => setPage((p) => Math.max(totalPages, p + 1))}
+                            style={{
+                                width: "32px",
+                                height: "32px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                border: "1px solid #e2e8f0",
+                                borderRadius: "6px",
+                                backgroundColor: "#fff",
+                                cursor: (page === totalPages || filteredSessions.length === 0) ? "not-allowed" : "pointer",
+                                color: "#64748b"
+                            }}
+                        >
+                            <i className="bx bx-chevron-right" />
+                        </button>
                     </div>
                 </div>
-                <button className="subs-analytics-btn">View Reports</button>
             </div>
         </Layout>
     );
