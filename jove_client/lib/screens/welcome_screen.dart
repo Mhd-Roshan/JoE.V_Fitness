@@ -1,5 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:slide_to_act/slide_to_act.dart';
 import 'onboarding_screen.dart';
 import 'auth/login_screen.dart';
 
@@ -13,14 +15,14 @@ class WelcomeScreen extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Background Image
+          // 1. Background Image
           Image.asset(
-            'assets/images/sc1.png',
+            'assets/images/sc0.jpg',
             fit: BoxFit.cover,
             alignment: Alignment.topCenter,
           ),
 
-          // Black Gradient Overlay
+          // 2. Black Gradient Overlayr
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -28,212 +30,255 @@ class WelcomeScreen extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: [
                   Colors.transparent,
-                  Colors.black.withValues(alpha: 0.3),
-                  Colors.black.withValues(alpha: 0.8),
+                  Colors.black.withValues(alpha: 0.2),
+                  Colors.black.withValues(alpha: 0.90),
                   Colors.black,
                 ],
-                stops: const [0.0, 0.4, 0.7, 1.0],
+                stops: const [0.0, 0.45, 0.75, 1.0],
               ),
             ),
           ),
 
-          // Premium Fade-In Animation for UI Content
+          // 3. Premium Fade-In Animation
           SafeArea(
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: 0.0, end: 1.0),
-              duration: const Duration(milliseconds: 1000),
+              duration: const Duration(milliseconds: 1200),
               curve: Curves.easeOutCubic,
               builder: (context, value, child) {
                 return Opacity(
                   opacity: value,
                   child: Transform.translate(
-                    offset: Offset(
-                      0,
-                      20 * (1 - value),
-                    ), // Slight slide-up effect
+                    offset: Offset(0, 30 * (1 - value)),
                     child: child,
                   ),
                 );
               },
               child: Column(
                 children: [
-                  // Language Selector
+                  // --- LANGUAGE SELECTOR (CLEAR GLASS) ---
                   Align(
                     alignment: Alignment.topRight,
                     child: Container(
                       margin: const EdgeInsets.only(top: 16, right: 20),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.language,
-                            size: 16,
-                            color: Color(0xFF1E3A8A),
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'Eng',
-                            style: TextStyle(
-                              color: Color(0xFF1E3A8A),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(30),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                width: 1.0,
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.language,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Eng',
+                                  style: TextStyle(
+                                    fontFamily: 'WorkSans',
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
 
                   const Spacer(),
 
-                  // Brightened Logo
+                  // --- CENTER CONTENT ---
+
+                  // Logo
                   ColorFiltered(
                     colorFilter: const ColorFilter.matrix([
-                      1.2, 0, 0, 0, 0, // Boost Red brightness
-                      0, 1.2, 0, 0, 0, // Boost Green brightness
-                      0, 0, 1.2, 0, 0, // Boost Blue brightness
-                      0, 0, 0, 1, 0, // Keep Alpha same
+                      1.2,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1.2,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1.2,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
                     ]),
                     child: Image.asset(
                       'assets/images/landing_photo.png',
-                      height: 100,
+                      height: 80,
                       fit: BoxFit.contain,
                     ),
                   ),
 
-                  const SizedBox(height: 15),
+                  const SizedBox(height: 25),
 
-                  // Welcome Text - Extra Bold Italic
-                  const Text(
-                    'Welcome',
+                  // "Eyebrow" Welcome Text
+                  Text(
+                    'WELCOME TO',
                     style: TextStyle(
-                      color: Color(0xFF00CBE6),
-                      fontSize: 28,
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w900,
+                      fontFamily: 'Montserrat',
+                      color: const Color(0xFF00CBE6).withValues(alpha: 0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 4.0,
                     ),
                   ),
 
-                  // --- CUSTOM TEXT WITH KETTLEBELL ICON & WORKSANS FONT ---
+                  const SizedBox(height: 8),
+
+                  // --- JoE V FITNESS LOGO ROW ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       const Text(
                         'JoE',
                         style: TextStyle(
-                          fontFamily: 'WorkSans',
+                          fontFamily: 'Montserrat',
                           color: Colors.white,
-                          fontSize: 34,
+                          fontSize: 42,
                           fontStyle: FontStyle.italic,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 2.0,
+                          letterSpacing: 1.0,
+                          height: 1.0,
                         ),
                       ),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                        child: Transform.translate(
-                          offset: const Offset(0, 6),
-                          child: SvgPicture.asset(
-                            'assets/images/kettlebell-icon.svg',
-                            height: 20,
-                            colorFilter: const ColorFilter.mode(
-                              Colors.white,
-                              BlendMode.srcIn,
-                            ),
+                        padding: const EdgeInsets.only(
+                          left: 4.0,
+                          right: 6.0,
+                          bottom: 3.0,
+                        ),
+                        child: SvgPicture.asset(
+                          'assets/images/kettlebell-icon.svg',
+                          height: 18,
+                          colorFilter: const ColorFilter.mode(
+                            Color(0xFF00CBE6),
+                            BlendMode.srcIn,
                           ),
                         ),
                       ),
                       const Text(
                         'V FITNESS',
                         style: TextStyle(
-                          fontFamily: 'WorkSans',
+                          fontFamily: 'Montserrat',
                           color: Colors.white,
-                          fontSize: 34,
+                          fontSize: 42,
                           fontStyle: FontStyle.italic,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 2.0,
+                          letterSpacing: 1.0,
+                          height: 1.0,
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 12),
 
-                  // Experience Text - Extra Bold Italic
+                  // Subtitle
                   const Text(
-                    'Experience the next level of fitness',
+                    'Experience the next level of fitness.',
                     style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
+                      fontFamily: 'WorkSans',
+                      color: Color(0xFFB0B0B0),
+                      fontSize: 16,
                       fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
                     ),
                   ),
+
+                  const SizedBox(height: 50),
+
+                  // --- SLIDER DESIGN ---
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: SlideAction(
+                      outerColor: const Color(0xFF1E1E1E),
+                      innerColor: const Color(0xFFBA0C19),
+                      sliderButtonIconSize: 24,
+                      sliderRotate: false,
+                      borderRadius: 40,
+                      elevation: 0,
+                      animationDuration: const Duration(milliseconds: 300),
+                      sliderButtonIcon: const Icon(
+                        Icons.arrow_forward,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      // FIX: Using child instead of text removes the transparent animation completely
+                      child: const Text(
+                        'Swipe to Get Started  > > >',
+                        style: TextStyle(
+                          fontFamily: 'WorkSans',
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onSubmit: () {
+                        Navigator.push(
+                          context,
+                          PageRouteBuilder(
+                            transitionDuration: const Duration(
+                              milliseconds: 400,
+                            ),
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    FadeTransition(
+                                      opacity: animation,
+                                      child: const OnboardingScreen(),
+                                    ),
+                          ),
+                        );
+                        return Future.value();
+                      },
+                    ),
+                  ),
+
                   const SizedBox(height: 35),
 
-                  // Get Started Button -> Smooth routing to Onboarding
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          transitionDuration: const Duration(milliseconds: 400),
-                          pageBuilder:
-                              (context, animation, secondaryAnimation) =>
-                                  FadeTransition(
-                                    opacity: animation,
-                                    child: const OnboardingScreen(),
-                                  ),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFBA0C19),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 14,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Get Started',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(width: 12),
-                        Icon(Icons.arrow_forward, size: 20),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 25),
-
-                  // Login Link -> Smooth routing directly to Login
+                  // --- LOGIN LINK ---
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const Text(
-                        'Already have account? ',
+                        'Already have an account? ',
                         style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                          fontFamily: 'WorkSans',
+                          color: Color(0xFF888888),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
                         ),
                       ),
                       GestureDetector(
@@ -256,9 +301,12 @@ class WelcomeScreen extends StatelessWidget {
                         child: const Text(
                           'Sign In',
                           style: TextStyle(
+                            fontFamily: 'WorkSans',
                             color: Color(0xFF00CBE6),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            decoration: TextDecoration.underline,
+                            decorationColor: Color(0xFF00CBE6),
                           ),
                         ),
                       ),
