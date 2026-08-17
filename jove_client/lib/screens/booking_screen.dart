@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'trainer_selection_screen.dart'; // Ensure this points to where your Trainer class is
-import 'home_dashboard_screen.dart'; // Change to your actual home screen import
+import 'progress_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Trainer trainer;
@@ -34,13 +35,9 @@ class _BookingScreenState extends State<BookingScreen> {
   // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
-
-  // Custom colors requested
-  static const Color _activeBlue = Color(0xFF003AA3); // Current selection color
-  static const Color _redButtonColor = Color(0xFFBB0013); // Button color
-  static const Color _limeGreen = Color(
-    0xFFD4FF4E,
-  ); // Light vibrant green for sessions
+  static const Color _activeBlue = Color(0xFF003AA3);
+  static const Color _redButtonColor = Color(0xFFBB0013);
+  static const Color _limeGreen = Color(0xFFD4FF4E);
 
   @override
   void initState() {
@@ -190,10 +187,13 @@ class _BookingScreenState extends State<BookingScreen> {
 
                       // ANIMATED SWITCHER: Swaps Confirm UI for Success UI smoothly
                       AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 400),
+                        duration: const Duration(milliseconds: 300),
                         transitionBuilder: (child, animation) {
                           return FadeTransition(
-                            opacity: animation,
+                            opacity: CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOut,
+                            ),
                             child: SizeTransition(
                               sizeFactor: animation,
                               child: child,
@@ -317,6 +317,8 @@ class _BookingScreenState extends State<BookingScreen> {
           const SizedBox(height: 24),
           Divider(color: Colors.grey.shade200, height: 1), // Light divider
           const SizedBox(height: 24),
+
+          // Row for Date and Time
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -345,7 +347,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   Text(
                     formattedDate,
                     style: const TextStyle(
-                      color: Colors.black, // Dark text
+                      color: Colors.black,
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                     ),
@@ -377,7 +379,7 @@ class _BookingScreenState extends State<BookingScreen> {
                   Text(
                     '$formattedTime (60M)',
                     style: const TextStyle(
-                      color: Colors.black, // Dark text
+                      color: Colors.black,
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                     ),
@@ -518,9 +520,9 @@ class _BookingScreenState extends State<BookingScreen> {
           Stack(
             alignment: Alignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.verified,
-                color: const Color.fromARGB(255, 78, 255, 131),
+                color: Color.fromARGB(255, 78, 255, 131),
                 size: 85,
               ),
               const Icon(
@@ -560,23 +562,9 @@ class _BookingScreenState extends State<BookingScreen> {
             height: 56,
             child: ElevatedButton(
               onPressed: () {
-                // Navigate to Home screen smoothly when Done is clicked
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        const HomeDashboardScreen(),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: child,
-                          );
-                        },
-                    transitionDuration: const Duration(milliseconds: 300),
-                  ),
-                  (route) => false,
-                );
+                // INSTANT FAST ROUTING:
+                // Drops the bottom sheet and Booking screen, revealing Home instantly.
+                Navigator.popUntil(context, (route) => route.isFirst);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _redButtonColor, // Changed to #BB0013
@@ -1039,31 +1027,39 @@ class _BookingScreenState extends State<BookingScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 55,
-                            child: ElevatedButton(
-                              onPressed: _showConfirmationBottomSheet,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _redButtonColor, // #BB0013
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                              ),
-                              child: const Text(
-                                'Proceed to Book',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ],
                     ),
                   ),
+
+                  // --- PROCEED BUTTON ---
+                  if (_availabilityStatus == 'available') ...[
+                    const SizedBox(height: 32),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          onPressed: _showConfirmationBottomSheet,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _redButtonColor, // #BB0013
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text(
+                            'Proceed to Book',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1092,32 +1088,56 @@ class _BookingScreenState extends State<BookingScreen> {
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      // Home Button
                       _NavItem(
                         index: 0,
                         icon: Icons.home_filled,
                         label: 'Home',
                         selectedIndex: selectedIndex,
                         onTap: () {
-                          Navigator.pop(context);
+                          // FASTEST WAY: Pop everything back to the root (Home)
+                          Navigator.popUntil(context, (route) => route.isFirst);
                         },
                       ),
+                      // Booking Button
                       _NavItem(
                         index: 1,
                         icon: Icons.calendar_today_rounded,
                         label: 'Booking',
                         selectedIndex: selectedIndex,
-                        onTap: () {},
+                        onTap: () {}, // Do nothing, already on Booking Screen
                       ),
+                      // Stats Button
                       _NavItem(
                         index: 2,
                         icon: Icons.bar_chart_rounded,
                         label: 'Stats',
                         selectedIndex: selectedIndex,
                         onTap: () {
+                          // USE pushReplacement to prevent stacking and lag!
                           _selectedIndexNotifier.value = 2;
-                          Navigator.pop(context);
+                          Navigator.pushReplacement(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (context, a, b) =>
+                                  const ProgressScreen(),
+                              transitionsBuilder: (context, a, b, child) =>
+                                  FadeTransition(
+                                    opacity: CurvedAnimation(
+                                      parent: a,
+                                      curve:
+                                          Curves.easeOut, // MUCH smoother curve
+                                    ),
+                                    child: child,
+                                  ),
+                              transitionDuration: const Duration(
+                                milliseconds: 200,
+                              ), // Smoother speed
+                            ),
+                          );
                         },
                       ),
+                      // Chats Button
                       _NavItem(
                         index: 3,
                         icon: Icons.chat_bubble_outline_rounded,
@@ -1125,9 +1145,9 @@ class _BookingScreenState extends State<BookingScreen> {
                         selectedIndex: selectedIndex,
                         onTap: () {
                           _selectedIndexNotifier.value = 3;
-                          Navigator.pop(context);
                         },
                       ),
+                      // Profile Button
                       _NavItem(
                         index: 4,
                         icon: Icons.person_outline_rounded,
@@ -1135,7 +1155,6 @@ class _BookingScreenState extends State<BookingScreen> {
                         selectedIndex: selectedIndex,
                         onTap: () {
                           _selectedIndexNotifier.value = 4;
-                          Navigator.pop(context);
                         },
                       ),
                     ],

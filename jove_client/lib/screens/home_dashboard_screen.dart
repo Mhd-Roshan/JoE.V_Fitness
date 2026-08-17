@@ -3,9 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-import 'booking_screen.dart'; // Make sure the class inside this file is exactly 'BookingScreen'
+import 'booking_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'reschedule_screen.dart';
+import 'progress_screen.dart';
 
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key});
@@ -79,7 +80,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         if (!mounted) return;
         Navigator.pop(context); // Close loading dialog
 
-        // Push trainer selection with smooth fade
+        // FIXED: Reverted back to SelectTrainerScreen()
         await Navigator.push(
           context,
           PageRouteBuilder(
@@ -119,6 +120,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           ),
         );
       } else {
+        // FIXED: Reverted back to SelectTrainerScreen()
         await Navigator.push(
           context,
           PageRouteBuilder(
@@ -1118,7 +1120,21 @@ class _FloatingNavBar extends StatelessWidget {
                 icon: Icons.bar_chart_rounded,
                 label: 'Stats',
                 selectedIndex: selectedIndex,
-                onTap: () => selectedIndexNotifier.value = 2,
+                onTap: () {
+                  selectedIndexNotifier.value = 2;
+                  Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      pageBuilder: (context, a, b) => const ProgressScreen(),
+                      transitionsBuilder: (context, a, b, child) =>
+                          FadeTransition(opacity: a, child: child),
+                      transitionDuration: const Duration(milliseconds: 150),
+                    ),
+                  ).then((_) {
+                    // Reset Nav Bar when returning to Home
+                    selectedIndexNotifier.value = 0;
+                  });
+                },
               ),
               _NavItem(
                 index: 3,

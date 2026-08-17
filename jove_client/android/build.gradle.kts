@@ -15,6 +15,18 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
+
+// ---> THIS IS THE FIX <---
+// It forces SDK 36 the moment the plugin is applied, BEFORE the project locks.
+subprojects {
+    project.plugins.withId("com.android.library") {
+        val android = project.extensions.getByName("android")
+        try {
+            android.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType).invoke(android, 36)
+        } catch (e: Exception) { }
+    }
+}
+
 subprojects {
     project.evaluationDependsOn(":app")
 }

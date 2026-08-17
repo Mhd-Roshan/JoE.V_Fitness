@@ -24,6 +24,8 @@ dependencies:
 
   
   slide_to_act: ^2.0.2
+  fl_chart: ^1.2.0
+  
  
 
 dev_dependencies:
