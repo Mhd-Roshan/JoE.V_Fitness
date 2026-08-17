@@ -1,12 +1,19 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:slide_to_act/slide_to_act.dart';
 import 'onboarding_screen.dart';
 import 'auth/login_screen.dart';
 
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
+
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+  // Button press scale for smooth animation (matching login page)
+  double _buttonScale = 1.0;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +29,7 @@ class WelcomeScreen extends StatelessWidget {
             alignment: Alignment.topCenter,
           ),
 
-          // 2. Black Gradient Overlayr
+          // 2. Black Gradient Overlay
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -220,33 +227,14 @@ class WelcomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 50),
 
-                  // --- SLIDER DESIGN ---
+                  // --- NORMAL GET STARTED BUTTON (Match Login Page) ---
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                    child: SlideAction(
-                      outerColor: const Color(0xFF1E1E1E),
-                      innerColor: const Color(0xFFBA0C19),
-                      sliderButtonIconSize: 24,
-                      sliderRotate: false,
-                      borderRadius: 40,
-                      elevation: 0,
-                      animationDuration: const Duration(milliseconds: 300),
-                      sliderButtonIcon: const Icon(
-                        Icons.arrow_forward,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      // FIX: Using child instead of text removes the transparent animation completely
-                      child: const Text(
-                        'Swipe to Get Started  > > >',
-                        style: TextStyle(
-                          fontFamily: 'WorkSans',
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      onSubmit: () {
+                    child: GestureDetector(
+                      onTapDown: (_) => setState(() => _buttonScale = 0.96),
+                      onTapUp: (_) => setState(() => _buttonScale = 1.0),
+                      onTapCancel: () => setState(() => _buttonScale = 1.0),
+                      onTap: () {
                         Navigator.push(
                           context,
                           PageRouteBuilder(
@@ -261,8 +249,68 @@ class WelcomeScreen extends StatelessWidget {
                                     ),
                           ),
                         );
-                        return Future.value();
                       },
+                      child: AnimatedScale(
+                        scale: _buttonScale,
+                        duration: const Duration(milliseconds: 120),
+                        curve: Curves.easeOut,
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                PageRouteBuilder(
+                                  transitionDuration: const Duration(
+                                    milliseconds: 400,
+                                  ),
+                                  pageBuilder:
+                                      (
+                                        context,
+                                        animation,
+                                        secondaryAnimation,
+                                      ) => FadeTransition(
+                                        opacity: animation,
+                                        child: const OnboardingScreen(),
+                                      ),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(
+                                0xFFBB0013,
+                              ), // Login Page Red
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  22,
+                                ), // Pill shape
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Get Started',
+                                  style: TextStyle(
+                                    fontFamily: 'WorkSans',
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.arrow_forward,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
 
@@ -302,11 +350,11 @@ class WelcomeScreen extends StatelessWidget {
                           'Sign In',
                           style: TextStyle(
                             fontFamily: 'WorkSans',
-                            color: Color(0xFF00CBE6),
+                            color: Color.fromARGB(255, 216, 217, 218),
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
                             decoration: TextDecoration.underline,
-                            decorationColor: Color(0xFF00CBE6),
+                            decorationColor: Color.fromARGB(255, 217, 226, 243),
                           ),
                         ),
                       ),

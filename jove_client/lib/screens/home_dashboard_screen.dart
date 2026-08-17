@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
-import 'booking_screen.dart';
+import 'booking_screen.dart'; // Make sure the class inside this file is exactly 'BookingScreen'
 import 'trainer_selection_screen.dart';
 import 'reschedule_screen.dart';
 
@@ -16,7 +16,9 @@ class HomeDashboardScreen extends StatefulWidget {
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
-  int _selectedIndex = 0;
+
+  // Use ValueNotifier for Navigation
+  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(0);
 
   late Stream<DocumentSnapshot> _userStream;
   late Stream<QuerySnapshot> _bookingStream;
@@ -27,7 +29,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     super.initState();
     final String uid = currentUser?.uid ?? '';
 
-    // Initialize streams exactly ONCE. Firestore will auto-push updates live!
     _userStream = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
@@ -43,50 +44,95 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         .snapshots();
   }
 
-  String get _todayDate {
-    return DateFormat('MMM dd yyyy').format(DateTime.now()).toUpperCase();
+  @override
+  void dispose() {
+    _selectedIndexNotifier.dispose();
+    super.dispose();
   }
 
-  Future<void> _handleBookingNavigation(Map<String, dynamic> userData) async {
-    String? trainerId = userData['assignedTrainerId'];
-
-    if (trainerId == null || trainerId.isEmpty) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SelectTrainerScreen()),
-      );
-      return;
-    }
+  Future<void> _handleBookingNavigation([
+    Map<String, dynamic>? userData,
+  ]) async {
+    // 1. Visually switch to the Booking tab for a smooth feel
+    _selectedIndexNotifier.value = 1;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF01BCE3)),
-      ),
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: Colors.black)),
     );
 
     try {
+      if (userData == null) {
+        final uid = currentUser?.uid ?? '';
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        userData = doc.data() ?? {};
+      }
+
+      String? trainerId = userData['assignedTrainerId'];
+
+      if (trainerId == null || trainerId.isEmpty) {
+        if (!mounted) return;
+        Navigator.pop(context); // Close loading dialog
+
+        // Push trainer selection with smooth fade
+        await Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, a, b) => const SelectTrainerScreen(),
+            transitionsBuilder: (context, a, b, child) =>
+                FadeTransition(opacity: a, child: child),
+            transitionDuration: const Duration(milliseconds: 150),
+          ),
+        );
+        // Reset back to Home when we return
+        if (mounted) _selectedIndexNotifier.value = 0;
+        return;
+      }
+
       var trainerDoc = await FirebaseFirestore.instance
           .collection('trainers')
           .doc(trainerId)
           .get();
+
       if (!mounted) return;
-      Navigator.pop(context);
+      Navigator.pop(context); // Close loading dialog
 
       if (trainerDoc.exists) {
         Trainer assignedTrainer = Trainer.fromFirestore(trainerDoc);
-        Navigator.push(
+
+        // AWAIT the navigation, push with smooth fade
+        await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => BookingScreen(trainer: assignedTrainer),
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                BookingScreen(trainer: assignedTrainer),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+            transitionDuration: const Duration(milliseconds: 150),
           ),
         );
       } else {
-        Navigator.push(
+        await Navigator.push(
           context,
-          MaterialPageRoute(builder: (_) => const SelectTrainerScreen()),
+          PageRouteBuilder(
+            pageBuilder: (context, a, b) => const SelectTrainerScreen(),
+            transitionsBuilder: (context, a, b, child) =>
+                FadeTransition(opacity: a, child: child),
+            transitionDuration: const Duration(milliseconds: 150),
+          ),
         );
+      }
+
+      // 2. WE CAME BACK! Reset the Nav Bar to 'Home' (0)
+      if (mounted) {
+        _selectedIndexNotifier.value = 0;
       }
     } catch (e) {
       if (!mounted) return;
@@ -94,10 +140,10 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Error loading data.')));
+      _selectedIndexNotifier.value = 0; // Reset on error
     }
   }
 
-  // 2 HOUR RESTRICTION LOGIC
   void _handleRescheduleClick(
     String bookingId,
     Map<String, dynamic> bookingData,
@@ -106,7 +152,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       String dateStr = bookingData['date'] ?? '';
       String timeStr = bookingData['time'] ?? '';
 
-      // Check the 2 hour restriction
       DateTime sessionDateTime = DateFormat(
         'yyyy-MM-dd h:mm a',
       ).parse('$dateStr $timeStr');
@@ -126,7 +171,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         return;
       }
 
-      // Navigate to Reschedule normally. Do NOT override the stream!
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -143,866 +187,568 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double exactCardWidth = (screenWidth - 48 - 16) / 2;
+    return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: Stack(
+        children: [
+          StreamBuilder<DocumentSnapshot>(
+            stream: _userStream,
+            builder: (context, userSnapshot) {
+              if (!userSnapshot.hasData) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.black),
+                );
+              }
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _userStream,
-      builder: (context, userSnapshot) {
-        if (!userSnapshot.hasData) {
-          return const Scaffold(
-            backgroundColor: Colors.white,
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFF01BCE3)),
-            ),
-          );
-        }
+              var userData =
+                  userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
 
-        var userData = userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
+              return SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 120),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HeaderSection(userData: userData),
 
-        String userName =
-            userData['fullName'] ??
-            userData['name'] ??
-            userData['firstName'] ??
-            'Athlete';
-        String package = userData['subscriptionPackage'] ?? 'Premium Package 3';
-        String profilePic =
-            userData['profilePic'] ?? userData['imageUrl'] ?? '';
-        String currentWeight = userData['weight']?.toString() ?? '0';
-        String currentHydration = userData['hydration']?.toString() ?? '0';
-        String currentSleep = userData['sleep']?.toString() ?? '0';
-        String currentSteps = userData['steps']?.toString() ?? '0';
-
-        String weightBadge = userData['weightBadge']?.toString() ?? '-0.4kg';
-        String hydrationBadge = userData['hydrationBadge']?.toString() ?? '88%';
-        String sleepBadge = userData['sleepBadge']?.toString() ?? 'Good';
-        String stepsBadge = userData['stepsBadge']?.toString() ?? '50%';
-
-        return Scaffold(
-          backgroundColor: Colors.white,
-          body: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 1. HEADER
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + 8,
-                    left: 24,
-                    right: 24,
-                    bottom: 12,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF003297),
-                    borderRadius: BorderRadius.vertical(
-                      bottom: Radius.circular(30),
+                    _UpcomingSessionSection(
+                      bookingStream: _bookingStream,
+                      onReschedule: _handleRescheduleClick,
                     ),
-                    border: Border(
-                      bottom: BorderSide(color: Color(0xFF01BCE3), width: 6),
+
+                    _QuickActionsSection(
+                      userData: userData,
+                      onBookingTap: () => _handleBookingNavigation(userData),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _todayDate,
-                        style: const TextStyle(
-                          color: Color(0xFF82D3FA),
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 28,
-                            backgroundColor: const Color(0xFF01BCE3),
-                            backgroundImage: profilePic.isNotEmpty
-                                ? NetworkImage(profilePic)
-                                : null,
-                            child: profilePic.isEmpty
-                                ? Text(
-                                    userName.isNotEmpty
-                                        ? userName[0].toUpperCase()
-                                        : 'U',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  userName,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.star,
-                                      color: Color(0xFFFFD700),
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      package,
-                                      style: TextStyle(
-                                        color: Colors.grey.shade200,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.notifications_none,
-                              color: Color(0xFF01BCE3),
-                              size: 24,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+
+                    _TodayProgressSection(userData: userData),
+
+                    _RecentChatsSection(chatStream: _chatStream),
+
+                    const SizedBox(height: 20),
+                  ],
                 ),
+              );
+            },
+          ),
 
-                // 2. UPCOMING SESSION
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0,
-                    vertical: 24.0,
-                  ),
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream:
-                        _bookingStream, // Relies on live Firebase stream safely!
-                    builder: (context, bookingSnapshot) {
-                      bool hasBooking = false;
-                      Map<String, dynamic>? bookingData;
-                      String? bookingId;
-                      String displayDate = 'TBD';
-
-                      if (bookingSnapshot.hasData &&
-                          bookingSnapshot.data!.docs.isNotEmpty) {
-                        String todayFormatted = DateFormat(
-                          'yyyy-MM-dd',
-                        ).format(DateTime.now());
-
-                        var futureBookings = bookingSnapshot.data!.docs.where((
-                          doc,
-                        ) {
-                          var data = doc.data() as Map<String, dynamic>;
-                          String date = data['date'] ?? '';
-                          String status = data['status'] ?? '';
-                          return date.compareTo(todayFormatted) >= 0 &&
-                              status != 'cancelled';
-                        }).toList();
-
-                        if (futureBookings.isNotEmpty) {
-                          futureBookings.sort((a, b) {
-                            var dataA = a.data() as Map<String, dynamic>;
-                            var dataB = b.data() as Map<String, dynamic>;
-
-                            String dateA = dataA['date'] ?? '2099-01-01';
-                            String timeA = dataA['time'] ?? '12:00 AM';
-                            String dateB = dataB['date'] ?? '2099-01-01';
-                            String timeB = dataB['time'] ?? '12:00 AM';
-
-                            try {
-                              // h:mm a handles both "08:30 AM" and "8:30 AM" cleanly
-                              DateTime dtA = DateFormat(
-                                'yyyy-MM-dd h:mm a',
-                              ).parse('$dateA $timeA');
-                              DateTime dtB = DateFormat(
-                                'yyyy-MM-dd h:mm a',
-                              ).parse('$dateB $timeB');
-                              return dtA.compareTo(dtB);
-                            } catch (e) {
-                              return dateA.compareTo(dateB);
-                            }
-                          });
-
-                          hasBooking = true;
-                          bookingId = futureBookings.first.id;
-                          bookingData =
-                              futureBookings.first.data()
-                                  as Map<String, dynamic>;
-
-                          if (bookingData['date'] == todayFormatted) {
-                            displayDate = 'Today';
-                          } else {
-                            try {
-                              DateTime parsed = DateFormat(
-                                'yyyy-MM-dd',
-                              ).parse(bookingData['date']);
-                              displayDate = DateFormat('MMM d').format(parsed);
-                            } catch (e) {
-                              displayDate = bookingData['date'];
-                            }
-                          }
-                        }
-                      }
-
-                      return Container(
-                        height: 220,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF001233),
-                          borderRadius: BorderRadius.circular(32),
-                          border: Border.all(
-                            color: const Color(0xFF2859C5),
-                            width: 3.5,
-                          ),
-                        ),
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: hasBooking
-                                      ? const Color(0xFF23D07B)
-                                      : Colors.grey.shade600,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  hasBooking ? 'Confirmed' : 'No Session',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const Spacer(),
-                            if (hasBooking) ...[
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.self_improvement,
-                                    color: Color(0xFF23D07B),
-                                    size: 22,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      bookingData!['sessionType'] ??
-                                          'Training Session',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '👤 ${bookingData['trainerName'] ?? 'Trainer'} • 📅 $displayDate • ⏰ ${bookingData['time'] ?? 'TBD'}',
-                                style: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 13,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      onPressed: () {},
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFF2859C5,
-                                        ),
-                                        elevation: 0,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                      ),
-                                      icon: const Icon(
-                                        Icons.access_time,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                      label: Text(
-                                        bookingData['status'] == 'pending'
-                                            ? 'Pending'
-                                            : 'Arriving',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      onPressed: () => _handleRescheduleClick(
-                                        bookingId!,
-                                        bookingData!,
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFFBA0C19,
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Reschedule',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ] else ...[
-                              const Text(
-                                'Rest Day',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Take time to recover, or book a new session.',
-                                style: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                // 3. QUICK ACTION
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    'Quick Action',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2859C5),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 115,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    children: [
-                      _quickActionCard(
-                        'Booking',
-                        Icons.calendar_month,
-                        const Color(0xFFBA0C19),
-                        Colors.white,
-                        exactCardWidth,
-                        onTap: () => _handleBookingNavigation(userData),
-                      ),
-                      _quickActionCard(
-                        'Health',
-                        Icons.monitor_heart_outlined,
-                        const Color(0xFF00225D),
-                        Colors.white,
-                        exactCardWidth,
-                      ),
-                      _quickActionCard(
-                        'Diet',
-                        Icons.restaurant_menu,
-                        const Color(0xFF00225D),
-                        Colors.white,
-                        exactCardWidth,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 30),
-
-                // 4. TODAY PROGRESS
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Today Progress',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2859C5),
-                        ),
-                      ),
-                      _forwardIcon(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 125,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    children: [
-                      _buildGridProgressCard(
-                        exactWidth: exactCardWidth,
-                        title: 'Current Weight',
-                        value: currentWeight,
-                        unit: 'Kg',
-                        icon: Icons.monitor_weight_outlined,
-                        mainColor: const Color(0xFFF77E36),
-                        shadowColor: const Color(0xFF090088),
-                        iconColor: const Color(0xFF090088),
-                        badge: weightBadge,
-                        badgeColor: const Color(0xFF24D17C),
-                      ),
-                      _buildGridProgressCard(
-                        exactWidth: exactCardWidth,
-                        title: 'Hydration',
-                        value: currentHydration,
-                        unit: 'L',
-                        icon: Icons.water_drop,
-                        mainColor: const Color(0xFF297FCA),
-                        shadowColor: const Color(0xFF00BED6),
-                        iconColor: const Color(0xFF82D3FA),
-                        badge: hydrationBadge,
-                        badgeColor: const Color(0xFF24D17C),
-                      ),
-                      _buildGridProgressCard(
-                        exactWidth: exactCardWidth,
-                        title: 'Sleep',
-                        value: currentSleep,
-                        unit: 'hrs',
-                        icon: Icons.nightlight_outlined,
-                        mainColor: const Color(0xFFBBBBBB),
-                        shadowColor: const Color(0xFFA545D9),
-                        iconColor: const Color(0xFFA545D9),
-                        badge: sleepBadge,
-                        badgeColor: const Color(0xFF24D17C),
-                      ),
-                      _buildGridProgressCard(
-                        exactWidth: exactCardWidth,
-                        title: 'Steps',
-                        value: currentSteps,
-                        unit: '',
-                        icon: Icons.directions_walk,
-                        mainColor: const Color(0xFF1B8B3B),
-                        shadowColor: const Color(0xFF0B4A1D),
-                        iconColor: Colors.white,
-                        badge: stepsBadge,
-                        badgeColor: const Color(0xFF00225D),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 30),
-
-                // 5. CHATS SECTION
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Recent Chats',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF2859C5),
-                        ),
-                      ),
-                      _forwardIcon(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 110,
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: _chatStream,
-                    builder: (context, chatSnapshot) {
-                      if (!chatSnapshot.hasData ||
-                          chatSnapshot.data!.docs.isEmpty) {
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 24),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.grey.shade300,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.chat_bubble_outline,
-                                color: Colors.grey.shade400,
-                                size: 28,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'No recent chats available',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-                      return ListView.builder(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        itemCount: chatSnapshot.data!.docs.length,
-                        itemBuilder: (context, index) {
-                          var chat =
-                              chatSnapshot.data!.docs[index].data()
-                                  as Map<String, dynamic>;
-                          return _chatCard(
-                            chat['senderName'] ?? 'Support',
-                            chat['lastMessage'] ?? 'Tap to view message',
-                            'New',
-                            chat['senderImage'] ??
-                                'https://ui-avatars.com/api/?name=User&background=2859C5&color=fff',
-                            chat['unread'] ?? false,
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 40),
-              ],
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _FloatingNavBar(
+              selectedIndexNotifier: _selectedIndexNotifier,
+              onBookingTap: () => _handleBookingNavigation(),
             ),
           ),
-          bottomNavigationBar: Container(
-            height: 70,
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        ],
+      ),
+    );
+  }
+}
+
+/* ====================================================================================
+   EXTRACTED WIDGETS
+==================================================================================== */
+
+class _HeaderSection extends StatelessWidget {
+  final Map<String, dynamic> userData;
+  const _HeaderSection({required this.userData});
+
+  @override
+  Widget build(BuildContext context) {
+    String userName =
+        userData['fullName'] ??
+        userData['name'] ??
+        userData['firstName'] ??
+        'Athlete';
+    String profilePic = userData['profilePic'] ?? userData['imageUrl'] ?? '';
+    String todayDate = DateFormat('dd MMM yyyy').format(DateTime.now());
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 20,
+        left: 24,
+        right: 24,
+        bottom: 12,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                todayDate,
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                userName,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: Colors.grey.shade200,
+            backgroundImage: profilePic.isNotEmpty
+                ? NetworkImage(profilePic)
+                : null,
+            child: profilePic.isEmpty
+                ? Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                    style: TextStyle(
+                      color: Colors.grey.shade800,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpcomingSessionSection extends StatelessWidget {
+  final Stream<QuerySnapshot> bookingStream;
+  final Function(String, Map<String, dynamic>) onReschedule;
+
+  const _UpcomingSessionSection({
+    required this.bookingStream,
+    required this.onReschedule,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+      child: StreamBuilder<QuerySnapshot>(
+        stream: bookingStream,
+        builder: (context, bookingSnapshot) {
+          bool hasBooking = false;
+          Map<String, dynamic>? bookingData;
+          String? bookingId;
+          String displayDate = 'TBD';
+
+          if (bookingSnapshot.hasData &&
+              bookingSnapshot.data!.docs.isNotEmpty) {
+            String todayFormatted = DateFormat(
+              'yyyy-MM-dd',
+            ).format(DateTime.now());
+
+            var futureBookings = bookingSnapshot.data!.docs.where((doc) {
+              var data = doc.data() as Map<String, dynamic>;
+              return (data['date'] ?? '').compareTo(todayFormatted) >= 0 &&
+                  data['status'] != 'cancelled';
+            }).toList();
+
+            if (futureBookings.isNotEmpty) {
+              var parsedBookings = futureBookings.map((doc) {
+                var data = doc.data() as Map<String, dynamic>;
+                DateTime? dt;
+                try {
+                  dt = DateFormat(
+                    'yyyy-MM-dd h:mm a',
+                  ).parse('${data['date']} ${data['time']}');
+                } catch (e) {
+                  dt = DateTime(2099);
+                }
+                return {'doc': doc, 'dt': dt};
+              }).toList();
+
+              parsedBookings.sort(
+                (a, b) => (a['dt'] as DateTime).compareTo(b['dt'] as DateTime),
+              );
+
+              var nextBookingDoc =
+                  parsedBookings.first['doc'] as DocumentSnapshot;
+              hasBooking = true;
+              bookingId = nextBookingDoc.id;
+              bookingData = nextBookingDoc.data() as Map<String, dynamic>;
+
+              if (bookingData['date'] == todayFormatted) {
+                displayDate = 'Today';
+              } else {
+                try {
+                  DateTime parsed = DateFormat(
+                    'yyyy-MM-dd',
+                  ).parse(bookingData['date']);
+                  displayDate = DateFormat('MMM d').format(parsed);
+                } catch (e) {
+                  displayDate = bookingData['date'];
+                }
+              }
+            }
+          }
+
+          return Container(
+            width: double.infinity,
             decoration: BoxDecoration(
-              color: const Color(0xFF001233),
-              borderRadius: BorderRadius.circular(35),
+              gradient: const LinearGradient(
+                begin: Alignment(-0.8, -0.8),
+                end: Alignment(1.0, 1.0),
+                stops: [0.0, 0.45, 0.65, 0.85, 1.0],
+                colors: [
+                  Color(0xFFE2EBE5),
+                  Color(0xFFF1E6B9),
+                  Color(0xFFFF5B3E),
+                  Color(0xFF141F36),
+                  Color(0xFFB7C7F5),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStaticNavItem(0, Icons.home_filled, 'Home', userData),
-                _buildStaticNavItem(
-                  1,
-                  Icons.calendar_month,
-                  'Booking',
-                  userData,
-                ),
-                _buildStaticNavItem(
-                  2,
-                  Icons.insert_chart_rounded,
-                  'Stats',
-                  userData,
-                ),
-                _buildStaticNavItem(
-                  3,
-                  Icons.chat_bubble_rounded,
-                  'Chats',
-                  userData,
-                ),
-                _buildStaticNavItem(
-                  4,
-                  Icons.person_rounded,
-                  'Profile',
-                  userData,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStaticNavItem(
-    int index,
-    IconData icon,
-    String label,
-    Map<String, dynamic> userData,
-  ) {
-    bool isSelected = _selectedIndex == index;
-    return GestureDetector(
-      onTap: () {
-        if (index == 1) {
-          _handleBookingNavigation(userData);
-          return;
-        }
-        setState(() {
-          _selectedIndex = index;
-        });
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 10.0 : 6.0,
-          vertical: 8.0,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF01BCE3) : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.white : Colors.grey.shade400,
-              size: 22,
-            ),
-            if (isSelected)
-              Padding(
-                padding: const EdgeInsets.only(left: 4.0),
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _forwardIcon() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF01BCE3).withValues(alpha: 0.1),
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: const Color(0xFF01BCE3).withValues(alpha: 0.3),
-        ),
-      ),
-      child: const Icon(
-        Icons.arrow_forward_ios,
-        color: Color(0xFF01BCE3),
-        size: 14,
-      ),
-    );
-  }
-
-  Widget _quickActionCard(
-    String title,
-    IconData icon,
-    Color bgColor,
-    Color iconColor,
-    double exactWidth, {
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: exactWidth,
-        margin: const EdgeInsets.only(right: 16),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF2859C5), width: 2),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Icon(icon, color: iconColor.withValues(alpha: 0.8), size: 24),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGridProgressCard({
-    required double exactWidth,
-    required String title,
-    required String value,
-    required String unit,
-    required IconData icon,
-    required Color mainColor,
-    required Color shadowColor,
-    required Color iconColor,
-    required String badge,
-    required Color badgeColor,
-  }) {
-    return Container(
-      width: exactWidth,
-      height: 115,
-      margin: const EdgeInsets.only(right: 16, bottom: 6, left: 6),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: mainColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: shadowColor, width: 2.5),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            offset: const Offset(-5, 5),
-            blurRadius: 0,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: iconColor, size: 22),
-              Text(
-                badge,
-                style: TextStyle(
-                  color: badgeColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (unit.isNotEmpty) ...[
-                    const SizedBox(width: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     Text(
-                      unit,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      'Upcoming Session',
+                      style: TextStyle(
+                        color: Colors.black.withValues(alpha: 0.7),
                         fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
+                    if (hasBooking)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF34C759),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Confirmed',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                if (hasBooking) ...[
+                  Text(
+                    bookingData!['sessionType'] ?? 'Training Session',
+                    style: const TextStyle(
+                      color: Colors.black87,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person_outline,
+                        size: 16,
+                        color: Colors.black.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        bookingData['trainerName'] ?? 'Trainer',
+                        style: TextStyle(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '$displayDate • ${bookingData['time'] ?? 'TBD'}',
+                        style: TextStyle(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.access_time,
+                                size: 16,
+                                color: Colors.black87,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                bookingData['status'] == 'pending'
+                                    ? 'Pending'
+                                    : 'Arriving',
+                                style: const TextStyle(
+                                  color: Colors.black87,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () =>
+                              onReschedule(bookingId!, bookingData!),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFBB0013),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Reschedule',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  const Text(
+                    'Rest Day',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Take time to recover, or book a new session.',
+                    style: TextStyle(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }
+}
 
-  Widget _chatCard(
-    String name,
-    String message,
-    String time,
-    String avatarUrl,
-    bool isUnread,
-  ) {
+class _QuickActionsSection extends StatelessWidget {
+  final Map<String, dynamic> userData;
+  final VoidCallback onBookingTap;
+
+  const _QuickActionsSection({
+    required this.userData,
+    required this.onBookingTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'Quick Action',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 56,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            children: [
+              _QuickActionPill(
+                title: 'Booking',
+                icon: Icons.calendar_month_outlined,
+                pillColor: const Color.fromARGB(255, 180, 4, 22),
+                iconColor: const Color(0xFFBB0013),
+                textColor: Colors.white,
+                onTap: onBookingTap,
+              ),
+              const _QuickActionPill(
+                title: 'Health',
+                icon: Icons.monitor_heart_outlined,
+                pillColor: Color.fromARGB(255, 143, 228, 240),
+                iconColor: Color.fromARGB(255, 0, 14, 199),
+              ),
+              const _QuickActionPill(
+                title: 'Diet',
+                icon: Icons.restaurant_menu_outlined,
+                pillColor: Color.fromARGB(78, 0, 233, 20),
+                iconColor: Color.fromARGB(255, 69, 221, 77),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+}
+
+class _TodayProgressSection extends StatelessWidget {
+  final Map<String, dynamic> userData;
+  const _TodayProgressSection({required this.userData});
+
+  @override
+  Widget build(BuildContext context) {
+    double exactCardWidth = (MediaQuery.of(context).size.width - 48 - 16) / 2;
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Today Progress',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 140,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            children: [
+              _ProgressCard(
+                exactWidth: exactCardWidth,
+                title: 'Weight\nProgress',
+                value: userData['weight']?.toString() ?? '0',
+                unit: 'Kg',
+                icon: Icons.monitor_weight_outlined,
+                iconColor: const Color(0xFFFF9500),
+              ),
+              _ProgressCard(
+                exactWidth: exactCardWidth,
+                title: 'Daily\nHydration',
+                value: userData['hydration']?.toString() ?? '0',
+                unit: 'Liters',
+                icon: Icons.water_drop_outlined,
+                iconColor: const Color(0xFF007AFF),
+              ),
+              _ProgressCard(
+                exactWidth: exactCardWidth,
+                title: 'Sleep\nDuration',
+                value: userData['sleep']?.toString() ?? '0',
+                unit: 'Hours',
+                icon: Icons.nightlight_outlined,
+                iconColor: const Color(0xFFAF52DE),
+              ),
+              _ProgressCard(
+                exactWidth: exactCardWidth,
+                title: 'Daily\nSteps',
+                value: userData['steps']?.toString() ?? '0',
+                unit: 'Steps',
+                icon: Icons.directions_walk_outlined,
+                iconColor: const Color(0xFF34C759),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 30),
+      ],
+    );
+  }
+}
+
+class _ProgressCard extends StatelessWidget {
+  final double exactWidth;
+  final String title, value, unit;
+  final IconData icon;
+  final Color iconColor;
+
+  const _ProgressCard({
+    required this.exactWidth,
+    required this.title,
+    required this.value,
+    required this.unit,
+    required this.icon,
+    required this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      width: 260,
+      width: exactWidth,
       margin: const EdgeInsets.only(right: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300, width: 1.5),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: iconColor.withValues(alpha: 0.25),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1011,31 +757,241 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Stack(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              CircleAvatar(
-                radius: 25,
-                backgroundImage: NetworkImage(avatarUrl),
-              ),
-              if (isUnread)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFBA0C19),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                  ),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.grey.shade800,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  height: 1.2,
                 ),
+              ),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF5F5F5),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
             ],
           ),
-          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                unit,
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentChatsSection extends StatelessWidget {
+  final Stream<QuerySnapshot> chatStream;
+  const _RecentChatsSection({required this.chatStream});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Recent Chats',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 100,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: chatStream,
+            builder: (context, chatSnapshot) {
+              if (!chatSnapshot.hasData || chatSnapshot.data!.docs.isEmpty) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300, width: 1.5),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'No recent chats',
+                        style: TextStyle(color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: chatSnapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  var chat =
+                      chatSnapshot.data!.docs[index].data()
+                          as Map<String, dynamic>;
+                  return _ChatCard(
+                    name: chat['senderName'] ?? 'Support',
+                    message: chat['lastMessage'] ?? 'Tap to view message',
+                    avatarUrl:
+                        chat['senderImage'] ??
+                        'https://ui-avatars.com/api/?name=User&background=000&color=fff',
+                    isUnread: chat['unread'] ?? false,
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionPill extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color pillColor;
+  final Color iconColor;
+  final Color textColor;
+  final VoidCallback? onTap;
+
+  const _QuickActionPill({
+    required this.title,
+    required this.icon,
+    required this.pillColor,
+    required this.iconColor,
+    this.textColor = Colors.black87,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 145,
+        margin: const EdgeInsets.only(right: 12),
+        padding: const EdgeInsets.only(left: 6, top: 6, bottom: 6, right: 16),
+        decoration: BoxDecoration(
+          color: pillColor,
+          borderRadius: BorderRadius.circular(50),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  letterSpacing: -0.3,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatCard extends StatelessWidget {
+  final String name, message, avatarUrl;
+  final bool isUnread;
+
+  const _ChatCard({
+    required this.name,
+    required this.message,
+    required this.avatarUrl,
+    required this.isUnread,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 300,
+      margin: const EdgeInsets.only(right: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade300, width: 1.5),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(radius: 24, backgroundImage: NetworkImage(avatarUrl)),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1049,39 +1005,195 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                         name,
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF2859C5),
-                          fontSize: 14,
+                          color: Colors.black87,
+                          fontSize: 15,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    Text(
-                      time,
-                      style: TextStyle(
-                        color: isUnread ? const Color(0xFFBA0C19) : Colors.grey,
-                        fontSize: 10,
-                        fontWeight: isUnread
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                    if (isUnread)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE2F5E1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text(
+                          'New',
+                          style: TextStyle(
+                            color: Color(0xFF34C759),
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.chat_bubble_outline,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        message,
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  message,
-                  style: TextStyle(
-                    color: isUnread ? Colors.black87 : Colors.grey,
-                    fontSize: 12,
-                    fontWeight: isUnread ? FontWeight.bold : FontWeight.normal,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FloatingNavBar extends StatelessWidget {
+  final ValueNotifier<int> selectedIndexNotifier;
+  final VoidCallback onBookingTap;
+
+  const _FloatingNavBar({
+    required this.selectedIndexNotifier,
+    required this.onBookingTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color.fromARGB(255, 0, 33, 95),
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ValueListenableBuilder<int>(
+        valueListenable: selectedIndexNotifier,
+        builder: (context, selectedIndex, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _NavItem(
+                index: 0,
+                icon: Icons.home_filled,
+                label: 'Home',
+                selectedIndex: selectedIndex,
+                onTap: () => selectedIndexNotifier.value = 0,
+              ),
+              _NavItem(
+                index: 1,
+                icon: Icons.calendar_today_rounded,
+                label: 'Booking',
+                selectedIndex: selectedIndex,
+                onTap: () {
+                  // Only trigger if we aren't already going there
+                  if (selectedIndex != 1) {
+                    onBookingTap();
+                  }
+                },
+              ),
+              _NavItem(
+                index: 2,
+                icon: Icons.bar_chart_rounded,
+                label: 'Stats',
+                selectedIndex: selectedIndex,
+                onTap: () => selectedIndexNotifier.value = 2,
+              ),
+              _NavItem(
+                index: 3,
+                icon: Icons.chat_bubble_outline_rounded,
+                label: 'Chats',
+                selectedIndex: selectedIndex,
+                onTap: () => selectedIndexNotifier.value = 3,
+              ),
+              _NavItem(
+                index: 4,
+                icon: Icons.person_outline_rounded,
+                label: 'Profile',
+                selectedIndex: selectedIndex,
+                onTap: () => selectedIndexNotifier.value = 4,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final int index, selectedIndex;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.index,
+    required this.icon,
+    required this.label,
+    required this.selectedIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    bool isSelected = selectedIndex == index;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        padding: isSelected
+            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
+            : const EdgeInsets.all(10.0),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.black : Colors.white,
+              size: 20,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
