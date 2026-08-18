@@ -32,7 +32,7 @@ class _BookingScreenState extends State<BookingScreen> {
   // CACHED DATES FOR PERFORMANCE
   late List<DateTime> _cachedVisibleDates;
 
-  // NEW: Scroll Controller for Auto-Rotating Sessions
+  // Scroll Controller for Auto-Rotating Sessions
   final ScrollController _sessionsScrollController = ScrollController();
   bool _userInteractedWithSessions = false;
 
@@ -56,7 +56,13 @@ class _BookingScreenState extends State<BookingScreen> {
     _loadTrainerSpecializations();
     _selectedTime = const TimeOfDay(hour: 8, minute: 30);
 
-    _startSessionAutoScroll();
+    // Wait for the FIRST frame to render, then start auto-scroll.
+    // This completely removes the artificial 150ms delay/lag.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _startSessionAutoScroll();
+      }
+    });
   }
 
   @override
@@ -116,7 +122,6 @@ class _BookingScreenState extends State<BookingScreen> {
         });
   }
 
-  // FIX: Using h:mm a instead of hh:mm a so it matches Firestore formatting everywhere
   String _formatTimeStrict(TimeOfDay time) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
@@ -172,7 +177,6 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  // FIX: Real Firestore Validation implemented here
   Future<void> _checkAvailability() async {
     if (_selectedTime == null || _selectedDate == null) return;
 
@@ -182,7 +186,6 @@ class _BookingScreenState extends State<BookingScreen> {
     });
 
     try {
-      // 1. Check if the selected time is in the past
       DateTime now = DateTime.now();
       DateTime selectedDateTime = DateTime(
         _selectedDate!.year,
@@ -201,11 +204,9 @@ class _BookingScreenState extends State<BookingScreen> {
         return;
       }
 
-      // 2. Format string exact match for Firestore
       String dbDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
       String dbTime = _formatTimeStrict(_selectedTime!);
 
-      // 3. Query Firestore to check if this trainer is already booked
       var snapshot = await FirebaseFirestore.instance
           .collection('bookings')
           .where('trainerId', isEqualTo: widget.trainer.id)
@@ -213,7 +214,6 @@ class _BookingScreenState extends State<BookingScreen> {
           .where('time', isEqualTo: dbTime)
           .get();
 
-      // Check if any active bookings exist (not cancelled)
       bool isTaken = snapshot.docs.any((doc) {
         var data = doc.data();
         return data['status'] != 'cancelled';
@@ -674,6 +674,54 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
+  Widget _buildTopAppBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: _textMain,
+                  size: 20,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Booking',
+                style: TextStyle(
+                  color: _textMain,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: _textMain,
+                size: 24,
+              ),
+              onPressed: () {},
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     String monthYear = DateFormat('MMMM yyyy').format(_selectedDate!);
@@ -690,54 +738,7 @@ class _BookingScreenState extends State<BookingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back_ios_new,
-                                color: _textMain,
-                                size: 20,
-                              ),
-                              onPressed: () => Navigator.pop(context),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Booking',
-                              style: TextStyle(
-                                color: _textMain,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(
-                              Icons.notifications_none_rounded,
-                              color: _textMain,
-                              size: 24,
-                            ),
-                            onPressed: () {},
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildTopAppBar(),
 
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -767,106 +768,111 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  SizedBox(
-                    height: 88,
-                    width: double.infinity,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: _cachedVisibleDates.map((date) {
-                          bool isSelected =
-                              _selectedDate != null &&
-                              _selectedDate!.year == date.year &&
-                              _selectedDate!.month == date.month &&
-                              _selectedDate!.day == date.day;
+                  // RepaintBoundary isolates horizontal scrolling from the rest of the UI
+                  RepaintBoundary(
+                    child: SizedBox(
+                      height: 88,
+                      width: double.infinity,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          children: _cachedVisibleDates.map((date) {
+                            bool isSelected =
+                                _selectedDate != null &&
+                                _selectedDate!.year == date.year &&
+                                _selectedDate!.month == date.month &&
+                                _selectedDate!.day == date.day;
 
-                          String dayName = DateFormat('EEE').format(date);
-                          String dayNumber = DateFormat('dd').format(date);
+                            String dayName = DateFormat('EEE').format(date);
+                            String dayNumber = DateFormat('dd').format(date);
 
-                          return GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedDate = date;
-                                _availabilityStatus = 'none';
-                              });
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              curve: Curves.easeInOut,
-                              margin: const EdgeInsets.only(right: 12),
-                              width: 58,
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: isSelected ? _activeBlue : Colors.white,
-                                borderRadius: BorderRadius.circular(35),
-                                border: isSelected
-                                    ? Border.all(color: Colors.transparent)
-                                    : Border.all(
-                                        color: Colors.grey.shade300,
-                                        width: 1,
-                                      ),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: _activeBlue.withValues(
-                                            alpha: 0.3,
-                                          ),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedDate = date;
+                                  _availabilityStatus = 'none';
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeInOut,
+                                margin: const EdgeInsets.only(right: 12),
+                                width: 58,
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? _activeBlue
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(35),
+                                  border: isSelected
+                                      ? Border.all(color: Colors.transparent)
+                                      : Border.all(
+                                          color: Colors.grey.shade300,
+                                          width: 1,
                                         ),
-                                      ]
-                                    : [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.02,
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: _activeBlue.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
                                           ),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    dayName,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.grey.shade500,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.grey.shade100,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      dayNumber,
+                                        ]
+                                      : [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.02,
+                                            ),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      dayName,
                                       style: TextStyle(
                                         color: isSelected
-                                            ? _activeBlue
-                                            : _textMain,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w900,
+                                            ? Colors.white
+                                            : Colors.grey.shade500,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey.shade100,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        dayNumber,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? _activeBlue
+                                              : _textMain,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
@@ -886,95 +892,107 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  SizedBox(
-                    height: 52,
-                    child: NotificationListener<ScrollNotification>(
-                      onNotification: (ScrollNotification scrollInfo) {
-                        if (scrollInfo is UserScrollNotification) {
-                          _userInteractedWithSessions = true;
-                        }
-                        return false;
-                      },
-                      child: SingleChildScrollView(
-                        controller: _sessionsScrollController,
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Row(
-                          children: displayedSessions.map((session) {
-                            bool isSelected =
-                                _selectedSession == session['name'];
+                  // RepaintBoundary isolates horizontal auto-scrolling
+                  RepaintBoundary(
+                    child: SizedBox(
+                      height: 52,
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (ScrollNotification scrollInfo) {
+                          if (scrollInfo is UserScrollNotification) {
+                            _userInteractedWithSessions = true;
+                          }
+                          return false;
+                        },
+                        child: SingleChildScrollView(
+                          controller: _sessionsScrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Row(
+                            children: displayedSessions.map((session) {
+                              bool isSelected =
+                                  _selectedSession == session['name'];
 
-                            return GestureDetector(
-                              onTap: () => setState(
-                                () => _selectedSession = session['name'],
-                              ),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                curve: Curves.easeInOut,
-                                margin: const EdgeInsets.only(right: 12),
-                                padding: const EdgeInsets.fromLTRB(6, 6, 20, 6),
-                                decoration: BoxDecoration(
-                                  color: isSelected ? _limeGreen : Colors.white,
-                                  borderRadius: BorderRadius.circular(30),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.transparent
-                                        : Colors.grey.shade300,
-                                    width: 1,
+                              return GestureDetector(
+                                onTap: () => setState(
+                                  () => _selectedSession = session['name'],
+                                ),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeInOut,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    6,
+                                    6,
+                                    20,
+                                    6,
                                   ),
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: _limeGreen.withValues(
-                                              alpha: 0.4,
-                                            ),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ]
-                                      : [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.02,
-                                            ),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey.shade100,
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                      child: Icon(
-                                        session['icon'],
-                                        color: Colors.black87,
-                                        size: 20,
-                                      ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? _limeGreen
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(30),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? Colors.transparent
+                                          : Colors.grey.shade300,
+                                      width: 1,
                                     ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      session['name'],
-                                      style: const TextStyle(
-                                        color: _textMain,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
+                                    boxShadow: isSelected
+                                        ? [
+                                            BoxShadow(
+                                              color: _limeGreen.withValues(
+                                                alpha: 0.4,
+                                              ),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ]
+                                        : [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(
+                                                alpha: 0.02,
+                                              ),
+                                              blurRadius: 4,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? Colors.white
+                                              : Colors.grey.shade100,
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          session['icon'],
+                                          color: Colors.black87,
+                                          size: 20,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        session['name'],
+                                        style: const TextStyle(
+                                          color: _textMain,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          }).toList(),
+                              );
+                            }).toList(),
+                          ),
                         ),
                       ),
                     ),
@@ -1082,7 +1100,6 @@ class _BookingScreenState extends State<BookingScreen> {
                           ],
                         ),
 
-                        // --- FIX APPLIED HERE: SHOWS TAKEN, PAST, OR AVAILABLE STATUSES ---
                         if (_availabilityStatus == 'available') ...[
                           const SizedBox(height: 20),
                           Container(
@@ -1198,104 +1215,107 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
 
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 0, 33, 95),
-                borderRadius: BorderRadius.circular(40),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: ValueListenableBuilder<int>(
-                valueListenable: _selectedIndexNotifier,
-                builder: (context, selectedIndex, child) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _NavItem(
-                        index: 0,
-                        icon: Icons.home_filled,
-                        label: 'Home',
-                        selectedIndex: selectedIndex,
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            PageRouteBuilder(
-                              pageBuilder: (context, a, b) =>
-                                  const HomeDashboardScreen(),
-                              transitionsBuilder: (context, a, b, child) =>
-                                  FadeTransition(opacity: a, child: child),
-                              transitionDuration: const Duration(
-                                milliseconds: 150,
+          // RepaintBoundary on Nav Bar
+          RepaintBoundary(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 0, 33, 95),
+                  borderRadius: BorderRadius.circular(40),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _selectedIndexNotifier,
+                  builder: (context, selectedIndex, child) {
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _NavItem(
+                          index: 0,
+                          icon: Icons.home_filled,
+                          label: 'Home',
+                          selectedIndex: selectedIndex,
+                          onTap: () {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              PageRouteBuilder(
+                                pageBuilder: (context, a, b) =>
+                                    const HomeDashboardScreen(),
+                                transitionsBuilder: (context, a, b, child) =>
+                                    FadeTransition(opacity: a, child: child),
+                                transitionDuration: const Duration(
+                                  milliseconds: 150,
+                                ),
                               ),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                      ),
-                      _NavItem(
-                        index: 1,
-                        icon: Icons.calendar_today_rounded,
-                        label: 'Booking',
-                        selectedIndex: selectedIndex,
-                        onTap: () {},
-                      ),
-                      _NavItem(
-                        index: 2,
-                        icon: Icons.bar_chart_rounded,
-                        label: 'Stats',
-                        selectedIndex: selectedIndex,
-                        onTap: () {
-                          _selectedIndexNotifier.value = 2;
-                          Navigator.pushReplacement(
-                            context,
-                            PageRouteBuilder(
-                              pageBuilder: (context, a, b) =>
-                                  const ProgressScreen(),
-                              transitionsBuilder: (context, a, b, child) =>
-                                  FadeTransition(
-                                    opacity: CurvedAnimation(
-                                      parent: a,
-                                      curve: Curves.easeOut,
+                              (route) => false,
+                            );
+                          },
+                        ),
+                        _NavItem(
+                          index: 1,
+                          icon: Icons.calendar_today_rounded,
+                          label: 'Booking',
+                          selectedIndex: selectedIndex,
+                          onTap: () {},
+                        ),
+                        _NavItem(
+                          index: 2,
+                          icon: Icons.bar_chart_rounded,
+                          label: 'Stats',
+                          selectedIndex: selectedIndex,
+                          onTap: () {
+                            _selectedIndexNotifier.value = 2;
+                            Navigator.pushReplacement(
+                              context,
+                              PageRouteBuilder(
+                                pageBuilder: (context, a, b) =>
+                                    const ProgressScreen(),
+                                transitionsBuilder: (context, a, b, child) =>
+                                    FadeTransition(
+                                      opacity: CurvedAnimation(
+                                        parent: a,
+                                        curve: Curves.easeOut,
+                                      ),
+                                      child: child,
                                     ),
-                                    child: child,
-                                  ),
-                              transitionDuration: const Duration(
-                                milliseconds: 200,
+                                transitionDuration: const Duration(
+                                  milliseconds: 150,
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                      _NavItem(
-                        index: 3,
-                        icon: Icons.chat_bubble_outline_rounded,
-                        label: 'Chats',
-                        selectedIndex: selectedIndex,
-                        onTap: () {
-                          _selectedIndexNotifier.value = 3;
-                        },
-                      ),
-                      _NavItem(
-                        index: 4,
-                        icon: Icons.person_outline_rounded,
-                        label: 'Profile',
-                        selectedIndex: selectedIndex,
-                        onTap: () {
-                          _selectedIndexNotifier.value = 4;
-                        },
-                      ),
-                    ],
-                  );
-                },
+                            );
+                          },
+                        ),
+                        _NavItem(
+                          index: 3,
+                          icon: Icons.chat_bubble_outline_rounded,
+                          label: 'Chats',
+                          selectedIndex: selectedIndex,
+                          onTap: () {
+                            _selectedIndexNotifier.value = 3;
+                          },
+                        ),
+                        _NavItem(
+                          index: 4,
+                          icon: Icons.person_outline_rounded,
+                          label: 'Profile',
+                          selectedIndex: selectedIndex,
+                          onTap: () {
+                            _selectedIndexNotifier.value = 4;
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ),

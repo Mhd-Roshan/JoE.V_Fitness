@@ -1,8 +1,10 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
+// Hide TextDirection from intl to prevent conflicts with Flutter's TextDirection
+import 'package:intl/intl.dart' hide TextDirection;
 
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
@@ -29,8 +31,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
   late Stream<DocumentSnapshot> _userStream;
 
-  // Caching today's date so it isn't recalculated on every single frame
   late final String _todayDate;
+
+  // Tracks which goals have already shown a dialog today to prevent repeating
+  final Set<String> _shownDialogs = {};
+
+  bool _isNavigating = false;
+
+  // Controls when to render heavy UI to guarantee smooth page transitions
+  bool _isScreenReady = false;
 
   @override
   void initState() {
@@ -38,11 +47,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
     _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     final String uid = currentUser?.uid ?? '';
-    // includeMetadataChanges ensures immediate cache emission, reducing transition lag
     _userStream = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .snapshots(includeMetadataChanges: true);
+
+    // LAG FIX: Wait for the FadeTransition (150ms) to complete before building heavy charts.
+    // This keeps the animation at 60/120 FPS.
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) {
+        setState(() {
+          _isScreenReady = true;
+        });
+      }
+    });
   }
 
   @override
@@ -51,38 +69,44 @@ class _ProgressScreenState extends State<ProgressScreen> {
     super.dispose();
   }
 
-  List<Map<String, dynamic>> _parseActivityData(
-    dynamic dbData,
-    List<String> labels,
-  ) {
-    List<Map<String, dynamic>> defaultData = labels
-        .map((label) => {'label': label, 'value': 0.0})
-        .toList();
-
-    if (dbData != null && dbData is Map) {
-      return defaultData.map((e) {
-        String label = e['label'];
-        double val = 0.0;
-        if (dbData[label] != null) {
-          val = num.parse(dbData[label].toString()).toDouble();
-        }
-        return {'label': label, 'value': val > 1.0 ? 1.0 : val};
-      }).toList();
-    }
-
-    return defaultData;
-  }
-
+  // --- DYNAMIC CHART DATA (NO DUMMY DATA) ---
   List<Map<String, dynamic>> _getChartData(Map<String, dynamic> userData) {
+    Map<String, dynamic> dailySteps = userData['dailySteps'] != null
+        ? Map<String, dynamic>.from(userData['dailySteps'])
+        : {};
+
+    int stepGoal = userData['stepsGoal'] != null && userData['stepsGoal'] > 0
+        ? userData['stepsGoal']
+        : 10000;
+
+    DateTime now = DateTime.now();
+
     if (_selectedTimeframe == 'Monthly') {
-      return _parseActivityData(userData['monthlyActivity'], const [
-        'W1',
-        'W2',
-        'W3',
-        'W4',
-      ]);
+      List<double> weeks = [0, 0, 0, 0];
+      for (int i = 1; i <= now.day; i++) {
+        DateTime d = DateTime(now.year, now.month, i);
+        String dateKey = DateFormat('yyyy-MM-dd').format(d);
+        int steps = dailySteps[dateKey] ?? 0;
+        int wIndex = ((i - 1) / 7).floor().clamp(0, 3);
+        weeks[wIndex] += steps;
+      }
+      return [
+        {'label': 'W1', 'value': (weeks[0] / (stepGoal * 7)).clamp(0.0, 1.0)},
+        {'label': 'W2', 'value': (weeks[1] / (stepGoal * 7)).clamp(0.0, 1.0)},
+        {'label': 'W3', 'value': (weeks[2] / (stepGoal * 7)).clamp(0.0, 1.0)},
+        {'label': 'W4', 'value': (weeks[3] / (stepGoal * 7)).clamp(0.0, 1.0)},
+      ];
     } else if (_selectedTimeframe == 'Yearly') {
-      return _parseActivityData(userData['yearlyActivity'], const [
+      List<double> months = List.filled(12, 0.0);
+      dailySteps.forEach((key, val) {
+        try {
+          DateTime d = DateTime.parse(key);
+          if (d.year == now.year) {
+            months[d.month - 1] += (val as num).toDouble();
+          }
+        } catch (_) {}
+      });
+      List<String> monthLabels = [
         'Jan',
         'Feb',
         'Mar',
@@ -95,23 +119,139 @@ class _ProgressScreenState extends State<ProgressScreen> {
         'Oct',
         'Nov',
         'Dec',
-      ]);
+      ];
+      return List.generate(12, (i) {
+        return {
+          'label': monthLabels[i],
+          'value': (months[i] / (stepGoal * 30)).clamp(0.0, 1.0),
+        };
+      });
     } else {
-      return _parseActivityData(userData['weeklyActivity'], const [
-        'Mon',
-        'Tue',
-        'Wed',
-        'Thu',
-        'Fri',
-        'Sat',
-        'Sun',
-      ]);
+      List<Map<String, dynamic>> res = [];
+      for (int i = 6; i >= 0; i--) {
+        DateTime d = now.subtract(Duration(days: i));
+        String dateKey = DateFormat('yyyy-MM-dd').format(d);
+        int steps = dailySteps[dateKey] ?? 0;
+        res.add({
+          'label': DateFormat('E').format(d),
+          'value': (steps / stepGoal).clamp(0.0, 1.0),
+        });
+      }
+      return res;
     }
   }
 
-  Future<void> _showGoalDialog(int initialAmount) async {
-    TextEditingController controller = TextEditingController(text: "2.0");
+  // --- SUCCESS DIALOG (BOTTOM SHEET) ---
+  void _showSuccessDialog({
+    required String goalName,
+    required String currentValue,
+    required String goalValue,
+  }) {
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(32),
+              topRight: Radius.circular(32),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFDDF5D8),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Color(0xFF146C2E),
+                    size: 50,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Goal Achieved',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: _textMain,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                RichText(
+                  textAlign: TextAlign.center,
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                    children: [
+                      const TextSpan(text: 'You have completed your '),
+                      TextSpan(
+                        text: '$goalName goal!\n',
+                        style: const TextStyle(
+                          color: _textMain,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const TextSpan(text: 'Current Status: '),
+                      TextSpan(
+                        text: '$currentValue / $goalValue',
+                        style: const TextStyle(
+                          color: _activeBlue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade600,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Done',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
+  // --- HYDRATION GOAL ---
+  Future<void> _showHydrationGoalDialog(int initialAmount) async {
+    TextEditingController controller = TextEditingController(text: "2.0");
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -128,10 +268,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'How many Liters of water do you want to drink daily?',
-                style: TextStyle(color: Colors.black87),
-              ),
+              const Text('How many Liters of water do you aim for daily?'),
               const SizedBox(height: 16),
               TextField(
                 controller: controller,
@@ -170,7 +307,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
               onPressed: () async {
                 double parsedGoal = double.tryParse(controller.text) ?? 2.0;
                 int newGoalMl = (parsedGoal * 1000).toInt();
-
                 final uid = currentUser?.uid;
                 if (uid != null) {
                   await FirebaseFirestore.instance
@@ -186,7 +322,173 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 }
               },
               child: const Text(
-                'Save Goal',
+                'Save',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- SLEEP GOAL ---
+  Future<void> _showSleepGoalDialog(int initialMinutes) async {
+    TextEditingController controller = TextEditingController(text: "8.0");
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Set Sleep Goal',
+            style: TextStyle(fontWeight: FontWeight.w800, color: _textMain),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('How many hours of sleep do you aim for?'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  suffixText: 'hrs',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF5A67D8),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF5A67D8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                double parsedGoalHrs = double.tryParse(controller.text) ?? 8.0;
+                final uid = currentUser?.uid;
+                if (uid != null) {
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(uid)
+                      .set({
+                        'sleepGoal': parsedGoalHrs,
+                      }, SetOptions(merge: true));
+                }
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  _updateSleep(initialMinutes, initialMinutes, parsedGoalHrs);
+                }
+              },
+              child: const Text(
+                'Save',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- STEPS GOAL ---
+  Future<void> _showStepsGoalDialog(int initialSteps) async {
+    TextEditingController controller = TextEditingController(text: "10000");
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Set Steps Goal',
+            style: TextStyle(fontWeight: FontWeight.w800, color: _textMain),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('How many steps do you aim for daily?'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  suffixText: 'steps',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Colors.lightGreen,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.lightGreen,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                int parsedGoal = int.tryParse(controller.text) ?? 10000;
+                final uid = currentUser?.uid;
+                if (uid != null) {
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(uid)
+                      .set({'stepsGoal': parsedGoal}, SetOptions(merge: true));
+                }
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  _updateSteps(initialSteps, initialSteps, parsedGoal);
+                }
+              },
+              child: const Text(
+                'Save',
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -200,21 +502,34 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   Future<void> _changeWater(int currentWater, int amount, int goal) async {
-    if (goal == 0) {
-      _showGoalDialog(amount);
+    if (goal <= 0) {
+      _showHydrationGoalDialog(amount);
       return;
     }
-
     final uid = currentUser?.uid;
     if (uid != null) {
-      int newWaterLevel = currentWater + amount;
-      if (newWaterLevel < 0) newWaterLevel = 0;
-
+      int newWaterLevel = (currentWater + amount)
+          .clamp(0, double.infinity)
+          .toInt();
       try {
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
           'dailyHydration': {_todayDate: newWaterLevel},
         }, SetOptions(merge: true));
         HapticFeedback.lightImpact();
+
+        String key = 'hydration_$_todayDate';
+        if (currentWater < goal && newWaterLevel >= goal) {
+          if (!_shownDialogs.contains(key)) {
+            _shownDialogs.add(key);
+            _showSuccessDialog(
+              goalName: 'Hydration',
+              currentValue:
+                  '${(newWaterLevel / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}L',
+              goalValue:
+                  '${(goal / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}L',
+            );
+          }
+        }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -243,74 +558,156 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
   }
 
+  Future<void> _updateSleep(
+    int oldMinutes,
+    int newMinutes,
+    double goalHrs,
+  ) async {
+    if (goalHrs <= 0) {
+      _showSleepGoalDialog(newMinutes);
+      return;
+    }
+
+    final uid = currentUser?.uid;
+    if (uid != null) {
+      double hours = newMinutes / 60.0;
+      hours = double.parse(hours.toStringAsFixed(2));
+
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'sleep': hours,
+          'dailySleep': {_todayDate: hours},
+        }, SetOptions(merge: true));
+
+        double oldHrs = oldMinutes / 60.0;
+        String key = 'sleep_$_todayDate';
+        if (oldHrs < goalHrs && hours >= goalHrs) {
+          if (!_shownDialogs.contains(key)) {
+            _shownDialogs.add(key);
+            _showSuccessDialog(
+              goalName: 'Sleep',
+              currentValue:
+                  '${hours.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')} hrs',
+              goalValue:
+                  '${goalHrs.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')} hrs',
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update sleep.')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _updateSteps(int oldSteps, int newSteps, int goal) async {
+    if (goal <= 0) {
+      _showStepsGoalDialog(newSteps);
+      return;
+    }
+    final uid = currentUser?.uid;
+    if (uid != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'steps': newSteps,
+          'dailySteps': {_todayDate: newSteps},
+        }, SetOptions(merge: true));
+
+        String key = 'steps_$_todayDate';
+        if (oldSteps < goal && newSteps >= goal) {
+          if (!_shownDialogs.contains(key)) {
+            _shownDialogs.add(key);
+            _showSuccessDialog(
+              goalName: 'Steps',
+              currentValue: '$newSteps steps',
+              goalValue: '$goal steps',
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update steps.')),
+          );
+        }
+      }
+    }
+  }
+
+  // --- OPTIMIZED NAVIGATION (FIXES LAG) ---
   Future<void> _navigateToBooking(Map<String, dynamic> userData) async {
-    _selectedIndexNotifier.value = 1;
+    if (_isNavigating) return;
+    setState(() => _isNavigating = true);
+
+    // Shows instant visual feedback so the UI doesn't feel stuck
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      barrierDismissible: false,
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: _activeBlue)),
+    );
 
     try {
       String? trainerId = userData['assignedTrainerId'];
 
+      Widget nextScreen;
       if (trainerId == null || trainerId.isEmpty) {
-        if (!mounted) return;
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, a, b) => const SelectTrainerScreen(),
-            transitionsBuilder: (context, a, b, child) =>
-                FadeTransition(opacity: a, child: child),
-            transitionDuration: const Duration(milliseconds: 150),
-          ),
-        );
-        if (mounted) _selectedIndexNotifier.value = 2;
-        return;
-      }
-
-      DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-          .collection('trainers')
-          .doc(trainerId)
-          .get(const GetOptions(source: Source.cache))
-          .catchError(
-            (_) => FirebaseFirestore.instance
-                .collection('trainers')
-                .doc(trainerId)
-                .get(),
-          );
-
-      if (!mounted) return;
-
-      if (trainerDoc.exists) {
-        Trainer assignedTrainer = Trainer.fromFirestore(trainerDoc);
-
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, a, b) =>
-                BookingScreen(trainer: assignedTrainer),
-            transitionsBuilder: (context, a, b, child) =>
-                FadeTransition(opacity: a, child: child),
-            transitionDuration: const Duration(milliseconds: 150),
-          ),
-        );
+        nextScreen = const SelectTrainerScreen();
       } else {
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, a, b) => const SelectTrainerScreen(),
-            transitionsBuilder: (context, a, b, child) =>
-                FadeTransition(opacity: a, child: child),
-            transitionDuration: const Duration(milliseconds: 150),
-          ),
-        );
+        // Fetch from cache first for instantaneous loads, fallback to server
+        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
+            .collection('trainers')
+            .doc(trainerId)
+            .get(const GetOptions(source: Source.cache))
+            .catchError(
+              (_) => FirebaseFirestore.instance
+                  .collection('trainers')
+                  .doc(trainerId)
+                  .get(),
+            );
+
+        if (trainerDoc.exists) {
+          nextScreen = BookingScreen(
+            trainer: Trainer.fromFirestore(trainerDoc),
+          );
+        } else {
+          nextScreen = const SelectTrainerScreen();
+        }
       }
 
-      if (mounted) {
-        _selectedIndexNotifier.value = 2;
-      }
-    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error loading booking data.')),
+
+      // Pop the loading dialog
+      Navigator.pop(context);
+
+      // Use pushReplacement to stop the navigation stack from leaking memory
+      await Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (c, a, b) => nextScreen,
+          transitionsBuilder: (c, a, b, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 150),
+        ),
       );
-      _selectedIndexNotifier.value = 2;
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Pop dialog on error
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Error loading booking.')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isNavigating = false;
+          _selectedIndexNotifier.value = 2; // Reset visually if needed
+        });
+      }
     }
   }
 
@@ -321,84 +718,178 @@ class _ProgressScreenState extends State<ProgressScreen> {
       body: StreamBuilder<DocumentSnapshot>(
         stream: _userStream,
         builder: (context, snapshot) {
-          // If completely empty (no cache, no network), show minimal skeleton to prevent layout jumps
-          if (!snapshot.hasData &&
-              snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.black),
-            );
-          }
-
           var userData = snapshot.data?.data() as Map<String, dynamic>? ?? {};
-
-          Map<String, dynamic> dailyHydrationMap =
-              userData['dailyHydration'] != null
-              ? Map<String, dynamic>.from(userData['dailyHydration'])
-              : {};
-          int currentWater = dailyHydrationMap[_todayDate] ?? 0;
-          int waterGoal = userData['hydrationGoal'] ?? 0;
-
-          Map<String, dynamic> dailyWeightMap = userData['dailyWeight'] != null
-              ? Map<String, dynamic>.from(userData['dailyWeight'])
-              : {};
-          double currentWeight = 70.0;
-          if (dailyWeightMap[_todayDate] != null) {
-            currentWeight = num.parse(
-              dailyWeightMap[_todayDate].toString(),
-            ).toDouble();
-          } else if (userData['weight'] != null) {
-            currentWeight = num.parse(userData['weight'].toString()).toDouble();
-          }
-
-          List<Map<String, dynamic>> chartData = _getChartData(userData);
 
           return Stack(
             children: [
               SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 120),
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // --- TOP APP BAR ---
-                      _buildTopAppBar(),
-                      const SizedBox(height: 10),
-
-                      // --- ACTIVITY LEVEL SECTION ---
-                      _buildActivityLevelChart(chartData),
-                      const SizedBox(height: 24),
-
-                      // --- HYDRATION & WEIGHT ROW ---
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Row(
+                child: (!_isScreenReady || !snapshot.hasData)
+                    // Visual trick: Show an empty background with just the App Bar during transition
+                    // This eliminates the heavy stutter completely without showing a slow loading spinner.
+                    ? Column(children: [_buildTopAppBar()])
+                    : SingleChildScrollView(
+                        padding: const EdgeInsets.only(bottom: 120),
+                        physics: const BouncingScrollPhysics(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Hydration Card
-                            Expanded(
-                              child: _buildHydrationCard(
-                                currentWater,
-                                waterGoal,
+                            _buildTopAppBar(),
+                            const SizedBox(height: 10),
+
+                            // Using RepaintBoundary isolates heavy painting logic, making scrolls smooth
+                            RepaintBoundary(
+                              child: _buildActivityLevelChart(
+                                _getChartData(userData),
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            // Weight Card with Slider
-                            Expanded(
-                              child: _WeightCard(
-                                initialWeight: currentWeight,
-                                onWeightChanged: _updateWeight,
+                            const SizedBox(height: 24),
+
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: RepaintBoundary(
+                                      child: _buildHydrationCard(
+                                        (userData['dailyHydration']
+                                                as Map<
+                                                  dynamic,
+                                                  dynamic
+                                                >?)?[_todayDate] ??
+                                            0,
+                                        userData['hydrationGoal'] ?? 0,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: RepaintBoundary(
+                                      child: _WeightCard(
+                                        initialWeight: num.parse(
+                                          (userData['dailyWeight'] != null
+                                                  ? userData['dailyWeight'][_todayDate]
+                                                        ?.toString()
+                                                  : null) ??
+                                              userData['weight']?.toString() ??
+                                              '70.0',
+                                        ).toDouble(),
+                                        onWeightChanged: _updateWeight,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
+                            const SizedBox(height: 16),
+
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: RepaintBoundary(
+                                      child: _SleepCard(
+                                        initialMinutes:
+                                            (num.parse(
+                                                      (userData['dailySleep'] !=
+                                                                  null
+                                                              ? userData['dailySleep'][_todayDate]
+                                                                    ?.toString()
+                                                              : null) ??
+                                                          userData['sleep']
+                                                              ?.toString() ??
+                                                          '0.0',
+                                                    ).toDouble() *
+                                                    60)
+                                                .round(),
+                                        goalHours: num.parse(
+                                          userData['sleepGoal']?.toString() ??
+                                              '0.0',
+                                        ).toDouble(),
+                                        onSleepChanged: (mins) => _updateSleep(
+                                          (num.parse(
+                                                    (userData['dailySleep'] !=
+                                                                null
+                                                            ? userData['dailySleep'][_todayDate]
+                                                                  ?.toString()
+                                                            : null) ??
+                                                        userData['sleep']
+                                                            ?.toString() ??
+                                                        '0.0',
+                                                  ).toDouble() *
+                                                  60)
+                                              .round(),
+                                          mins,
+                                          num.parse(
+                                            userData['sleepGoal']?.toString() ??
+                                                '0.0',
+                                          ).toDouble(),
+                                        ),
+                                        onSetupGoal: () => _showSleepGoalDialog(
+                                          (num.parse(
+                                                    (userData['dailySleep'] !=
+                                                                null
+                                                            ? userData['dailySleep'][_todayDate]
+                                                                  ?.toString()
+                                                            : null) ??
+                                                        userData['sleep']
+                                                            ?.toString() ??
+                                                        '0.0',
+                                                  ).toDouble() *
+                                                  60)
+                                              .round(),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: RepaintBoundary(
+                                      child: _StepsCard(
+                                        initialSteps:
+                                            (userData['dailySteps']
+                                                as Map<
+                                                  dynamic,
+                                                  dynamic
+                                                >?)?[_todayDate] ??
+                                            userData['steps'] ??
+                                            0,
+                                        goalSteps: userData['stepsGoal'] ?? 0,
+                                        onStepsChanged: (steps) => _updateSteps(
+                                          (userData['dailySteps']
+                                                  as Map<
+                                                    dynamic,
+                                                    dynamic
+                                                  >?)?[_todayDate] ??
+                                              userData['steps'] ??
+                                              0,
+                                          steps,
+                                          userData['stepsGoal'] ?? 0,
+                                        ),
+                                        onSetupGoal: () => _showStepsGoalDialog(
+                                          (userData['dailySteps']
+                                                  as Map<
+                                                    dynamic,
+                                                    dynamic
+                                                  >?)?[_todayDate] ??
+                                              userData['steps'] ??
+                                              0,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24), // Extra padding at bottom
-                    ],
-                  ),
-                ),
               ),
-
-              // --- BOTTOM NAV BAR ---
               _buildBottomNavBar(userData),
             ],
           );
@@ -497,11 +988,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 bool isSelected = _selectedTimeframe == tf;
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _selectedTimeframe = tf;
-                      });
-                    },
+                    onTap: () => setState(() => _selectedTimeframe = tf),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -577,7 +1064,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 double barWidth = chartData.length > 7 ? 12.0 : 20.0;
                 bool isToday =
                     data['label'] == DateFormat('E').format(DateTime.now());
-
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
@@ -625,25 +1111,26 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  // UPDATED Hydration Card - Taller & Smoother
   Widget _buildHydrationCard(int currentWater, int goal) {
     const Color waterColor = Color(0xFF00B4D8);
     double fillPercentage = goal > 0
         ? (currentWater / goal).clamp(0.0, 1.0)
         : 0.0;
     bool isWaterHigh = fillPercentage > 0.55;
-
     String formattedLiters = (currentWater / 1000).toString().replaceAll(
       RegExp(r'\.0$'),
       '',
     );
 
     return Container(
-      height: 175, // Increased Height
+      height: 210,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        border: Border.all(
+          color: waterColor.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -679,8 +1166,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           duration: const Duration(milliseconds: 400),
                           style: TextStyle(
                             color: isWaterHigh ? Colors.white : _textMain,
-                            fontSize:
-                                14, // Slightly larger font to fit taller card
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5,
                           ),
@@ -705,7 +1191,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               duration: const Duration(milliseconds: 400),
                               style: TextStyle(
                                 color: isWaterHigh ? Colors.white : _textMain,
-                                fontSize: 18, // Slightly larger
+                                fontSize: 18,
                                 fontWeight: FontWeight.w800,
                               ),
                               child: Text('${formattedLiters}L'),
@@ -721,7 +1207,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         onLongPress: () =>
                             _changeWater(currentWater, -250, goal),
                         child: Container(
-                          width: 48, // Slightly larger button
+                          width: 48,
                           height: 48,
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -784,9 +1270,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     Navigator.pushAndRemoveUntil(
                       context,
                       PageRouteBuilder(
-                        pageBuilder: (context, a, b) =>
-                            const HomeDashboardScreen(),
-                        transitionsBuilder: (context, a, b, child) =>
+                        pageBuilder: (c, a, b) => const HomeDashboardScreen(),
+                        transitionsBuilder: (c, a, b, child) =>
                             FadeTransition(opacity: a, child: child),
                         transitionDuration: const Duration(milliseconds: 150),
                       ),
@@ -832,7 +1317,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 }
 
 // ---------------------------------------------------------
-// CUSTOM WEIGHT CARD WITH SCROLLING RULER - Taller
+// CUSTOM WEIGHT CARD WITH SCROLLING RULER (OPTIMIZED)
 // ---------------------------------------------------------
 class _WeightCard extends StatefulWidget {
   final double initialWeight;
@@ -849,41 +1334,61 @@ class _WeightCard extends StatefulWidget {
 
 class _WeightCardState extends State<_WeightCard> {
   late ScrollController _scrollController;
-  late double _currentWeight;
+  late ValueNotifier<double> _weightNotifier;
 
   final double _minWeight = 20.0;
   final double _maxWeight = 250.0;
-  final double _pixelsPerTick = 8.0;
 
+  // INCREASED SIZE: Spacing between lines is now 10 pixels
+  final double _pixelsPerTick = 10.0;
   double get _pixelsPerKg => _pixelsPerTick * 10.0;
+
+  bool _isUserScrolling = false;
 
   @override
   void initState() {
     super.initState();
-    _currentWeight = widget.initialWeight.clamp(_minWeight, _maxWeight);
+    double initialClamped = widget.initialWeight.clamp(_minWeight, _maxWeight);
+    _weightNotifier = ValueNotifier<double>(initialClamped);
 
-    double initialOffset = (_currentWeight - _minWeight) * _pixelsPerKg;
-    _scrollController = ScrollController(initialScrollOffset: initialOffset);
+    _scrollController = ScrollController(
+      initialScrollOffset: (initialClamped - _minWeight) * _pixelsPerKg,
+    );
+
+    // Using a listener instead of setState makes the ruler buttery smooth
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    double exactWeight = _minWeight + (_scrollController.offset / _pixelsPerKg);
+    double roundedWeight = double.parse(
+      exactWeight.clamp(_minWeight, _maxWeight).toStringAsFixed(1),
+    );
+
+    if (_weightNotifier.value != roundedWeight) {
+      _weightNotifier.value = roundedWeight;
+    }
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _weightNotifier.dispose();
     super.dispose();
   }
 
-  // Handle external updates so it stays in sync smoothly
   @override
   void didUpdateWidget(covariant _WeightCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.initialWeight != oldWidget.initialWeight &&
-        (widget.initialWeight - _currentWeight).abs() > 0.1) {
-      _currentWeight = widget.initialWeight.clamp(_minWeight, _maxWeight);
-      double offset = (_currentWeight - _minWeight) * _pixelsPerKg;
-      // Animate smoothly to new position if updated externally
-      if (_scrollController.hasClients) {
+    // Only animate to new server weight if the user isn't currently dragging it
+    if (!_isUserScrolling && widget.initialWeight != oldWidget.initialWeight) {
+      double newClamped = widget.initialWeight.clamp(_minWeight, _maxWeight);
+      if ((newClamped - _weightNotifier.value).abs() > 0.1 &&
+          _scrollController.hasClients) {
         _scrollController.animateTo(
-          offset,
+          (newClamped - _minWeight) * _pixelsPerKg,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -894,11 +1399,14 @@ class _WeightCardState extends State<_WeightCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 175, // Increased Height
+      height: 210,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        border: Border.all(
+          color: Colors.orange.shade200.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -910,11 +1418,9 @@ class _WeightCardState extends State<_WeightCard> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final halfWidth = constraints.maxWidth / 2;
-
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Top Title and Current Value
               Padding(
                 padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
                 child: Row(
@@ -925,7 +1431,7 @@ class _WeightCardState extends State<_WeightCard> {
                       'Weight',
                       style: TextStyle(
                         color: Color(0xFF1A1A1A),
-                        fontSize: 14, // Larger font
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
                       ),
@@ -945,13 +1451,19 @@ class _WeightCardState extends State<_WeightCard> {
                           crossAxisAlignment: CrossAxisAlignment.baseline,
                           textBaseline: TextBaseline.alphabetic,
                           children: [
-                            Text(
-                              _currentWeight.toStringAsFixed(1),
-                              style: const TextStyle(
-                                color: Color(0xFF1A1A1A),
-                                fontSize: 18, // Larger font
-                                fontWeight: FontWeight.w900,
-                              ),
+                            // ValueListenableBuilder isolates updates, stopping lag
+                            ValueListenableBuilder<double>(
+                              valueListenable: _weightNotifier,
+                              builder: (context, weight, child) {
+                                return Text(
+                                  weight.toStringAsFixed(1),
+                                  style: const TextStyle(
+                                    color: Color(0xFF1A1A1A),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                );
+                              },
                             ),
                             const SizedBox(width: 2),
                             Text(
@@ -969,37 +1481,21 @@ class _WeightCardState extends State<_WeightCard> {
                   ],
                 ),
               ),
-
               const Spacer(),
 
-              // Ruler Section
+              // INCREASED SIZE: Ruler container is now taller
               SizedBox(
-                height: 70, // Slightly taller ruler area
+                height: 90,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
                     NotificationListener<ScrollNotification>(
                       onNotification: (notification) {
-                        if (notification is ScrollUpdateNotification) {
-                          double offset = _scrollController.offset;
-                          double calculatedWeight =
-                              _minWeight + (offset / _pixelsPerKg);
-                          double newWeight = calculatedWeight.clamp(
-                            _minWeight,
-                            _maxWeight,
-                          );
-                          newWeight = double.parse(
-                            newWeight.toStringAsFixed(1),
-                          );
-
-                          // Optimization: Only rebuild if the rounded weight actually changed
-                          if (newWeight != _currentWeight) {
-                            setState(() {
-                              _currentWeight = newWeight;
-                            });
-                          }
+                        if (notification is ScrollStartNotification) {
+                          _isUserScrolling = true;
                         } else if (notification is ScrollEndNotification) {
-                          widget.onWeightChanged(_currentWeight);
+                          _isUserScrolling = false;
+                          widget.onWeightChanged(_weightNotifier.value);
                           HapticFeedback.selectionClick();
                         }
                         return true;
@@ -1008,11 +1504,11 @@ class _WeightCardState extends State<_WeightCard> {
                         controller: _scrollController,
                         scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(),
+                        // Intentionally removed cacheExtent entirely so it complies with the newest Flutter versions seamlessly
                         itemCount: ((_maxWeight - _minWeight) * 10).toInt() + 1,
                         padding: EdgeInsets.symmetric(horizontal: halfWidth),
                         itemBuilder: (context, index) {
                           bool isMajorTick = index % 10 == 0;
-
                           return SizedBox(
                             width: _pixelsPerTick,
                             child: Column(
@@ -1022,24 +1518,26 @@ class _WeightCardState extends State<_WeightCard> {
                                   Text(
                                     '${(_minWeight + (index ~/ 10)).toInt()}',
                                     style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey.shade400,
+                                      fontSize:
+                                          13, // Larger font for visibility
+                                      fontWeight: FontWeight.w800,
+                                      color: Colors.grey.shade500,
                                     ),
                                   ),
-                                if (isMajorTick) const SizedBox(height: 4),
+                                if (isMajorTick) const SizedBox(height: 6),
                                 Container(
-                                  width: 2,
-                                  height: isMajorTick ? 24 : 14, // Taller ticks
+                                  width: isMajorTick ? 2.5 : 1.5,
+                                  // INCREASED SIZE: Taller ticks for better visibility
+                                  height: isMajorTick ? 36 : 20,
                                   decoration: BoxDecoration(
                                     color: isMajorTick
                                         ? Colors.grey.shade400
-                                        : Colors.grey.shade200,
+                                        : Colors.grey.shade300,
                                     borderRadius: BorderRadius.circular(1),
                                   ),
                                 ),
                                 const SizedBox(
-                                  height: 10,
+                                  height: 8,
                                 ), // Padding from bottom
                               ],
                             ),
@@ -1048,19 +1546,21 @@ class _WeightCardState extends State<_WeightCard> {
                       ),
                     ),
 
-                    // Orange Center Pointer Indicator
+                    // DARK ORANGE NEEDLE, INCREASED SIZE
                     Positioned(
-                      bottom: 10, // Aligns with the ticks
+                      bottom: 8,
                       child: Container(
                         width: 4,
-                        height: 32, // Taller pointer
+                        height: 48, // Taller needle
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade500,
+                          color: Colors.deepOrange.shade700, // Dark Orange
                           borderRadius: BorderRadius.circular(2),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.orange.withValues(alpha: 0.4),
-                              blurRadius: 4,
+                              color: Colors.deepOrange.shade700.withValues(
+                                alpha: 0.5,
+                              ),
+                              blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
                           ],
@@ -1073,6 +1573,568 @@ class _WeightCardState extends State<_WeightCard> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// CUSTOM SLEEP CARD WITH CIRCULAR DIAL (HALF WIDTH)
+// ---------------------------------------------------------
+class _SleepCard extends StatefulWidget {
+  final int initialMinutes;
+  final double goalHours;
+  final ValueChanged<int> onSleepChanged;
+  final VoidCallback onSetupGoal;
+
+  const _SleepCard({
+    required this.initialMinutes,
+    required this.goalHours,
+    required this.onSleepChanged,
+    required this.onSetupGoal,
+  });
+
+  @override
+  State<_SleepCard> createState() => _SleepCardState();
+}
+
+class _SleepCardState extends State<_SleepCard> {
+  late int _currentMins;
+  bool _isDragging = false;
+
+  final int _maxMins = 720; // 12 hours max on dial
+  static const Color _sleepPurple = Color(0xFF5A67D8);
+
+  @override
+  void initState() {
+    super.initState();
+    _currentMins = widget.initialMinutes.clamp(0, _maxMins);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SleepCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isDragging && widget.initialMinutes != oldWidget.initialMinutes) {
+      setState(() {
+        _currentMins = widget.initialMinutes.clamp(0, _maxMins);
+      });
+    }
+  }
+
+  void _handlePan(Offset localPosition, Size size) {
+    if (widget.goalHours <= 0) return;
+
+    Offset center = Offset(size.width / 2, size.height / 2);
+    double dx = localPosition.dx - center.dx;
+    double dy = localPosition.dy - center.dy;
+
+    double angle = math.atan2(dy, dx);
+    double normalized = angle + (math.pi / 2);
+
+    if (normalized < 0) {
+      normalized += 2 * math.pi;
+    }
+
+    int mins = ((normalized / (2 * math.pi)) * _maxMins).round();
+    mins = (mins / 15).round() * 15; // Snap to 15-minute increments
+
+    if (mins != _currentMins) {
+      HapticFeedback.selectionClick();
+      setState(() {
+        _currentMins = mins.clamp(0, _maxMins);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    int h = _currentMins ~/ 60;
+    int m = _currentMins % 60;
+
+    return GestureDetector(
+      onTap: () {
+        if (widget.goalHours <= 0) {
+          widget.onSetupGoal();
+        }
+      },
+      child: Container(
+        height: 210,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: _sleepPurple.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Sleep',
+                    style: TextStyle(
+                      color: Color(0xFF1A1A1A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Current',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '${h}h ${m}m',
+                        style: const TextStyle(
+                          color: Color(0xFF1A1A1A),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: widget.goalHours <= 0
+                  ? const Center(
+                      child: Text(
+                        'Set Goal',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _sleepPurple,
+                        ),
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final size = Size(
+                          constraints.maxWidth,
+                          constraints.maxHeight,
+                        );
+                        double progress = _currentMins / _maxMins;
+                        double angle = -math.pi / 2 + (progress * 2 * math.pi);
+
+                        double radius = (size.height / 2) - 15;
+
+                        double knobX =
+                            (size.width / 2) + radius * math.cos(angle) - 14;
+                        double knobY =
+                            (size.height / 2) + radius * math.sin(angle) - 14;
+
+                        return Stack(
+                          children: [
+                            GestureDetector(
+                              onPanStart: (_) => _isDragging = true,
+                              onPanUpdate: (details) =>
+                                  _handlePan(details.localPosition, size),
+                              onPanEnd: (_) {
+                                _isDragging = false;
+                                widget.onSleepChanged(_currentMins);
+                              },
+                              child: CustomPaint(
+                                size: size,
+                                painter: _SleepDialPainter(
+                                  progress: progress,
+                                  trackColor: Colors.grey.shade100,
+                                  activeColor: _sleepPurple,
+                                  radius: radius,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              left: knobX,
+                              top: knobY,
+                              child: IgnorePointer(
+                                child: Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: _sleepPurple,
+                                      width: 2.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _sleepPurple.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.nights_stay_rounded,
+                                    color: _sleepPurple,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SleepDialPainter extends CustomPainter {
+  final double progress;
+  final Color trackColor;
+  final Color activeColor;
+  final double radius;
+
+  _SleepDialPainter({
+    required this.progress,
+    required this.trackColor,
+    required this.activeColor,
+    required this.radius,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+
+    final trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 12
+      ..strokeCap = StrokeCap.round;
+    canvas.drawCircle(center, radius, trackPaint);
+
+    final sweepAngle = progress * 2 * math.pi;
+    final gradient = SweepGradient(
+      startAngle: -math.pi / 2,
+      endAngle: 3 * math.pi / 2,
+      colors: const [Color(0xFF5A67D8), Color(0xFF9F7AEA)],
+      stops: const [0.0, 1.0],
+    );
+    final activePaint = Paint()
+      ..shader = gradient.createShader(
+        Rect.fromCircle(center: center, radius: radius),
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 12
+      ..strokeCap = StrokeCap.round;
+
+    if (progress > 0) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -math.pi / 2,
+        sweepAngle,
+        false,
+        activePaint,
+      );
+    }
+
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+
+    for (int i = 0; i < 12; i++) {
+      double angle = -math.pi / 2 + (i * 2 * math.pi / 12);
+      bool isMajor = i % 3 == 0;
+
+      if (!isMajor) {
+        double innerR = radius - 12;
+        double outerR = radius - 8;
+        canvas.drawLine(
+          Offset(
+            center.dx + innerR * math.cos(angle),
+            center.dy + innerR * math.sin(angle),
+          ),
+          Offset(
+            center.dx + outerR * math.cos(angle),
+            center.dy + outerR * math.sin(angle),
+          ),
+          Paint()
+            ..color = Colors.grey.shade400
+            ..strokeWidth = 1.0,
+        );
+      } else {
+        String text = i == 0
+            ? '12'
+            : i == 3
+            ? '3'
+            : i == 6
+            ? '6'
+            : '9';
+        textPainter.text = TextSpan(
+          text: text,
+          style: TextStyle(
+            color: Colors.grey.shade400,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        );
+        textPainter.layout();
+
+        double labelR = radius - 22;
+        Offset labelOffset = Offset(
+          center.dx + labelR * math.cos(angle) - textPainter.width / 2,
+          center.dy + labelR * math.sin(angle) - textPainter.height / 2,
+        );
+        textPainter.paint(canvas, labelOffset);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SleepDialPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.radius != radius;
+  }
+}
+
+// ---------------------------------------------------------
+// CUSTOM STEPS CARD WITH WHEEL SCROLL (0, 1, 2...)
+// ---------------------------------------------------------
+class _StepsCard extends StatefulWidget {
+  final int initialSteps;
+  final int goalSteps;
+  final ValueChanged<int> onStepsChanged;
+  final VoidCallback onSetupGoal;
+
+  const _StepsCard({
+    required this.initialSteps,
+    required this.goalSteps,
+    required this.onStepsChanged,
+    required this.onSetupGoal,
+  });
+
+  @override
+  State<_StepsCard> createState() => _StepsCardState();
+}
+
+class _StepsCardState extends State<_StepsCard> {
+  late FixedExtentScrollController _scrollController;
+  late int _currentSteps;
+
+  final int _stepIncrement = 1;
+  final int _maxSteps = 50000;
+  static const Color _stepsColor = Colors.lightGreen;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentSteps = widget.initialSteps;
+    int initialItem = (_currentSteps ~/ _stepIncrement);
+    _scrollController = FixedExtentScrollController(initialItem: initialItem);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StepsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialSteps != oldWidget.initialSteps &&
+        widget.initialSteps != _currentSteps) {
+      _currentSteps = widget.initialSteps;
+      if (_scrollController.hasClients) {
+        int newItem = (_currentSteps ~/ _stepIncrement);
+        _scrollController.animateToItem(
+          newItem,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    int totalItems = (_maxSteps ~/ _stepIncrement) + 1;
+
+    return GestureDetector(
+      onTap: () {
+        if (widget.goalSteps <= 0) {
+          widget.onSetupGoal();
+        }
+      },
+      child: Container(
+        height: 210,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: _stepsColor.withValues(alpha: 0.5),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Steps',
+                    style: TextStyle(
+                      color: Color(0xFF1A1A1A),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Current',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '$_currentSteps',
+                        style: const TextStyle(
+                          color: Color(0xFF1A1A1A),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: widget.goalSteps <= 0
+                  ? const Center(
+                      child: Text(
+                        'Set Goal',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: _stepsColor,
+                        ),
+                      ),
+                    )
+                  : Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Positioned(
+                          left: 16,
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: _stepsColor,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _stepsColor.withValues(alpha: 0.4),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        NotificationListener<ScrollNotification>(
+                          onNotification: (notification) {
+                            if (notification is ScrollEndNotification) {
+                              widget.onStepsChanged(_currentSteps);
+                            }
+                            return true;
+                          },
+                          child: ListWheelScrollView.useDelegate(
+                            controller: _scrollController,
+                            itemExtent: 40,
+                            physics: const FixedExtentScrollPhysics(),
+                            perspective: 0.005,
+                            onSelectedItemChanged: (index) {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _currentSteps = index * _stepIncrement;
+                              });
+                            },
+                            childDelegate: ListWheelChildBuilderDelegate(
+                              builder: (context, index) {
+                                bool isSelected =
+                                    (index * _stepIncrement) == _currentSteps;
+                                return Center(
+                                  child: RichText(
+                                    text: TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: '${index * _stepIncrement}',
+                                          style: TextStyle(
+                                            fontSize: isSelected ? 24 : 18,
+                                            fontWeight: isSelected
+                                                ? FontWeight.w900
+                                                : FontWeight.w600,
+                                            color: isSelected
+                                                ? const Color(0xFF1A1A1A)
+                                                : Colors.grey.shade400,
+                                          ),
+                                        ),
+                                        if (isSelected)
+                                          TextSpan(
+                                            text: ' steps',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                              childCount: totalItems,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1101,7 +2163,7 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200), // Sped up animation
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         padding: isSelected
             ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)

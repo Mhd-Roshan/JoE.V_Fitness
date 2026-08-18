@@ -23,6 +23,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   late Stream<QuerySnapshot> _bookingStream;
   late Stream<QuerySnapshot> _chatStream;
 
+  bool _isNavigating = false; // Prevents double-tap lag
+
   @override
   void initState() {
     super.initState();
@@ -49,10 +51,26 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     super.dispose();
   }
 
+  // --- OPTIMIZED NAVIGATION (FIXES LAG) ---
   Future<void> _handleBookingNavigation([
     Map<String, dynamic>? userData,
   ]) async {
+    if (_isNavigating) return;
+    _isNavigating = true;
     _selectedIndexNotifier.value = 1;
+
+    // Instantly show visual feedback so UI doesn't freeze waiting for Firebase
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF003AA3)),
+      ),
+    );
+
+    // Give UI thread 50ms to render the tap animation before doing heavy async work
+    await Future.delayed(const Duration(milliseconds: 50));
 
     try {
       if (userData == null) {
@@ -65,79 +83,59 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       }
 
       String? trainerId = userData['assignedTrainerId'];
+      Widget nextScreen;
 
       if (trainerId == null || trainerId.isEmpty) {
-        if (!mounted) return;
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, a, b) => const SelectTrainerScreen(),
-            transitionsBuilder: (context, a, b, child) =>
-                FadeTransition(opacity: a, child: child),
-            transitionDuration: const Duration(milliseconds: 150),
-          ),
-        );
-        if (mounted) _selectedIndexNotifier.value = 0;
-        return;
-      }
-
-      DocumentSnapshot trainerDoc;
-      try {
-        trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache));
-
-        if (!trainerDoc.exists) {
-          trainerDoc = await FirebaseFirestore.instance
-              .collection('trainers')
-              .doc(trainerId)
-              .get();
-        }
-      } catch (_) {
-        trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get();
-      }
-
-      if (!mounted) return;
-
-      if (trainerDoc.exists) {
-        Trainer assignedTrainer = Trainer.fromFirestore(trainerDoc);
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) =>
-                BookingScreen(trainer: assignedTrainer),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  return FadeTransition(opacity: animation, child: child);
-                },
-            transitionDuration: const Duration(milliseconds: 150),
-          ),
-        );
+        nextScreen = const SelectTrainerScreen();
       } else {
-        await Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (context, a, b) => const SelectTrainerScreen(),
-            transitionsBuilder: (context, a, b, child) =>
-                FadeTransition(opacity: a, child: child),
-            transitionDuration: const Duration(milliseconds: 150),
-          ),
-        );
+        // Fetch from cache first for instantaneous loads
+        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
+            .collection('trainers')
+            .doc(trainerId)
+            .get(const GetOptions(source: Source.cache))
+            .catchError(
+              (_) => FirebaseFirestore.instance
+                  .collection('trainers')
+                  .doc(trainerId)
+                  .get(),
+            );
+
+        if (trainerDoc.exists) {
+          nextScreen = BookingScreen(
+            trainer: Trainer.fromFirestore(trainerDoc),
+          );
+        } else {
+          nextScreen = const SelectTrainerScreen();
+        }
       }
 
-      if (mounted) {
-        _selectedIndexNotifier.value = 0;
-      }
-    } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
+
+      // Pop loading dialog
+      Navigator.pop(context);
+
+      // LAG FIX: Use pushReplacement to stop the navigation stack from leaking memory
+      await Navigator.pushReplacement(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Error loading data.')));
-      _selectedIndexNotifier.value = 0;
+        PageRouteBuilder(
+          pageBuilder: (context, a, b) => nextScreen,
+          transitionsBuilder: (context, a, b, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 150),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Pop dialog on error
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Error loading data.')));
+      }
+    } finally {
+      if (mounted) {
+        _selectedIndexNotifier.value = 0; // Reset state silently
+        _isNavigating = false;
+      }
     }
   }
 
@@ -206,20 +204,35 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             children: [
               SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 120),
+                physics:
+                    const BouncingScrollPhysics(), // Smoother scroll physics
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _HeaderSection(userData: userData),
-                    _UpcomingSessionSection(
-                      bookingStream: _bookingStream,
-                      onReschedule: _handleRescheduleClick,
+                    RepaintBoundary(child: _HeaderSection(userData: userData)),
+
+                    // RepaintBoundary drastically reduces lag on complex gradients/shadows
+                    RepaintBoundary(
+                      child: _UpcomingSessionSection(
+                        bookingStream: _bookingStream,
+                        onReschedule: _handleRescheduleClick,
+                      ),
                     ),
-                    _QuickActionsSection(
-                      userData: userData,
-                      onBookingTap: () => _handleBookingNavigation(userData),
+
+                    RepaintBoundary(
+                      child: _QuickActionsSection(
+                        userData: userData,
+                        onBookingTap: () => _handleBookingNavigation(userData),
+                      ),
                     ),
-                    _TodayProgressSection(userData: userData),
-                    _RecentChatsSection(chatStream: _chatStream),
+
+                    RepaintBoundary(
+                      child: _TodayProgressSection(userData: userData),
+                    ),
+
+                    RepaintBoundary(
+                      child: _RecentChatsSection(chatStream: _chatStream),
+                    ),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -229,6 +242,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 child: _FloatingNavBar(
                   selectedIndexNotifier: _selectedIndexNotifier,
                   onBookingTap: () => _handleBookingNavigation(userData),
+                  isNavigating: _isNavigating,
                 ),
               ),
             ],
@@ -610,6 +624,7 @@ class _QuickActionsSection extends StatelessWidget {
           height: 56,
           child: ListView(
             scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 24),
             children: [
               _QuickActionPill(
@@ -648,6 +663,44 @@ class _TodayProgressSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     double exactCardWidth = (MediaQuery.of(context).size.width - 48 - 16) / 2;
+
+    // Getting current values from map
+    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    Map<String, dynamic> dailyWeightMap = userData['dailyWeight'] != null
+        ? Map<String, dynamic>.from(userData['dailyWeight'])
+        : {};
+    String weight =
+        dailyWeightMap[today]?.toString() ??
+        userData['weight']?.toString() ??
+        '0';
+
+    Map<String, dynamic> dailyHydrationMap = userData['dailyHydration'] != null
+        ? Map<String, dynamic>.from(userData['dailyHydration'])
+        : {};
+    String hydration = dailyHydrationMap[today] != null
+        ? (dailyHydrationMap[today] / 1000).toString().replaceAll(
+            RegExp(r'\.0$'),
+            '',
+          )
+        : '0';
+
+    Map<String, dynamic> dailySleepMap = userData['dailySleep'] != null
+        ? Map<String, dynamic>.from(userData['dailySleep'])
+        : {};
+    String sleep =
+        dailySleepMap[today]?.toString() ??
+        userData['sleep']?.toString() ??
+        '0';
+
+    Map<String, dynamic> dailyStepsMap = userData['dailySteps'] != null
+        ? Map<String, dynamic>.from(userData['dailySteps'])
+        : {};
+    String steps =
+        dailyStepsMap[today]?.toString() ??
+        userData['steps']?.toString() ??
+        '0';
+
     return Column(
       children: [
         const Padding(
@@ -676,12 +729,13 @@ class _TodayProgressSection extends StatelessWidget {
           height: 140,
           child: ListView(
             scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 24),
             children: [
               _ProgressCard(
                 exactWidth: exactCardWidth,
                 title: 'Weight\nProgress',
-                value: userData['weight']?.toString() ?? '0',
+                value: weight,
                 unit: 'Kg',
                 icon: Icons.monitor_weight_outlined,
                 iconColor: const Color(0xFFFF9500),
@@ -689,7 +743,7 @@ class _TodayProgressSection extends StatelessWidget {
               _ProgressCard(
                 exactWidth: exactCardWidth,
                 title: 'Daily\nHydration',
-                value: userData['hydration']?.toString() ?? '0',
+                value: hydration,
                 unit: 'Liters',
                 icon: Icons.water_drop_outlined,
                 iconColor: const Color(0xFF007AFF),
@@ -697,7 +751,7 @@ class _TodayProgressSection extends StatelessWidget {
               _ProgressCard(
                 exactWidth: exactCardWidth,
                 title: 'Sleep\nDuration',
-                value: userData['sleep']?.toString() ?? '0',
+                value: sleep,
                 unit: 'Hours',
                 icon: Icons.nightlight_outlined,
                 iconColor: const Color(0xFFAF52DE),
@@ -705,7 +759,7 @@ class _TodayProgressSection extends StatelessWidget {
               _ProgressCard(
                 exactWidth: exactCardWidth,
                 title: 'Daily\nSteps',
-                value: userData['steps']?.toString() ?? '0',
+                value: steps,
                 unit: 'Steps',
                 icon: Icons.directions_walk_outlined,
                 iconColor: const Color(0xFF34C759),
@@ -873,6 +927,7 @@ class _RecentChatsSection extends StatelessWidget {
               }
               return ListView.builder(
                 scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 itemCount: chatSnapshot.data!.docs.length,
                 itemBuilder: (context, index) {
@@ -1064,10 +1119,12 @@ class _ChatCard extends StatelessWidget {
 class _FloatingNavBar extends StatelessWidget {
   final ValueNotifier<int> selectedIndexNotifier;
   final VoidCallback onBookingTap;
+  final bool isNavigating;
 
   const _FloatingNavBar({
     required this.selectedIndexNotifier,
     required this.onBookingTap,
+    required this.isNavigating,
   });
 
   @override
@@ -1105,7 +1162,7 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'Booking',
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 1) {
+                  if (selectedIndex != 1 && !isNavigating) {
                     onBookingTap();
                   }
                 },
@@ -1115,9 +1172,12 @@ class _FloatingNavBar extends StatelessWidget {
                 icon: Icons.bar_chart_rounded,
                 label: 'Stats',
                 selectedIndex: selectedIndex,
-                onTap: () {
+                onTap: () async {
+                  if (isNavigating) return;
                   selectedIndexNotifier.value = 2;
-                  Navigator.push(
+
+                  // LAG FIX: Push Replacement stops infinite stacking leaks
+                  await Navigator.pushReplacement(
                     context,
                     PageRouteBuilder(
                       pageBuilder: (context, a, b) => const ProgressScreen(),
@@ -1125,9 +1185,7 @@ class _FloatingNavBar extends StatelessWidget {
                           FadeTransition(opacity: a, child: child),
                       transitionDuration: const Duration(milliseconds: 150),
                     ),
-                  ).then((_) {
-                    selectedIndexNotifier.value = 0;
-                  });
+                  );
                 },
               ),
               _NavItem(
@@ -1172,7 +1230,7 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
         padding: isSelected
             ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
