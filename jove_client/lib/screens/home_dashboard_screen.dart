@@ -17,8 +17,6 @@ class HomeDashboardScreen extends StatefulWidget {
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
-
-  // Use ValueNotifier for Navigation
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(0);
 
   late Stream<DocumentSnapshot> _userStream;
@@ -54,15 +52,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Future<void> _handleBookingNavigation([
     Map<String, dynamic>? userData,
   ]) async {
-    // 1. Visually switch to the Booking tab for a smooth feel
     _selectedIndexNotifier.value = 1;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) =>
-          const Center(child: CircularProgressIndicator(color: Colors.black)),
-    );
 
     try {
       if (userData == null) {
@@ -78,9 +68,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
       if (trainerId == null || trainerId.isEmpty) {
         if (!mounted) return;
-        Navigator.pop(context); // Close loading dialog
-
-        // FIXED: Reverted back to SelectTrainerScreen()
         await Navigator.push(
           context,
           PageRouteBuilder(
@@ -90,23 +77,34 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             transitionDuration: const Duration(milliseconds: 150),
           ),
         );
-        // Reset back to Home when we return
         if (mounted) _selectedIndexNotifier.value = 0;
         return;
       }
 
-      var trainerDoc = await FirebaseFirestore.instance
-          .collection('trainers')
-          .doc(trainerId)
-          .get();
+      DocumentSnapshot trainerDoc;
+      try {
+        trainerDoc = await FirebaseFirestore.instance
+            .collection('trainers')
+            .doc(trainerId)
+            .get(const GetOptions(source: Source.cache));
+
+        if (!trainerDoc.exists) {
+          trainerDoc = await FirebaseFirestore.instance
+              .collection('trainers')
+              .doc(trainerId)
+              .get();
+        }
+      } catch (_) {
+        trainerDoc = await FirebaseFirestore.instance
+            .collection('trainers')
+            .doc(trainerId)
+            .get();
+      }
 
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
 
       if (trainerDoc.exists) {
         Trainer assignedTrainer = Trainer.fromFirestore(trainerDoc);
-
-        // AWAIT the navigation, push with smooth fade
         await Navigator.push(
           context,
           PageRouteBuilder(
@@ -120,7 +118,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           ),
         );
       } else {
-        // FIXED: Reverted back to SelectTrainerScreen()
         await Navigator.push(
           context,
           PageRouteBuilder(
@@ -132,17 +129,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         );
       }
 
-      // 2. WE CAME BACK! Reset the Nav Bar to 'Home' (0)
       if (mounted) {
         _selectedIndexNotifier.value = 0;
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Error loading data.')));
-      _selectedIndexNotifier.value = 0; // Reset on error
+      _selectedIndexNotifier.value = 0;
     }
   }
 
@@ -182,7 +177,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error processing session date/time.')),
+        const SnackBar(
+          content: Text(
+            'Error processing session date/time. Please contact support.',
+          ),
+        ),
       );
     }
   }
@@ -191,64 +190,54 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
-      body: Stack(
-        children: [
-          StreamBuilder<DocumentSnapshot>(
-            stream: _userStream,
-            builder: (context, userSnapshot) {
-              if (!userSnapshot.hasData) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.black),
-                );
-              }
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: _userStream,
+        builder: (context, userSnapshot) {
+          if (!userSnapshot.hasData) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.black),
+            );
+          }
 
-              var userData =
-                  userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
+          var userData =
+              userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
 
-              return SingleChildScrollView(
+          return Stack(
+            children: [
+              SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 120),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _HeaderSection(userData: userData),
-
                     _UpcomingSessionSection(
                       bookingStream: _bookingStream,
                       onReschedule: _handleRescheduleClick,
                     ),
-
                     _QuickActionsSection(
                       userData: userData,
                       onBookingTap: () => _handleBookingNavigation(userData),
                     ),
-
                     _TodayProgressSection(userData: userData),
-
                     _RecentChatsSection(chatStream: _chatStream),
-
                     const SizedBox(height: 20),
                   ],
                 ),
-              );
-            },
-          ),
-
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: _FloatingNavBar(
-              selectedIndexNotifier: _selectedIndexNotifier,
-              onBookingTap: () => _handleBookingNavigation(),
-            ),
-          ),
-        ],
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: _FloatingNavBar(
+                  selectedIndexNotifier: _selectedIndexNotifier,
+                  onBookingTap: () => _handleBookingNavigation(userData),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
-
-/* ====================================================================================
-   EXTRACTED WIDGETS
-==================================================================================== */
 
 class _HeaderSection extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -343,14 +332,21 @@ class _UpcomingSessionSection extends StatelessWidget {
 
           if (bookingSnapshot.hasData &&
               bookingSnapshot.data!.docs.isNotEmpty) {
-            String todayFormatted = DateFormat(
-              'yyyy-MM-dd',
-            ).format(DateTime.now());
+            DateTime now = DateTime.now();
+            String todayFormatted = DateFormat('yyyy-MM-dd').format(now);
 
             var futureBookings = bookingSnapshot.data!.docs.where((doc) {
               var data = doc.data() as Map<String, dynamic>;
-              return (data['date'] ?? '').compareTo(todayFormatted) >= 0 &&
-                  data['status'] != 'cancelled';
+              if (data['status'] == 'cancelled') return false;
+
+              try {
+                DateTime sessionDateTime = DateFormat(
+                  'yyyy-MM-dd h:mm a',
+                ).parse('${data['date']} ${data['time']}');
+                return sessionDateTime.isAfter(now);
+              } catch (e) {
+                return (data['date'] ?? '').compareTo(todayFormatted) >= 0;
+              }
             }).toList();
 
             if (futureBookings.isNotEmpty) {
@@ -1109,7 +1105,6 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'Booking',
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  // Only trigger if we aren't already going there
                   if (selectedIndex != 1) {
                     onBookingTap();
                   }
@@ -1131,7 +1126,6 @@ class _FloatingNavBar extends StatelessWidget {
                       transitionDuration: const Duration(milliseconds: 150),
                     ),
                   ).then((_) {
-                    // Reset Nav Bar when returning to Home
                     selectedIndexNotifier.value = 0;
                   });
                 },

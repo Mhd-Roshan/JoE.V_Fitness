@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // Used for formatting numbers (e.g., 4,230)
+import 'package:intl/intl.dart';
 
-// --- APP SCREENS ---
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
-import 'trainer_selection_screen.dart'; // Needed to pass the Trainer data
+import 'trainer_selection_screen.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -16,32 +16,33 @@ class ProgressScreen extends StatefulWidget {
 }
 
 class _ProgressScreenState extends State<ProgressScreen> {
-  // Theme Colors (Matching your app)
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _activeBlue = Color(0xFF003AA3);
   static const Color _limeGreen = Color(0xFFD4FF4E);
 
-  // Bottom Nav Notifier (Defaults to 2 for "Stats")
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(2);
 
-  // Toggle for chart (Weekly / Monthly)
   String _selectedTimeframe = 'Weekly';
-  final List<String> _timeframes = ['Weekly', 'Monthly', 'Yearly'];
+  final List<String> _timeframes = const ['Weekly', 'Monthly', 'Yearly'];
 
-  // Firebase streams
   final User? currentUser = FirebaseAuth.instance.currentUser;
   late Stream<DocumentSnapshot> _userStream;
+
+  // Caching today's date so it isn't recalculated on every single frame
+  late final String _todayDate;
 
   @override
   void initState() {
     super.initState();
-    // Initialize stream to listen to current user's document
+    _todayDate = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
     final String uid = currentUser?.uid ?? '';
+    // includeMetadataChanges ensures immediate cache emission, reducing transition lag
     _userStream = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .snapshots();
+        .snapshots(includeMetadataChanges: true);
   }
 
   @override
@@ -50,61 +51,206 @@ class _ProgressScreenState extends State<ProgressScreen> {
     super.dispose();
   }
 
-  // Safely parses weekly activity from Firebase. If null or missing, returns 0s.
-  List<Map<String, dynamic>> _parseWeeklyActivity(dynamic dbData) {
-    List<Map<String, dynamic>> defaultData = [
-      {'day': 'Mon', 'value': 0.0},
-      {'day': 'Tue', 'value': 0.0},
-      {'day': 'Wed', 'value': 0.0},
-      {'day': 'Thu', 'value': 0.0},
-      {'day': 'Fri', 'value': 0.0},
-      {'day': 'Sat', 'value': 0.0},
-      {'day': 'Sun', 'value': 0.0},
-    ];
+  List<Map<String, dynamic>> _parseActivityData(
+    dynamic dbData,
+    List<String> labels,
+  ) {
+    List<Map<String, dynamic>> defaultData = labels
+        .map((label) => {'label': label, 'value': 0.0})
+        .toList();
 
     if (dbData != null && dbData is Map) {
       return defaultData.map((e) {
-        String day = e['day'];
-        // Safely parse any number type (int or double) from Firestore
+        String label = e['label'];
         double val = 0.0;
-        if (dbData[day] != null) {
-          val = num.parse(dbData[day].toString()).toDouble();
+        if (dbData[label] != null) {
+          val = num.parse(dbData[label].toString()).toDouble();
         }
-        return {
-          'day': day,
-          'value': val > 1.0 ? 1.0 : val, // Cap at 1.0 (100% height) for UI
-        };
+        return {'label': label, 'value': val > 1.0 ? 1.0 : val};
       }).toList();
     }
 
     return defaultData;
   }
 
-  // --- BOOKING NAVIGATION LOGIC ---
-  Future<void> _navigateToBooking() async {
-    _selectedIndexNotifier.value = 1; // Visually switch to Booking tab
+  List<Map<String, dynamic>> _getChartData(Map<String, dynamic> userData) {
+    if (_selectedTimeframe == 'Monthly') {
+      return _parseActivityData(userData['monthlyActivity'], const [
+        'W1',
+        'W2',
+        'W3',
+        'W4',
+      ]);
+    } else if (_selectedTimeframe == 'Yearly') {
+      return _parseActivityData(userData['yearlyActivity'], const [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ]);
+    } else {
+      return _parseActivityData(userData['weeklyActivity'], const [
+        'Mon',
+        'Tue',
+        'Wed',
+        'Thu',
+        'Fri',
+        'Sat',
+        'Sun',
+      ]);
+    }
+  }
 
-    showDialog(
+  Future<void> _showGoalDialog(int initialAmount) async {
+    TextEditingController controller = TextEditingController(text: "2.0");
+
+    await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) =>
-          const Center(child: CircularProgressIndicator(color: Colors.black)),
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text(
+            'Set Hydration Goal',
+            style: TextStyle(fontWeight: FontWeight.w800, color: _textMain),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'How many Liters of water do you want to drink daily?',
+                style: TextStyle(color: Colors.black87),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  suffixText: 'L',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF00B4D8),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00B4D8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              onPressed: () async {
+                double parsedGoal = double.tryParse(controller.text) ?? 2.0;
+                int newGoalMl = (parsedGoal * 1000).toInt();
+
+                final uid = currentUser?.uid;
+                if (uid != null) {
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(uid)
+                      .set({
+                        'hydrationGoal': newGoalMl,
+                      }, SetOptions(merge: true));
+                }
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  _changeWater(0, initialAmount, newGoalMl);
+                }
+              },
+              child: const Text(
+                'Save Goal',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  Future<void> _changeWater(int currentWater, int amount, int goal) async {
+    if (goal == 0) {
+      _showGoalDialog(amount);
+      return;
+    }
+
+    final uid = currentUser?.uid;
+    if (uid != null) {
+      int newWaterLevel = currentWater + amount;
+      if (newWaterLevel < 0) newWaterLevel = 0;
+
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'dailyHydration': {_todayDate: newWaterLevel},
+        }, SetOptions(merge: true));
+        HapticFeedback.lightImpact();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update hydration.')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _updateWeight(double newWeight) async {
+    final uid = currentUser?.uid;
+    if (uid != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'weight': newWeight,
+          'dailyWeight': {_todayDate: newWeight},
+        }, SetOptions(merge: true));
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update weight.')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _navigateToBooking(Map<String, dynamic> userData) async {
+    _selectedIndexNotifier.value = 1;
 
     try {
-      final uid = currentUser?.uid ?? '';
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final userData = doc.data() ?? {};
-
       String? trainerId = userData['assignedTrainerId'];
 
       if (trainerId == null || trainerId.isEmpty) {
         if (!mounted) return;
-        Navigator.pop(context); // Close loading dialog
-
         await Navigator.push(
           context,
           PageRouteBuilder(
@@ -114,18 +260,22 @@ class _ProgressScreenState extends State<ProgressScreen> {
             transitionDuration: const Duration(milliseconds: 150),
           ),
         );
-        // Reset nav bar when returning
         if (mounted) _selectedIndexNotifier.value = 2;
         return;
       }
 
-      var trainerDoc = await FirebaseFirestore.instance
+      DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
           .collection('trainers')
           .doc(trainerId)
-          .get();
+          .get(const GetOptions(source: Source.cache))
+          .catchError(
+            (_) => FirebaseFirestore.instance
+                .collection('trainers')
+                .doc(trainerId)
+                .get(),
+          );
 
       if (!mounted) return;
-      Navigator.pop(context); // Close loading dialog
 
       if (trainerDoc.exists) {
         Trainer assignedTrainer = Trainer.fromFirestore(trainerDoc);
@@ -153,16 +303,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
       }
 
       if (mounted) {
-        _selectedIndexNotifier.value =
-            2; // Reset nav back to Stats when returning
+        _selectedIndexNotifier.value = 2;
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Error loading booking data.')),
       );
-      _selectedIndexNotifier.value = 2; // Reset on error
+      _selectedIndexNotifier.value = 2;
     }
   }
 
@@ -170,440 +318,147 @@ class _ProgressScreenState extends State<ProgressScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bgColor,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: StreamBuilder<DocumentSnapshot>(
-              stream: _userStream,
-              builder: (context, snapshot) {
-                // Handle Loading state
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Colors.black),
-                  );
-                }
+      body: StreamBuilder<DocumentSnapshot>(
+        stream: _userStream,
+        builder: (context, snapshot) {
+          // If completely empty (no cache, no network), show minimal skeleton to prevent layout jumps
+          if (!snapshot.hasData &&
+              snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.black),
+            );
+          }
 
-                // Handle Error state
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Text('Error loading progress data.'),
-                  );
-                }
+          var userData = snapshot.data?.data() as Map<String, dynamic>? ?? {};
 
-                // Extract real Firebase data safely
-                var userData =
-                    snapshot.data?.data() as Map<String, dynamic>? ?? {};
+          Map<String, dynamic> dailyHydrationMap =
+              userData['dailyHydration'] != null
+              ? Map<String, dynamic>.from(userData['dailyHydration'])
+              : {};
+          int currentWater = dailyHydrationMap[_todayDate] ?? 0;
+          int waterGoal = userData['hydrationGoal'] ?? 0;
 
-                // Parse Firebase values with fallbacks if they don't exist yet
-                int calories = userData['calories'] ?? 0;
-                int sessions =
-                    userData['sessionsCompleted'] ?? userData['sessions'] ?? 0;
-                int streak = userData['streak'] ?? 0;
+          Map<String, dynamic> dailyWeightMap = userData['dailyWeight'] != null
+              ? Map<String, dynamic>.from(userData['dailyWeight'])
+              : {};
+          double currentWeight = 70.0;
+          if (dailyWeightMap[_todayDate] != null) {
+            currentWeight = num.parse(
+              dailyWeightMap[_todayDate].toString(),
+            ).toDouble();
+          } else if (userData['weight'] != null) {
+            currentWeight = num.parse(userData['weight'].toString()).toDouble();
+          }
 
-                // Safely parse timeHours (Firestore might return int or double)
-                double timeHours = 0.0;
-                if (userData['workoutHours'] != null) {
-                  timeHours = num.parse(
-                    userData['workoutHours'].toString(),
-                  ).toDouble();
-                } else if (userData['time'] != null) {
-                  timeHours = num.parse(userData['time'].toString()).toDouble();
-                }
+          List<Map<String, dynamic>> chartData = _getChartData(userData);
 
-                // Format calories with commas (e.g., 4230 -> 4,230)
-                String formattedCalories = NumberFormat(
-                  '#,##0',
-                ).format(calories);
-
-                // Get Graph Data
-                List<Map<String, dynamic>> weeklyData = _parseWeeklyActivity(
-                  userData['weeklyActivity'],
-                );
-
-                return SingleChildScrollView(
+          return Stack(
+            children: [
+              SafeArea(
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 120),
                   physics: const BouncingScrollPhysics(),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // --- TOP APP BAR ---
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 20,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Overview',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                Text(
-                                  'Your Progress',
-                                  style: TextStyle(
-                                    color: _textMain,
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: IconButton(
-                                icon: const Icon(
-                                  Icons.share_outlined,
-                                  color: _textMain,
-                                ),
-                                onPressed: () {},
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      _buildTopAppBar(),
+                      const SizedBox(height: 10),
 
-                      // --- TIMEFRAME SELECTOR (Pill Shaped) ---
-                      SizedBox(
-                        height: 50,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          itemCount: _timeframes.length,
-                          itemBuilder: (context, index) {
-                            bool isSelected =
-                                _selectedTimeframe == _timeframes[index];
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedTimeframe = _timeframes[index];
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 250),
-                                margin: const EdgeInsets.only(right: 12),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                ),
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? _activeBlue
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(25),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.transparent
-                                        : Colors.grey.shade300,
-                                  ),
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: _activeBlue.withValues(
-                                              alpha: 0.3,
-                                            ),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ]
-                                      : [],
-                                ),
-                                child: Text(
-                                  _timeframes[index],
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : _textMain,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-
-                      // --- BAR CHART SECTION ---
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 24),
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  'Activity Level',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800,
-                                    color: _textMain,
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _limeGreen.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Text(
-                                    '+14%',
-                                    style: TextStyle(
-                                      color: Colors.black87,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Custom Bar Chart mapped to Firebase data
-                            SizedBox(
-                              height: 150,
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: weeklyData.map((data) {
-                                  // Highlight today automatically
-                                  String currentDayString = DateFormat(
-                                    'E',
-                                  ).format(DateTime.now());
-                                  bool isToday =
-                                      data['day'] == currentDayString;
-
-                                  return Column(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      AnimatedContainer(
-                                        duration: const Duration(
-                                          milliseconds: 500,
-                                        ),
-                                        curve: Curves.easeOutQuart,
-                                        width: 12,
-                                        height: 110 * (data['value'] as double),
-                                        decoration: BoxDecoration(
-                                          color: isToday
-                                              ? _activeBlue
-                                              : Colors.grey.shade200,
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        data['day'],
-                                        style: TextStyle(
-                                          color: isToday
-                                              ? _activeBlue
-                                              : Colors.grey.shade400,
-                                          fontWeight: isToday
-                                              ? FontWeight.bold
-                                              : FontWeight.w600,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      // --- ACTIVITY LEVEL SECTION ---
+                      _buildActivityLevelChart(chartData),
                       const SizedBox(height: 24),
 
-                      // --- STAT CARDS GRID (Real Firebase Data) ---
+                      // --- HYDRATION & WEIGHT ROW ---
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Row(
                           children: [
+                            // Hydration Card
                             Expanded(
-                              child: _buildStatCard(
-                                title: 'Calories',
-                                value: formattedCalories,
-                                subtitle: 'kcal',
-                                icon: Icons.local_fire_department_rounded,
-                                color: Colors.orange,
+                              child: _buildHydrationCard(
+                                currentWater,
+                                waterGoal,
                               ),
                             ),
                             const SizedBox(width: 16),
+                            // Weight Card with Slider
                             Expanded(
-                              child: _buildStatCard(
-                                title: 'Sessions',
-                                value: sessions.toString(),
-                                subtitle: 'completed',
-                                icon: Icons.check_circle_outline_rounded,
-                                color: _activeBlue,
+                              child: _WeightCard(
+                                initialWeight: currentWeight,
+                                onWeightChanged: _updateWeight,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'Time',
-                                value: timeHours.toStringAsFixed(
-                                  1,
-                                ), // e.g. 14.5
-                                subtitle: 'hours',
-                                icon: Icons.access_time_rounded,
-                                color: Colors.purple,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildStatCard(
-                                title: 'Streak',
-                                value: streak.toString(),
-                                subtitle: 'days',
-                                icon: Icons.bolt_rounded,
-                                color: const Color.fromARGB(255, 204, 184, 0),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const SizedBox(height: 24), // Extra padding at bottom
                     ],
                   ),
-                );
-              },
-            ),
-          ),
-
-          // --- Custom Bottom Navigation Bar ---
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color.fromARGB(255, 0, 33, 95),
-                borderRadius: BorderRadius.circular(40),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
+                ),
               ),
-              child: ValueListenableBuilder<int>(
-                valueListenable: _selectedIndexNotifier,
-                builder: (context, selectedIndex, child) {
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Home Button
-                      _NavItem(
-                        index: 0,
-                        icon: Icons.home_filled,
-                        label: 'Home',
-                        selectedIndex: selectedIndex,
-                        onTap: () {
-                          // Navigates smoothly to Home using the imported screen
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            PageRouteBuilder(
-                              pageBuilder: (context, a, b) =>
-                                  const HomeDashboardScreen(),
-                              transitionsBuilder: (context, a, b, child) =>
-                                  FadeTransition(opacity: a, child: child),
-                              transitionDuration: const Duration(
-                                milliseconds: 150,
-                              ),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                      ),
 
-                      // Booking Button (UPDATED to load Booking Screen directly)
-                      _NavItem(
-                        index: 1,
-                        icon: Icons.calendar_today_rounded,
-                        label: 'Booking',
-                        selectedIndex: selectedIndex,
-                        onTap: _navigateToBooking,
-                      ),
+              // --- BOTTOM NAV BAR ---
+              _buildBottomNavBar(userData),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-                      // Stats Button (Current Page)
-                      _NavItem(
-                        index: 2,
-                        icon: Icons.bar_chart_rounded,
-                        label: 'Stats',
-                        selectedIndex: selectedIndex,
-                        onTap: () {}, // Do nothing, already here
+  Widget _buildTopAppBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: _textMain,
+                  size: 20,
+                ),
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  } else {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HomeDashboardScreen(),
                       ),
-
-                      // Chats Button
-                      _NavItem(
-                        index: 3,
-                        icon: Icons.chat_bubble_outline_rounded,
-                        label: 'Chats',
-                        selectedIndex: selectedIndex,
-                        onTap: () {
-                          _selectedIndexNotifier.value = 3;
-                        },
-                      ),
-                      // Profile Button
-                      _NavItem(
-                        index: 4,
-                        icon: Icons.person_outline_rounded,
-                        label: 'Profile',
-                        selectedIndex: selectedIndex,
-                        onTap: () {
-                          _selectedIndexNotifier.value = 4;
-                        },
-                      ),
-                    ],
-                  );
+                    );
+                  }
                 },
               ),
+              const SizedBox(width: 8),
+              const Text(
+                'Progress',
+                style: TextStyle(
+                  color: _textMain,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: _textMain,
+                size: 24,
+              ),
+              onPressed: () {},
             ),
           ),
         ],
@@ -611,76 +466,621 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
-  // Helper Widget for Stat Cards
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-  }) {
+  Widget _buildActivityLevelChart(List<Map<String, dynamic>> chartData) {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.grey.shade300, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: _timeframes.map((tf) {
+                bool isSelected = _selectedTimeframe == tf;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedTimeframe = tf;
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.05),
+                                  blurRadius: 5,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : [],
+                      ),
+                      child: Text(
+                        tf,
+                        style: TextStyle(
+                          color: isSelected ? _textMain : Colors.grey.shade600,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 24),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+              const Text(
+                'Activity Level',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: _textMain,
                 ),
-                child: Icon(icon, color: color, size: 20),
               ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: _limeGreen.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  '+14%',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: const TextStyle(
-              color: _textMain,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontWeight: FontWeight.w500,
-              fontSize: 12,
+          const SizedBox(height: 32),
+          SizedBox(
+            height: 140,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: chartData.map((data) {
+                double barWidth = chartData.length > 7 ? 12.0 : 20.0;
+                bool isToday =
+                    data['label'] == DateFormat('E').format(DateTime.now());
+
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        Container(
+                          width: barWidth,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeOutQuart,
+                          width: barWidth,
+                          height: 100 * (data['value'] as double),
+                          decoration: BoxDecoration(
+                            color: isToday
+                                ? _activeBlue
+                                : _activeBlue.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      data['label'],
+                      style: TextStyle(
+                        color: isToday ? _activeBlue : Colors.grey.shade500,
+                        fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
+                        fontSize: chartData.length > 7 ? 10 : 12,
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
             ),
           ),
         ],
       ),
     );
   }
+
+  // UPDATED Hydration Card - Taller & Smoother
+  Widget _buildHydrationCard(int currentWater, int goal) {
+    const Color waterColor = Color(0xFF00B4D8);
+    double fillPercentage = goal > 0
+        ? (currentWater / goal).clamp(0.0, 1.0)
+        : 0.0;
+    bool isWaterHigh = fillPercentage > 0.55;
+
+    String formattedLiters = (currentWater / 1000).toString().replaceAll(
+      RegExp(r'\.0$'),
+      '',
+    );
+
+    return Container(
+      height: 175, // Increased Height
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 800),
+                  curve: Curves.easeInOutCubic,
+                  height: constraints.maxHeight * fillPercentage,
+                  width: double.infinity,
+                  color: waterColor,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Stack(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 400),
+                          style: TextStyle(
+                            color: isWaterHigh ? Colors.white : _textMain,
+                            fontSize:
+                                14, // Slightly larger font to fit taller card
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                          child: const Text('Hydration'),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 400),
+                              style: TextStyle(
+                                color: isWaterHigh
+                                    ? Colors.white70
+                                    : Colors.grey.shade500,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              child: const Text('Current'),
+                            ),
+                            AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 400),
+                              style: TextStyle(
+                                color: isWaterHigh ? Colors.white : _textMain,
+                                fontSize: 18, // Slightly larger
+                                fontWeight: FontWeight.w800,
+                              ),
+                              child: Text('${formattedLiters}L'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: GestureDetector(
+                        onTap: () => _changeWater(currentWater, 250, goal),
+                        onLongPress: () =>
+                            _changeWater(currentWater, -250, goal),
+                        child: Container(
+                          width: 48, // Slightly larger button
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.add_rounded,
+                            color: waterColor,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBottomNavBar(Map<String, dynamic> userData) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color.fromARGB(255, 0, 33, 95),
+          borderRadius: BorderRadius.circular(40),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ValueListenableBuilder<int>(
+          valueListenable: _selectedIndexNotifier,
+          builder: (context, selectedIndex, child) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _NavItem(
+                  index: 0,
+                  icon: Icons.home_filled,
+                  label: 'Home',
+                  selectedIndex: selectedIndex,
+                  onTap: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const HomeDashboardScreen(),
+                        transitionsBuilder: (context, a, b, child) =>
+                            FadeTransition(opacity: a, child: child),
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                ),
+                _NavItem(
+                  index: 1,
+                  icon: Icons.calendar_today_rounded,
+                  label: 'Booking',
+                  selectedIndex: selectedIndex,
+                  onTap: () => _navigateToBooking(userData),
+                ),
+                _NavItem(
+                  index: 2,
+                  icon: Icons.bar_chart_rounded,
+                  label: 'Stats',
+                  selectedIndex: selectedIndex,
+                  onTap: () {},
+                ),
+                _NavItem(
+                  index: 3,
+                  icon: Icons.chat_bubble_outline_rounded,
+                  label: 'Chats',
+                  selectedIndex: selectedIndex,
+                  onTap: () => _selectedIndexNotifier.value = 3,
+                ),
+                _NavItem(
+                  index: 4,
+                  icon: Icons.person_outline_rounded,
+                  label: 'Profile',
+                  selectedIndex: selectedIndex,
+                  onTap: () => _selectedIndexNotifier.value = 4,
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
-// Nav Item specific to this file to prevent import conflicts
+// ---------------------------------------------------------
+// CUSTOM WEIGHT CARD WITH SCROLLING RULER - Taller
+// ---------------------------------------------------------
+class _WeightCard extends StatefulWidget {
+  final double initialWeight;
+  final ValueChanged<double> onWeightChanged;
+
+  const _WeightCard({
+    required this.initialWeight,
+    required this.onWeightChanged,
+  });
+
+  @override
+  State<_WeightCard> createState() => _WeightCardState();
+}
+
+class _WeightCardState extends State<_WeightCard> {
+  late ScrollController _scrollController;
+  late double _currentWeight;
+
+  final double _minWeight = 20.0;
+  final double _maxWeight = 250.0;
+  final double _pixelsPerTick = 8.0;
+
+  double get _pixelsPerKg => _pixelsPerTick * 10.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentWeight = widget.initialWeight.clamp(_minWeight, _maxWeight);
+
+    double initialOffset = (_currentWeight - _minWeight) * _pixelsPerKg;
+    _scrollController = ScrollController(initialScrollOffset: initialOffset);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  // Handle external updates so it stays in sync smoothly
+  @override
+  void didUpdateWidget(covariant _WeightCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialWeight != oldWidget.initialWeight &&
+        (widget.initialWeight - _currentWeight).abs() > 0.1) {
+      _currentWeight = widget.initialWeight.clamp(_minWeight, _maxWeight);
+      double offset = (_currentWeight - _minWeight) * _pixelsPerKg;
+      // Animate smoothly to new position if updated externally
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 175, // Increased Height
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.grey.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final halfWidth = constraints.maxWidth / 2;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Top Title and Current Value
+              Padding(
+                padding: const EdgeInsets.only(top: 16, left: 16, right: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Weight',
+                      style: TextStyle(
+                        color: Color(0xFF1A1A1A),
+                        fontSize: 14, // Larger font
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Current',
+                          style: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              _currentWeight.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: Color(0xFF1A1A1A),
+                                fontSize: 18, // Larger font
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              'kg',
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const Spacer(),
+
+              // Ruler Section
+              SizedBox(
+                height: 70, // Slightly taller ruler area
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    NotificationListener<ScrollNotification>(
+                      onNotification: (notification) {
+                        if (notification is ScrollUpdateNotification) {
+                          double offset = _scrollController.offset;
+                          double calculatedWeight =
+                              _minWeight + (offset / _pixelsPerKg);
+                          double newWeight = calculatedWeight.clamp(
+                            _minWeight,
+                            _maxWeight,
+                          );
+                          newWeight = double.parse(
+                            newWeight.toStringAsFixed(1),
+                          );
+
+                          // Optimization: Only rebuild if the rounded weight actually changed
+                          if (newWeight != _currentWeight) {
+                            setState(() {
+                              _currentWeight = newWeight;
+                            });
+                          }
+                        } else if (notification is ScrollEndNotification) {
+                          widget.onWeightChanged(_currentWeight);
+                          HapticFeedback.selectionClick();
+                        }
+                        return true;
+                      },
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: ((_maxWeight - _minWeight) * 10).toInt() + 1,
+                        padding: EdgeInsets.symmetric(horizontal: halfWidth),
+                        itemBuilder: (context, index) {
+                          bool isMajorTick = index % 10 == 0;
+
+                          return SizedBox(
+                            width: _pixelsPerTick,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                if (isMajorTick)
+                                  Text(
+                                    '${(_minWeight + (index ~/ 10)).toInt()}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                if (isMajorTick) const SizedBox(height: 4),
+                                Container(
+                                  width: 2,
+                                  height: isMajorTick ? 24 : 14, // Taller ticks
+                                  decoration: BoxDecoration(
+                                    color: isMajorTick
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(1),
+                                  ),
+                                ),
+                                const SizedBox(
+                                  height: 10,
+                                ), // Padding from bottom
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    // Orange Center Pointer Indicator
+                    Positioned(
+                      bottom: 10, // Aligns with the ticks
+                      child: Container(
+                        width: 4,
+                        height: 32, // Taller pointer
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade500,
+                          borderRadius: BorderRadius.circular(2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.orange.withValues(alpha: 0.4),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------
+// NAV ITEM WIDGET
+// ---------------------------------------------------------
 class _NavItem extends StatelessWidget {
   final int index, selectedIndex;
   final IconData icon;
@@ -701,7 +1101,7 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 200), // Sped up animation
         curve: Curves.easeInOut,
         padding: isSelected
             ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)

@@ -1,11 +1,12 @@
-import 'dart:ui'; // Needed for ImageFilter.blur (frosted glass)
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import 'trainer_selection_screen.dart'; // Ensure this points to where your Trainer class is
+import 'trainer_selection_screen.dart';
 import 'progress_screen.dart';
+import 'home_dashboard_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Trainer trainer;
@@ -21,7 +22,6 @@ class _BookingScreenState extends State<BookingScreen> {
   String? _selectedSession;
   TimeOfDay? _selectedTime;
 
-  final bool _showAllSessions = false;
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(1);
 
   bool _isChecking = false;
@@ -31,6 +31,10 @@ class _BookingScreenState extends State<BookingScreen> {
 
   // CACHED DATES FOR PERFORMANCE
   late List<DateTime> _cachedVisibleDates;
+
+  // NEW: Scroll Controller for Auto-Rotating Sessions
+  final ScrollController _sessionsScrollController = ScrollController();
+  bool _userInteractedWithSessions = false;
 
   // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
@@ -44,7 +48,6 @@ class _BookingScreenState extends State<BookingScreen> {
     super.initState();
     _selectedDate = DateTime.now();
 
-    // Generate dates once to optimize speed and smoothness
     _cachedVisibleDates = List.generate(
       15,
       (index) => _selectedDate!.add(Duration(days: index - 2)),
@@ -52,18 +55,72 @@ class _BookingScreenState extends State<BookingScreen> {
 
     _loadTrainerSpecializations();
     _selectedTime = const TimeOfDay(hour: 8, minute: 30);
+
+    _startSessionAutoScroll();
   }
 
   @override
   void dispose() {
     _selectedIndexNotifier.dispose();
+    _sessionsScrollController.dispose();
     super.dispose();
   }
 
+  void _startSessionAutoScroll() {
+    Future.delayed(const Duration(seconds: 1), _scrollSessionsForward);
+  }
+
+  void _scrollSessionsForward() {
+    if (!mounted ||
+        !_sessionsScrollController.hasClients ||
+        _userInteractedWithSessions) {
+      return;
+    }
+
+    final maxScroll = _sessionsScrollController.position.maxScrollExtent;
+    if (maxScroll > 0) {
+      _sessionsScrollController
+          .animateTo(
+            maxScroll,
+            duration: const Duration(seconds: 4),
+            curve: Curves.easeInOut,
+          )
+          .then((_) {
+            if (mounted && !_userInteractedWithSessions) {
+              Future.delayed(
+                const Duration(seconds: 1),
+                _scrollSessionsBackward,
+              );
+            }
+          });
+    }
+  }
+
+  void _scrollSessionsBackward() {
+    if (!mounted ||
+        !_sessionsScrollController.hasClients ||
+        _userInteractedWithSessions) {
+      return;
+    }
+
+    _sessionsScrollController
+        .animateTo(
+          0,
+          duration: const Duration(seconds: 4),
+          curve: Curves.easeInOut,
+        )
+        .then((_) {
+          if (mounted && !_userInteractedWithSessions) {
+            Future.delayed(const Duration(seconds: 1), _scrollSessionsForward);
+          }
+        });
+  }
+
+  // FIX: Using h:mm a instead of hh:mm a so it matches Firestore formatting everywhere
   String _formatTimeStrict(TimeOfDay time) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-    return DateFormat('hh:mm a').format(dt);
+    return DateFormat('h:mm a').format(dt);
   }
 
   void _loadTrainerSpecializations() {
@@ -110,28 +167,73 @@ class _BookingScreenState extends State<BookingScreen> {
     if (picked != null) {
       setState(() {
         _selectedTime = picked;
-        _availabilityStatus = 'none'; // Reset status when time changes
+        _availabilityStatus = 'none';
       });
     }
   }
 
-  void _checkAvailability() {
+  // FIX: Real Firestore Validation implemented here
+  Future<void> _checkAvailability() async {
     if (_selectedTime == null || _selectedDate == null) return;
+
     setState(() {
       _isChecking = true;
+      _availabilityStatus = 'none';
     });
 
-    // Reduced delay for faster, snappier feel
-    Future.delayed(const Duration(milliseconds: 300), () {
+    try {
+      // 1. Check if the selected time is in the past
+      DateTime now = DateTime.now();
+      DateTime selectedDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      if (selectedDateTime.isBefore(now)) {
+        if (!mounted) return;
+        setState(() {
+          _isChecking = false;
+          _availabilityStatus = 'past';
+        });
+        return;
+      }
+
+      // 2. Format string exact match for Firestore
+      String dbDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      String dbTime = _formatTimeStrict(_selectedTime!);
+
+      // 3. Query Firestore to check if this trainer is already booked
+      var snapshot = await FirebaseFirestore.instance
+          .collection('bookings')
+          .where('trainerId', isEqualTo: widget.trainer.id)
+          .where('date', isEqualTo: dbDate)
+          .where('time', isEqualTo: dbTime)
+          .get();
+
+      // Check if any active bookings exist (not cancelled)
+      bool isTaken = snapshot.docs.any((doc) {
+        var data = doc.data();
+        return data['status'] != 'cancelled';
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _isChecking = false;
+        _availabilityStatus = isTaken ? 'taken' : 'available';
+      });
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _isChecking = false;
-        _availabilityStatus = 'available'; // Shows the proceed button
+        _availabilityStatus = 'error';
       });
-    });
+    }
   }
 
-  // --- SINGLE STATEFUL BOTTOM SHEET (Handles both Confirm & Success Views) ---
   void _showConfirmationBottomSheet() {
     String formattedDate = DateFormat('EEEE, MMM d').format(_selectedDate!);
     String formattedTime = _formatTimeStrict(_selectedTime!);
@@ -141,7 +243,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent, // Crucial for frosted glass to show
+      backgroundColor: Colors.transparent,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (BuildContext context) {
@@ -151,13 +253,11 @@ class _BookingScreenState extends State<BookingScreen> {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15), // Frosted blur
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(
-                    alpha: 0.9,
-                  ), // Semi-transparent white
+                  color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(36),
                   ),
@@ -173,7 +273,6 @@ class _BookingScreenState extends State<BookingScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Native-style Drag Handle
                       const SizedBox(height: 12),
                       Container(
                         width: 48,
@@ -184,10 +283,8 @@ class _BookingScreenState extends State<BookingScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
-
-                      // ANIMATED SWITCHER: Swaps Confirm UI for Success UI smoothly
                       AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
+                        duration: const Duration(milliseconds: 250),
                         transitionBuilder: (child, animation) {
                           return FadeTransition(
                             opacity: CurvedAnimation(
@@ -231,7 +328,6 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  // --- VIEW 1: CONFIRMATION UI ---
   Widget _buildConfirmView(
     BuildContext context,
     Map<String, dynamic> activeSessionData,
@@ -266,7 +362,7 @@ class _BookingScreenState extends State<BookingScreen> {
           const Text(
             'Confirm Session',
             style: TextStyle(
-              color: Colors.black, // Dark text on white bg
+              color: Colors.black,
               fontSize: 28,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.5,
@@ -295,7 +391,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     Text(
                       _selectedSession ?? '',
                       style: const TextStyle(
-                        color: Colors.black, // Dark text
+                        color: Colors.black,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
@@ -304,7 +400,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     Text(
                       activeSessionData['sub'],
                       style: TextStyle(
-                        color: Colors.grey.shade600, // Dark grey text
+                        color: Colors.grey.shade600,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -315,10 +411,9 @@ class _BookingScreenState extends State<BookingScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          Divider(color: Colors.grey.shade200, height: 1), // Light divider
+          Divider(color: Colors.grey.shade200, height: 1),
           const SizedBox(height: 24),
 
-          // Row for Date and Time
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -390,7 +485,6 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
           const SizedBox(height: 36),
 
-          // Proceed Button
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -398,7 +492,7 @@ class _BookingScreenState extends State<BookingScreen> {
               onPressed: isBooking
                   ? null
                   : () async {
-                      setBookingState(true); // Show loading spinner
+                      setBookingState(true);
                       try {
                         final user = FirebaseAuth.instance.currentUser;
                         if (user != null) {
@@ -420,8 +514,6 @@ class _BookingScreenState extends State<BookingScreen> {
                               });
                         }
                         if (!context.mounted) return;
-
-                        // Stop loading and transition to Success View
                         onSuccess();
                       } catch (e) {
                         if (!context.mounted) return;
@@ -434,7 +526,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       }
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: _redButtonColor, // #BB0013
+                backgroundColor: _redButtonColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
@@ -472,51 +564,40 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Edit Button (Blue Outline)
           SizedBox(
             width: double.infinity,
             height: 56,
             child: OutlinedButton.icon(
               onPressed: () => Navigator.pop(context),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(
-                  color: Colors.blue, // Blue border
-                  width: 1.5,
-                ),
+                side: const BorderSide(color: Colors.blue, width: 1.5),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
               ),
-              icon: const Icon(
-                Icons.edit,
-                color: Colors.blue, // Blue icon
-                size: 18,
-              ),
+              icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
               label: const Text(
                 'Edit session',
                 style: TextStyle(
-                  color: Colors.blue, // Blue text
+                  color: Colors.blue,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
           ),
-          // Safe area bottom padding
           SizedBox(height: 24 + MediaQuery.of(context).padding.bottom),
         ],
       ),
     );
   }
 
-  // --- VIEW 2: SUCCESS UI ---
   Widget _buildSuccessView(BuildContext context) {
     return Padding(
       key: const ValueKey('success_view'),
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
       child: Column(
         children: [
-          // Wavy Icon design layered perfectly
           Stack(
             alignment: Alignment.center,
             children: [
@@ -534,7 +615,6 @@ class _BookingScreenState extends State<BookingScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          // Main Title
           const Text(
             'Successful',
             style: TextStyle(
@@ -545,7 +625,6 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Subtitle
           Text(
             'Your session is successfully booked.',
             textAlign: TextAlign.center,
@@ -556,18 +635,24 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
           const SizedBox(height: 40),
-          // Done Button (Red Background)
           SizedBox(
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
               onPressed: () {
-                // INSTANT FAST ROUTING:
-                // Drops the bottom sheet and Booking screen, revealing Home instantly.
-                Navigator.popUntil(context, (route) => route.isFirst);
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, a, b) => const HomeDashboardScreen(),
+                    transitionsBuilder: (context, a, b, child) =>
+                        FadeTransition(opacity: a, child: child),
+                    transitionDuration: const Duration(milliseconds: 150),
+                  ),
+                  (route) => false,
+                );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: _redButtonColor, // Changed to #BB0013
+                backgroundColor: _redButtonColor,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(28),
                 ),
@@ -583,7 +668,6 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
             ),
           ),
-          // Safe area bottom padding
           SizedBox(height: MediaQuery.of(context).padding.bottom),
         ],
       ),
@@ -593,10 +677,7 @@ class _BookingScreenState extends State<BookingScreen> {
   @override
   Widget build(BuildContext context) {
     String monthYear = DateFormat('MMMM yyyy').format(_selectedDate!);
-
-    List<Map<String, dynamic>> displayedSessions = _showAllSessions
-        ? _trainerSessions
-        : _trainerSessions.take(3).toList();
+    List<Map<String, dynamic>> displayedSessions = _trainerSessions;
 
     return Scaffold(
       backgroundColor: _bgColor,
@@ -609,7 +690,6 @@ class _BookingScreenState extends State<BookingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // --- TOP APP BAR & TITLE WITH NOTIFICATION ICON ---
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -640,7 +720,6 @@ class _BookingScreenState extends State<BookingScreen> {
                             ),
                           ],
                         ),
-                        // Transparent Circular Notification Icon
                         Container(
                           margin: const EdgeInsets.only(right: 8),
                           decoration: BoxDecoration(
@@ -660,7 +739,6 @@ class _BookingScreenState extends State<BookingScreen> {
                     ),
                   ),
 
-                  // --- SCHEDULE & DATE HEADER ---
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Row(
@@ -689,7 +767,6 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // --- PILL SHAPED DATE SELECTOR ---
                   SizedBox(
                     height: 88,
                     width: double.infinity,
@@ -716,7 +793,7 @@ class _BookingScreenState extends State<BookingScreen> {
                               });
                             },
                             child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 250),
+                              duration: const Duration(milliseconds: 200),
                               curve: Curves.easeInOut,
                               margin: const EdgeInsets.only(right: 12),
                               width: 58,
@@ -796,7 +873,6 @@ class _BookingScreenState extends State<BookingScreen> {
 
                   const SizedBox(height: 44),
 
-                  // --- AVAILABLE SESSIONS ---
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
@@ -810,94 +886,102 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Optimized Horizontal List for Sessions (Pill Style)
                   SizedBox(
                     height: 52,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: displayedSessions.map((session) {
-                          bool isSelected = _selectedSession == session['name'];
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (ScrollNotification scrollInfo) {
+                        if (scrollInfo is UserScrollNotification) {
+                          _userInteractedWithSessions = true;
+                        }
+                        return false;
+                      },
+                      child: SingleChildScrollView(
+                        controller: _sessionsScrollController,
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          children: displayedSessions.map((session) {
+                            bool isSelected =
+                                _selectedSession == session['name'];
 
-                          return GestureDetector(
-                            onTap: () => setState(
-                              () => _selectedSession = session['name'],
-                            ),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 250),
-                              curve: Curves.easeInOut,
-                              margin: const EdgeInsets.only(right: 12),
-                              padding: const EdgeInsets.fromLTRB(6, 6, 20, 6),
-                              decoration: BoxDecoration(
-                                color: isSelected ? _limeGreen : Colors.white,
-                                borderRadius: BorderRadius.circular(30),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? Colors.transparent
-                                      : Colors.grey.shade300,
-                                  width: 1,
+                            return GestureDetector(
+                              onTap: () => setState(
+                                () => _selectedSession = session['name'],
+                              ),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeInOut,
+                                margin: const EdgeInsets.only(right: 12),
+                                padding: const EdgeInsets.fromLTRB(6, 6, 20, 6),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? _limeGreen : Colors.white,
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.transparent
+                                        : Colors.grey.shade300,
+                                    width: 1,
+                                  ),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: _limeGreen.withValues(
+                                              alpha: 0.4,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ]
+                                      : [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.02,
+                                            ),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                 ),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: _limeGreen.withValues(
-                                            alpha: 0.4,
-                                          ),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
-                                    : [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.02,
-                                          ),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Icon(
+                                        session['icon'],
+                                        color: Colors.black87,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      session['name'],
+                                      style: const TextStyle(
+                                        color: _textMain,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.grey.shade100,
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Icon(
-                                      session['icon'],
-                                      color: Colors.black87,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    session['name'],
-                                    style: const TextStyle(
-                                      color: _textMain,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 32),
 
-                  // --- SELECT TIME SECTION (In a Container Box) ---
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 24),
                     padding: const EdgeInsets.all(20),
@@ -970,7 +1054,7 @@ class _BookingScreenState extends State<BookingScreen> {
                                     ? null
                                     : _checkAvailability,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: _redButtonColor, // #BB0013
+                                  backgroundColor: _redButtonColor,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
@@ -998,7 +1082,7 @@ class _BookingScreenState extends State<BookingScreen> {
                           ],
                         ),
 
-                        // --- STATUS & PROCEED TO BOOK (Inside the time box) ---
+                        // --- FIX APPLIED HERE: SHOWS TAKEN, PAST, OR AVAILABLE STATUSES ---
                         if (_availabilityStatus == 'available') ...[
                           const SizedBox(height: 20),
                           Container(
@@ -1026,13 +1110,62 @@ class _BookingScreenState extends State<BookingScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
+                        ] else if (_availabilityStatus == 'taken') ...[
+                          const SizedBox(height: 20),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.cancel, color: Colors.red, size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Slot is already booked.',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else if (_availabilityStatus == 'past') ...[
+                          const SizedBox(height: 20),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.access_time_filled,
+                                  color: Colors.orange,
+                                  size: 18,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Cannot book a time in the past.',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
 
-                  // --- PROCEED BUTTON ---
                   if (_availabilityStatus == 'available') ...[
                     const SizedBox(height: 32),
                     Padding(
@@ -1043,7 +1176,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         child: ElevatedButton(
                           onPressed: _showConfirmationBottomSheet,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _redButtonColor, // #BB0013
+                            backgroundColor: _redButtonColor,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -1065,7 +1198,6 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
 
-          // Custom Bottom Navigation Bar
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -1088,33 +1220,40 @@ class _BookingScreenState extends State<BookingScreen> {
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Home Button
                       _NavItem(
                         index: 0,
                         icon: Icons.home_filled,
                         label: 'Home',
                         selectedIndex: selectedIndex,
                         onTap: () {
-                          // FASTEST WAY: Pop everything back to the root (Home)
-                          Navigator.popUntil(context, (route) => route.isFirst);
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (context, a, b) =>
+                                  const HomeDashboardScreen(),
+                              transitionsBuilder: (context, a, b, child) =>
+                                  FadeTransition(opacity: a, child: child),
+                              transitionDuration: const Duration(
+                                milliseconds: 150,
+                              ),
+                            ),
+                            (route) => false,
+                          );
                         },
                       ),
-                      // Booking Button
                       _NavItem(
                         index: 1,
                         icon: Icons.calendar_today_rounded,
                         label: 'Booking',
                         selectedIndex: selectedIndex,
-                        onTap: () {}, // Do nothing, already on Booking Screen
+                        onTap: () {},
                       ),
-                      // Stats Button
                       _NavItem(
                         index: 2,
                         icon: Icons.bar_chart_rounded,
                         label: 'Stats',
                         selectedIndex: selectedIndex,
                         onTap: () {
-                          // USE pushReplacement to prevent stacking and lag!
                           _selectedIndexNotifier.value = 2;
                           Navigator.pushReplacement(
                             context,
@@ -1125,19 +1264,17 @@ class _BookingScreenState extends State<BookingScreen> {
                                   FadeTransition(
                                     opacity: CurvedAnimation(
                                       parent: a,
-                                      curve:
-                                          Curves.easeOut, // MUCH smoother curve
+                                      curve: Curves.easeOut,
                                     ),
                                     child: child,
                                   ),
                               transitionDuration: const Duration(
                                 milliseconds: 200,
-                              ), // Smoother speed
+                              ),
                             ),
                           );
                         },
                       ),
-                      // Chats Button
                       _NavItem(
                         index: 3,
                         icon: Icons.chat_bubble_outline_rounded,
@@ -1147,7 +1284,6 @@ class _BookingScreenState extends State<BookingScreen> {
                           _selectedIndexNotifier.value = 3;
                         },
                       ),
-                      // Profile Button
                       _NavItem(
                         index: 4,
                         icon: Icons.person_outline_rounded,
@@ -1189,7 +1325,7 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         padding: isSelected
             ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
