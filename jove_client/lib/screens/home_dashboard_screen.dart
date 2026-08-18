@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Added for Haptic Feedback
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +8,8 @@ import 'booking_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'reschedule_screen.dart';
 import 'progress_screen.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart'; // <-- IMPORTED PROFILE SCREEN HERE
 
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key});
@@ -52,11 +55,42 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   }
 
   // --- OPTIMIZED NAVIGATION (FIXES LAG) ---
+
+  // 1. Standard Navigation for Progress, Chat, and Profile
+  Future<void> _handleStandardNavigation(Widget screen, int index) async {
+    if (_isNavigating) return;
+    HapticFeedback.selectionClick(); // <-- Added tactile feedback
+    setState(() => _isNavigating = true);
+    _selectedIndexNotifier.value = index;
+
+    // MAGIC ANTI-LAG TRICK: Yield the UI thread for 50ms so the tap animation
+    // and nav bar color change can render BEFORE building the heavy target screen.
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    if (!mounted) return;
+
+    await Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, a, b) => screen,
+        transitionsBuilder: (context, a, b, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 150),
+      ),
+    );
+
+    if (mounted) {
+      setState(() => _isNavigating = false);
+    }
+  }
+
+  // 2. Booking Navigation (Requires Firebase check)
   Future<void> _handleBookingNavigation([
     Map<String, dynamic>? userData,
   ]) async {
     if (_isNavigating) return;
-    _isNavigating = true;
+    HapticFeedback.selectionClick(); // <-- Added tactile feedback
+    setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = 1;
 
     // Instantly show visual feedback so UI doesn't freeze waiting for Firebase
@@ -69,7 +103,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       ),
     );
 
-    // Give UI thread 50ms to render the tap animation before doing heavy async work
     await Future.delayed(const Duration(milliseconds: 50));
 
     try {
@@ -134,7 +167,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     } finally {
       if (mounted) {
         _selectedIndexNotifier.value = 0; // Reset state silently
-        _isNavigating = false;
+        setState(() => _isNavigating = false);
       }
     }
   }
@@ -144,6 +177,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     Map<String, dynamic> bookingData,
   ) {
     try {
+      HapticFeedback.lightImpact();
       String dateStr = bookingData['date'] ?? '';
       String timeStr = bookingData['time'] ?? '';
 
@@ -204,8 +238,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             children: [
               SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 120),
-                physics:
-                    const BouncingScrollPhysics(), // Smoother scroll physics
+                physics: const BouncingScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -231,7 +264,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     ),
 
                     RepaintBoundary(
-                      child: _RecentChatsSection(chatStream: _chatStream),
+                      child: _RecentChatsSection(
+                        chatStream: _chatStream,
+                        onChatTap: () =>
+                            _handleStandardNavigation(const ChatScreen(), 3),
+                      ),
                     ),
                     const SizedBox(height: 20),
                   ],
@@ -242,6 +279,13 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 child: _FloatingNavBar(
                   selectedIndexNotifier: _selectedIndexNotifier,
                   onBookingTap: () => _handleBookingNavigation(userData),
+                  onStatsTap: () =>
+                      _handleStandardNavigation(const ProgressScreen(), 2),
+                  onChatsTap: () =>
+                      _handleStandardNavigation(const ChatScreen(), 3),
+                  onProfileTap:
+                      () => // <-- ADDED PROFILE NAVIGATION
+                          _handleStandardNavigation(const ProfileScreen(), 4),
                   isNavigating: _isNavigating,
                 ),
               ),
@@ -664,7 +708,6 @@ class _TodayProgressSection extends StatelessWidget {
   Widget build(BuildContext context) {
     double exactCardWidth = (MediaQuery.of(context).size.width - 48 - 16) / 2;
 
-    // Getting current values from map
     String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     Map<String, dynamic> dailyWeightMap = userData['dailyWeight'] != null
@@ -867,7 +910,12 @@ class _ProgressCard extends StatelessWidget {
 
 class _RecentChatsSection extends StatelessWidget {
   final Stream<QuerySnapshot> chatStream;
-  const _RecentChatsSection({required this.chatStream});
+  final VoidCallback onChatTap;
+
+  const _RecentChatsSection({
+    required this.chatStream,
+    required this.onChatTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -900,28 +948,35 @@ class _RecentChatsSection extends StatelessWidget {
           child: StreamBuilder<QuerySnapshot>(
             stream: chatStream,
             builder: (context, chatSnapshot) {
+              // Even if empty, we provide a placeholder that routes to ChatScreen
               if (!chatSnapshot.hasData || chatSnapshot.data!.docs.isEmpty) {
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.chat_bubble_outline,
-                        color: Colors.grey.shade400,
+                return GestureDetector(
+                  onTap: onChatTap,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.grey.shade300,
+                        width: 1.5,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No recent chats',
-                        style: TextStyle(color: Colors.grey.shade500),
-                      ),
-                    ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No recent chats. Tap to start.',
+                          style: TextStyle(color: Colors.grey.shade500),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
@@ -934,13 +989,16 @@ class _RecentChatsSection extends StatelessWidget {
                   var chat =
                       chatSnapshot.data!.docs[index].data()
                           as Map<String, dynamic>;
-                  return _ChatCard(
-                    name: chat['senderName'] ?? 'Support',
-                    message: chat['lastMessage'] ?? 'Tap to view message',
-                    avatarUrl:
-                        chat['senderImage'] ??
-                        'https://ui-avatars.com/api/?name=User&background=000&color=fff',
-                    isUnread: chat['unread'] ?? false,
+                  return GestureDetector(
+                    onTap: onChatTap, // ADDED: TAP CARD TO CHAT
+                    child: _ChatCard(
+                      name: chat['senderName'] ?? 'Admin',
+                      message: chat['lastMessage'] ?? 'Tap to view message',
+                      avatarUrl:
+                          chat['senderImage'] ??
+                          'https://ui-avatars.com/api/?name=Admin&background=00215F&color=fff',
+                      isUnread: chat['unread'] ?? false,
+                    ),
                   );
                 },
               );
@@ -972,7 +1030,12 @@ class _QuickActionPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        if (onTap != null) {
+          HapticFeedback.lightImpact();
+          onTap!();
+        }
+      },
       child: Container(
         width: 145,
         margin: const EdgeInsets.only(right: 12),
@@ -1119,11 +1182,17 @@ class _ChatCard extends StatelessWidget {
 class _FloatingNavBar extends StatelessWidget {
   final ValueNotifier<int> selectedIndexNotifier;
   final VoidCallback onBookingTap;
+  final VoidCallback onStatsTap;
+  final VoidCallback onChatsTap;
+  final VoidCallback onProfileTap;
   final bool isNavigating;
 
   const _FloatingNavBar({
     required this.selectedIndexNotifier,
     required this.onBookingTap,
+    required this.onStatsTap,
+    required this.onChatsTap,
+    required this.onProfileTap,
     required this.isNavigating,
   });
 
@@ -1154,7 +1223,12 @@ class _FloatingNavBar extends StatelessWidget {
                 icon: Icons.home_filled,
                 label: 'Home',
                 selectedIndex: selectedIndex,
-                onTap: () => selectedIndexNotifier.value = 0,
+                onTap: () {
+                  if (selectedIndex != 0 && !isNavigating) {
+                    HapticFeedback.selectionClick();
+                    selectedIndexNotifier.value = 0;
+                  }
+                },
               ),
               _NavItem(
                 index: 1,
@@ -1172,20 +1246,10 @@ class _FloatingNavBar extends StatelessWidget {
                 icon: Icons.bar_chart_rounded,
                 label: 'Stats',
                 selectedIndex: selectedIndex,
-                onTap: () async {
-                  if (isNavigating) return;
-                  selectedIndexNotifier.value = 2;
-
-                  // LAG FIX: Push Replacement stops infinite stacking leaks
-                  await Navigator.pushReplacement(
-                    context,
-                    PageRouteBuilder(
-                      pageBuilder: (context, a, b) => const ProgressScreen(),
-                      transitionsBuilder: (context, a, b, child) =>
-                          FadeTransition(opacity: a, child: child),
-                      transitionDuration: const Duration(milliseconds: 150),
-                    ),
-                  );
+                onTap: () {
+                  if (selectedIndex != 2 && !isNavigating) {
+                    onStatsTap();
+                  }
                 },
               ),
               _NavItem(
@@ -1193,14 +1257,22 @@ class _FloatingNavBar extends StatelessWidget {
                 icon: Icons.chat_bubble_outline_rounded,
                 label: 'Chats',
                 selectedIndex: selectedIndex,
-                onTap: () => selectedIndexNotifier.value = 3,
+                onTap: () {
+                  if (selectedIndex != 3 && !isNavigating) {
+                    onChatsTap();
+                  }
+                },
               ),
               _NavItem(
                 index: 4,
                 icon: Icons.person_outline_rounded,
                 label: 'Profile',
                 selectedIndex: selectedIndex,
-                onTap: () => selectedIndexNotifier.value = 4,
+                onTap: () {
+                  if (selectedIndex != 4 && !isNavigating) {
+                    onProfileTap();
+                  }
+                },
               ),
             ],
           );

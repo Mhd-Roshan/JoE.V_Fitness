@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // <-- Added for Haptic Feedback
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +8,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'trainer_selection_screen.dart';
 import 'progress_screen.dart';
 import 'home_dashboard_screen.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart'; // <-- ADDED PROFILE SCREEN IMPORT
 
 class BookingScreen extends StatefulWidget {
   final Trainer trainer;
@@ -25,6 +28,7 @@ class _BookingScreenState extends State<BookingScreen> {
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(1);
 
   bool _isChecking = false;
+  bool _isNavigating = false; // Prevents double-tap lag
   String _availabilityStatus = 'none';
 
   List<Map<String, dynamic>> _trainerSessions = [];
@@ -57,7 +61,6 @@ class _BookingScreenState extends State<BookingScreen> {
     _selectedTime = const TimeOfDay(hour: 8, minute: 30);
 
     // Wait for the FIRST frame to render, then start auto-scroll.
-    // This completely removes the artificial 150ms delay/lag.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _startSessionAutoScroll();
@@ -70,6 +73,34 @@ class _BookingScreenState extends State<BookingScreen> {
     _selectedIndexNotifier.dispose();
     _sessionsScrollController.dispose();
     super.dispose();
+  }
+
+  // --- OPTIMIZED NAVIGATION (FIXES LAG) ---
+  Future<void> _handleStandardNavigation(Widget screen, int index) async {
+    if (_isNavigating) return;
+    HapticFeedback.selectionClick(); // <-- Added for tactile feedback
+    setState(() => _isNavigating = true);
+    _selectedIndexNotifier.value = index;
+
+    // MAGIC ANTI-LAG TRICK: Yield the UI thread for 50ms so the tap animation
+    // and nav bar color change can render BEFORE building the heavy target screen.
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    if (!mounted) return;
+
+    await Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, a, b) => screen,
+        transitionsBuilder: (context, a, b, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 150),
+      ),
+    );
+
+    if (mounted) {
+      setState(() => _isNavigating = false);
+    }
   }
 
   void _startSessionAutoScroll() {
@@ -164,6 +195,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _pickTime() async {
+    HapticFeedback.lightImpact();
     final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime ?? TimeOfDay.now(),
@@ -179,6 +211,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
   Future<void> _checkAvailability() async {
     if (_selectedTime == null || _selectedDate == null) return;
+    HapticFeedback.mediumImpact();
 
     setState(() {
       _isChecking = true;
@@ -235,6 +268,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   void _showConfirmationBottomSheet() {
+    HapticFeedback.selectionClick();
     String formattedDate = DateFormat('EEEE, MMM d').format(_selectedDate!);
     String formattedTime = _formatTimeStrict(_selectedTime!);
     Map<String, dynamic> activeSessionData = _trainerSessions.firstWhere(
@@ -311,6 +345,7 @@ class _BookingScreenState extends State<BookingScreen> {
                                   });
                                 },
                                 () {
+                                  HapticFeedback.heavyImpact(); // Success haptic
                                   setModalState(() {
                                     isSuccess = true;
                                   });
@@ -492,6 +527,7 @@ class _BookingScreenState extends State<BookingScreen> {
               onPressed: isBooking
                   ? null
                   : () async {
+                      HapticFeedback.lightImpact();
                       setBookingState(true);
                       try {
                         final user = FirebaseAuth.instance.currentUser;
@@ -640,6 +676,7 @@ class _BookingScreenState extends State<BookingScreen> {
             height: 56,
             child: ElevatedButton(
               onPressed: () {
+                HapticFeedback.selectionClick();
                 Navigator.pushAndRemoveUntil(
                   context,
                   PageRouteBuilder(
@@ -688,7 +725,10 @@ class _BookingScreenState extends State<BookingScreen> {
                   color: _textMain,
                   size: 20,
                 ),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.pop(context);
+                },
               ),
               const SizedBox(width: 8),
               const Text(
@@ -714,7 +754,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () {},
+              onPressed: () {
+                HapticFeedback.lightImpact();
+              },
             ),
           ),
         ],
@@ -790,6 +832,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
                             return GestureDetector(
                               onTap: () {
+                                HapticFeedback.lightImpact();
                                 setState(() {
                                   _selectedDate = date;
                                   _availabilityStatus = 'none';
@@ -914,9 +957,12 @@ class _BookingScreenState extends State<BookingScreen> {
                                   _selectedSession == session['name'];
 
                               return GestureDetector(
-                                onTap: () => setState(
-                                  () => _selectedSession = session['name'],
-                                ),
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  setState(
+                                    () => _selectedSession = session['name'],
+                                  );
+                                },
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 200),
                                   curve: Curves.easeInOut,
@@ -1245,6 +1291,7 @@ class _BookingScreenState extends State<BookingScreen> {
                           label: 'Home',
                           selectedIndex: selectedIndex,
                           onTap: () {
+                            HapticFeedback.selectionClick();
                             Navigator.pushAndRemoveUntil(
                               context,
                               PageRouteBuilder(
@@ -1272,45 +1319,28 @@ class _BookingScreenState extends State<BookingScreen> {
                           icon: Icons.bar_chart_rounded,
                           label: 'Stats',
                           selectedIndex: selectedIndex,
-                          onTap: () {
-                            _selectedIndexNotifier.value = 2;
-                            Navigator.pushReplacement(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder: (context, a, b) =>
-                                    const ProgressScreen(),
-                                transitionsBuilder: (context, a, b, child) =>
-                                    FadeTransition(
-                                      opacity: CurvedAnimation(
-                                        parent: a,
-                                        curve: Curves.easeOut,
-                                      ),
-                                      child: child,
-                                    ),
-                                transitionDuration: const Duration(
-                                  milliseconds: 150,
-                                ),
-                              ),
-                            );
-                          },
+                          onTap: () => _handleStandardNavigation(
+                            const ProgressScreen(),
+                            2,
+                          ),
                         ),
                         _NavItem(
                           index: 3,
                           icon: Icons.chat_bubble_outline_rounded,
                           label: 'Chats',
                           selectedIndex: selectedIndex,
-                          onTap: () {
-                            _selectedIndexNotifier.value = 3;
-                          },
+                          onTap: () =>
+                              _handleStandardNavigation(const ChatScreen(), 3),
                         ),
                         _NavItem(
                           index: 4,
                           icon: Icons.person_outline_rounded,
                           label: 'Profile',
                           selectedIndex: selectedIndex,
-                          onTap: () {
-                            _selectedIndexNotifier.value = 4;
-                          },
+                          onTap: () => _handleStandardNavigation(
+                            const ProfileScreen(),
+                            4,
+                          ),
                         ),
                       ],
                     );
@@ -1345,8 +1375,8 @@ class _NavItem extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         padding: isSelected
             ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
             : const EdgeInsets.all(10.0),

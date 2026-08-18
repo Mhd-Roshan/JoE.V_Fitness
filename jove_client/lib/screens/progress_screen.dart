@@ -9,6 +9,8 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
 import 'trainer_selection_screen.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart'; // <-- IMPORTED PROFILE SCREEN HERE
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -1267,6 +1269,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   label: 'Home',
                   selectedIndex: selectedIndex,
                   onTap: () {
+                    HapticFeedback.selectionClick();
                     Navigator.pushAndRemoveUntil(
                       context,
                       PageRouteBuilder(
@@ -1284,7 +1287,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   icon: Icons.calendar_today_rounded,
                   label: 'Booking',
                   selectedIndex: selectedIndex,
-                  onTap: () => _navigateToBooking(userData),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _navigateToBooking(userData);
+                  },
                 ),
                 _NavItem(
                   index: 2,
@@ -1298,14 +1304,36 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   icon: Icons.chat_bubble_outline_rounded,
                   label: 'Chats',
                   selectedIndex: selectedIndex,
-                  onTap: () => _selectedIndexNotifier.value = 3,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pushReplacement(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (c, a, b) => const ChatScreen(),
+                        transitionsBuilder: (c, a, b, child) =>
+                            FadeTransition(opacity: a, child: child),
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  },
                 ),
                 _NavItem(
                   index: 4,
                   icon: Icons.person_outline_rounded,
                   label: 'Profile',
                   selectedIndex: selectedIndex,
-                  onTap: () => _selectedIndexNotifier.value = 4,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pushReplacement(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (c, a, b) => const ProfileScreen(),
+                        transitionsBuilder: (c, a, b, child) =>
+                            FadeTransition(opacity: a, child: child),
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  },
                 ),
               ],
             );
