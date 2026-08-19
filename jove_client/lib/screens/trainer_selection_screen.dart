@@ -2,6 +2,8 @@ import 'dart:ui'; // Required for the blur effect
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+
 import 'booking_screen.dart'; // Make sure this import is here!
 
 // ==========================================
@@ -35,15 +37,19 @@ class Trainer {
   factory Trainer.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
-    String formattedExperience = "0 Years";
+    String formattedExperience = "0 ${'years_lowercase'.tr()}"; // TRANSLATED
     if (data['yearsExperience'] != null) {
-      formattedExperience = "${data['yearsExperience']}+ Years";
+      formattedExperience =
+          "${data['yearsExperience']}+ ${'years_lowercase'.tr()}"; // TRANSLATED
     }
 
     return Trainer(
       id: data['trainerId'] ?? doc.id,
-      name: data['name'] ?? data['fullName'] ?? 'Expert Trainer',
-      designation: data['designation'] ?? 'Personal Trainer',
+      name:
+          data['name'] ??
+          data['fullName'] ??
+          'expert_trainer'.tr(), // TRANSLATED
+      designation: data['designation'] ?? 'personal_trainer'.tr(), // TRANSLATED
       imageUrl:
           data['imageUrl'] ??
           data['profilePic'] ??
@@ -136,8 +142,8 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error saving trainer. Try again.'),
+          SnackBar(
+            content: Text('error_saving_trainer'.tr()), // TRANSLATED
             backgroundColor: Colors.red,
           ),
         );
@@ -166,9 +172,12 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
             child: const Icon(Icons.person_outline, color: Colors.black),
           ),
         ),
-        title: const Text(
-          'Select trainers',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        title: Text(
+          'select_trainers_title'.tr(), // TRANSLATED
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: Column(
@@ -177,10 +186,10 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
             padding: const EdgeInsets.all(24.0),
             child: Column(
               children: [
-                const Text(
-                  "Select your trainer according to goals?",
+                Text(
+                  "select_trainer_subtitle".tr(), // TRANSLATED
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
                     color: Colors.grey,
@@ -205,19 +214,20 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: RichText(
-                          text: const TextSpan(
-                            style: TextStyle(
+                          text: TextSpan(
+                            style: const TextStyle(
                               color: Color(0xFF00225D),
                               height: 1.5,
                             ),
                             children: [
                               TextSpan(
-                                text: 'Note : ',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                                text: 'note_label'.tr(), // TRANSLATED
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                               TextSpan(
-                                text:
-                                    'Selecting a trainer will fix your choice for the entire duration of your package.',
+                                text: 'select_trainer_note'.tr(), // TRANSLATED
                               ),
                             ],
                           ),
@@ -244,8 +254,8 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text("No trainers available at the moment."),
+                  return Center(
+                    child: Text("no_trainers_available".tr()), // TRANSLATED
                   );
                 }
 
@@ -407,14 +417,14 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                   ),
-                                  child: const FittedBox(
+                                  child: FittedBox(
                                     child: Padding(
-                                      padding: EdgeInsets.symmetric(
+                                      padding: const EdgeInsets.symmetric(
                                         horizontal: 8.0,
                                       ),
                                       child: Text(
-                                        'View Details',
-                                        style: TextStyle(
+                                        'view_details'.tr(), // TRANSLATED
+                                        style: const TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -449,8 +459,10 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                       ),
                                       child: Text(
                                         isSelected
-                                            ? 'Selected'
-                                            : 'Select Trainer',
+                                            ? 'selected'
+                                                  .tr() // TRANSLATED
+                                            : 'select_trainer_btn'
+                                                  .tr(), // TRANSLATED
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 13,
@@ -489,18 +501,21 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                     ),
                     child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : const Row(
+                        : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                'Continue ',
-                                style: TextStyle(
+                                '${'continue_btn'.tr()} ', // TRANSLATED
+                                style: const TextStyle(
                                   fontSize: 18,
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Icon(Icons.arrow_forward, color: Colors.white),
+                              const Icon(
+                                Icons.arrow_forward,
+                                color: Colors.white,
+                              ),
                             ],
                           ),
                   ),
@@ -531,9 +546,12 @@ class TrainerProfileScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Trainer Profile',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        title: Text(
+          'trainer_profile_title'.tr(), // TRANSLATED
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -617,22 +635,32 @@ class TrainerProfileScreen extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: _statBox('Experience', trainer.yearsExperience),
+                    child: _statBox(
+                      'experience_label'.tr(),
+                      trainer.yearsExperience,
+                    ), // TRANSLATED
                   ),
                   const SizedBox(width: 12),
-                  Expanded(child: _statBox('Rating', '${trainer.rating} ⭐')),
+                  Expanded(
+                    child: _statBox('rating_label'.tr(), '${trainer.rating} ⭐'),
+                  ), // TRANSLATED
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _statBox('Reviews', '${trainer.ratingCount}'),
+                    child: _statBox(
+                      'reviews_label'.tr(),
+                      '${trainer.ratingCount}',
+                    ), // TRANSLATED
                   ),
                 ],
               ),
               const SizedBox(height: 30),
 
-              _sectionTitle('About'),
+              _sectionTitle('about_label'.tr()), // TRANSLATED
               const SizedBox(height: 10),
               Text(
-                trainer.bio.isEmpty ? "No bio provided." : trainer.bio,
+                trainer.bio.isEmpty
+                    ? "no_bio_provided".tr()
+                    : trainer.bio, // TRANSLATED
                 style: const TextStyle(
                   color: Colors.black87,
                   fontSize: 15,
@@ -642,7 +670,7 @@ class TrainerProfileScreen extends StatelessWidget {
               const SizedBox(height: 24),
 
               if (trainer.specializations.isNotEmpty) ...[
-                _sectionTitle('Specialties'),
+                _sectionTitle('specialties_label'.tr()), // TRANSLATED
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 10,
@@ -673,7 +701,7 @@ class TrainerProfileScreen extends StatelessWidget {
               ],
 
               if (trainer.certifications.isNotEmpty) ...[
-                _sectionTitle('Certifications'),
+                _sectionTitle('certifications_label'.tr()), // TRANSLATED
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 10,
@@ -723,9 +751,9 @@ class TrainerProfileScreen extends StatelessWidget {
               ),
             ),
             icon: const Icon(Icons.person_outline, color: Colors.white),
-            label: const Text(
-              'Select trainer',
-              style: TextStyle(
+            label: Text(
+              'select_trainer_btn'.tr(), // TRANSLATED
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -849,9 +877,9 @@ class SuccessDialog extends StatelessWidget {
 
           const SizedBox(height: 32),
 
-          const Text(
-            'Successful',
-            style: TextStyle(
+          Text(
+            'successful_title'.tr(), // TRANSLATED
+            style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w600,
               color: Colors.black,
@@ -859,10 +887,10 @@ class SuccessDialog extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          const Text(
-            'Your trainer is successfully\nselected.',
+          Text(
+            'trainer_selected_success_msg'.tr(), // TRANSLATED
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               color: Colors.black54,
               height: 1.4,
@@ -897,9 +925,9 @@ class SuccessDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              child: const Text(
-                'Done',
-                style: TextStyle(
+              child: Text(
+                'done_btn'.tr(), // TRANSLATED
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,

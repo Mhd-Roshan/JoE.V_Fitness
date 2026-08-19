@@ -10,6 +10,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+    
+  # --- LOCALIZATION PACKAGES ADDED HERE ---
+  flutter_localizations:
+    sdk: flutter
+  easy_localization: ^3.0.7
+  
   cupertino_icons: ^1.0.8
   firebase_core: ^4.12.1
   firebase_auth: ^6.5.7
@@ -19,22 +25,25 @@ dependencies:
   flutter_svg: ^2.0.10 
   google_fonts: ^8.2.1
   google_sign_in: ^6.2.1
-  intl: ^0.20.3
+  intl: ^0.20.2                 # <-- CHANGED TO 0.20.2
   lottie: ^3.1.0 
 
-  
   slide_to_act: ^2.0.2
   fl_chart: ^1.2.0
   url_launcher: ^6.3.2
   image_picker: ^1.2.3
+  no_screenshot: ^2.0.1
   
- 
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1 
+
+# --- FORCES FLUTTER TO ACCEPT THE CORRECT INTL VERSION ---
+dependency_overrides:
+  intl: 0.20.2
+
 flutter:
   uses-material-design: true
   assets:
@@ -53,7 +62,7 @@ flutter:
     - assets/images/appicon.png
     - assets/images/male.png
     - assets/images/female.png
-
+    - assets/translations/
 
 flutter_launcher_icons:
   android: true

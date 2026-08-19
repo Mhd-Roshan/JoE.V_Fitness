@@ -38,7 +38,9 @@ class _OtpScreenState extends State<OtpScreen>
 
   int _timerSeconds = 42;
   Timer? _timer;
+
   bool _isLoading = false;
+  bool _isVerifying = false; // OPTIMIZATION: Prevents multiple API requests
   bool _codeSent = false;
   String _verificationId = "";
 
@@ -48,8 +50,8 @@ class _OtpScreenState extends State<OtpScreen>
   late final Animation<Offset> _slideAnim;
   double _verifyScale = 1.0;
 
-  // Track focused index for smooth UI updates
-  int _focusedIndex = 0;
+  // OPTIMIZATION: Using ValueNotifier prevents full-screen rebuilds on keystrokes
+  final ValueNotifier<int> _focusedIndexNotifier = ValueNotifier<int>(0);
 
   @override
   void initState() {
@@ -70,11 +72,11 @@ class _OtpScreenState extends State<OtpScreen>
       _animController.forward();
     });
 
-    // Add focus listeners for smooth box highlights
+    // Add focus listeners for smooth box highlights without setState
     for (int i = 0; i < 6; i++) {
       _focusNodes[i].addListener(() {
         if (_focusNodes[i].hasFocus) {
-          setState(() => _focusedIndex = i);
+          _focusedIndexNotifier.value = i;
         }
       });
     }
@@ -125,6 +127,8 @@ class _OtpScreenState extends State<OtpScreen>
   }
 
   Future<void> _verifyOtp() async {
+    if (_isVerifying) return; // OPTIMIZATION: Block rapid double-taps
+
     final otp = _otpControllers.map((c) => c.text).join();
 
     if (otp.length < 6) {
@@ -139,7 +143,11 @@ class _OtpScreenState extends State<OtpScreen>
       return;
     }
 
-    setState(() => _isLoading = true);
+    HapticFeedback.lightImpact();
+    setState(() {
+      _isLoading = true;
+      _isVerifying = true;
+    });
 
     try {
       final credential = PhoneAuthProvider.credential(
@@ -151,7 +159,10 @@ class _OtpScreenState extends State<OtpScreen>
       if (!mounted) return;
       _showModernSnackBar("Invalid code. Please try again.");
       _clearOtpFields();
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _isVerifying = false;
+      });
     }
   }
 
@@ -180,7 +191,8 @@ class _OtpScreenState extends State<OtpScreen>
           savedName = pendingDoc.data()?['name'] ?? savedName;
           savedEmail = pendingDoc.data()?['email'] ?? savedEmail;
 
-          await FirebaseFirestore.instance
+          // Process deletion in background so it doesn't block UI thread
+          FirebaseFirestore.instance
               .collection('pending_users')
               .doc(widget.phone)
               .delete();
@@ -204,35 +216,43 @@ class _OtpScreenState extends State<OtpScreen>
           userData['assessmentCompleted'] ?? false;
       final String? assignedTrainerId = userData['assignedTrainerId'];
 
+      // OPTIMIZATION: Give the UI thread 50ms to render the success state/ripple
+      // before freezing the screen to build the heavy target screens.
+      await Future.delayed(const Duration(milliseconds: 50));
+
       if (!mounted) return;
 
+      Widget nextScreen;
       if (!hasCompletedAssessment) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const AssessmentScreen()),
-          (route) => false,
-        );
+        nextScreen = const AssessmentScreen();
       } else if (assignedTrainerId == null || assignedTrainerId.isEmpty) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const SelectTrainerScreen()),
-          (route) => false,
-        );
+        nextScreen = const SelectTrainerScreen();
       } else {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeDashboardScreen()),
-          (route) => false,
-        );
+        nextScreen = const HomeDashboardScreen();
       }
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, a, b) => nextScreen,
+          transitionsBuilder: (context, a, b, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+        (route) => false,
+      );
     } catch (e) {
       if (!mounted) return;
       _showModernSnackBar("Sign in failed. Please try again.");
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _isVerifying = false;
+      });
     }
   }
 
   void _handleResend() {
+    HapticFeedback.mediumImpact();
     _startTimer();
     _clearOtpFields();
     setState(() => _codeSent = false);
@@ -248,6 +268,7 @@ class _OtpScreenState extends State<OtpScreen>
 
   // --- MODERN FLOATING SNACKBAR ---
   void _showModernSnackBar(String message, {bool isError = true}) {
+    HapticFeedback.heavyImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -285,6 +306,7 @@ class _OtpScreenState extends State<OtpScreen>
   @override
   void dispose() {
     _animController.dispose();
+    _focusedIndexNotifier.dispose();
     _timer?.cancel();
     for (final c in _otpControllers) {
       c.dispose();
@@ -298,7 +320,7 @@ class _OtpScreenState extends State<OtpScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0C), // Deep dark fallback
+      backgroundColor: const Color(0xFF0A0A0C),
       body: Stack(
         children: [
           // --- MATCHING IMAGE: BLUE TO DARK GRADIENT FADE ---
@@ -307,11 +329,8 @@ class _OtpScreenState extends State<OtpScreen>
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF1E4EF4), // Bright blue at top
-                  Color(0xFF0A0A0C), // Deep dark background
-                ],
-                stops: [0.0, 0.45], // Quick fade into dark background
+                colors: [Color(0xFF1E4EF4), Color(0xFF0A0A0C)],
+                stops: [0.0, 0.45],
               ),
             ),
           ),
@@ -325,7 +344,7 @@ class _OtpScreenState extends State<OtpScreen>
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center, // Center all
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       const SizedBox(height: 10),
 
@@ -350,16 +369,18 @@ class _OtpScreenState extends State<OtpScreen>
                                   color: Colors.white,
                                   size: 20,
                                 ),
-                                onPressed: () => Navigator.pop(context),
+                                onPressed: () {
+                                  HapticFeedback.lightImpact();
+                                  Navigator.pop(context);
+                                },
                               ),
                             ),
                           ),
                         ),
                       ),
 
-                      const SizedBox(
-                        height: 60,
-                      ), // Push logo down into blue area
+                      const SizedBox(height: 60),
+
                       // --- CENTERED LOGO ---
                       Image.asset(
                         'assets/images/landing_photo.png',
@@ -367,16 +388,15 @@ class _OtpScreenState extends State<OtpScreen>
                         fit: BoxFit.contain,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(
-                            Icons.bolt, // Lightning bolt placeholder for image
+                            Icons.bolt,
                             size: 70,
                             color: Colors.white,
                           );
                         },
                       ),
 
-                      const SizedBox(
-                        height: 100,
-                      ), // Push content down to dark area
+                      const SizedBox(height: 100),
+
                       // --- TITLE ---
                       Text(
                         'OTP Verification',
@@ -404,74 +424,70 @@ class _OtpScreenState extends State<OtpScreen>
                       ),
                       const SizedBox(height: 40),
 
-                      // --- OTP INPUT ROW (DARK ROUNDED BOXES) ---
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: List.generate(6, (index) {
-                          bool isFocused = _focusedIndex == index;
+                      // --- OTP INPUT ROW ---
+                      ValueListenableBuilder<int>(
+                        valueListenable: _focusedIndexNotifier,
+                        builder: (context, focusedIndex, child) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: List.generate(6, (index) {
+                              bool isFocused = focusedIndex == index;
 
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width:
-                                48, // Slightly adjusted to perfectly fit 6 boxes
-                            height: 56,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E1E1E), // Dark grey box
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isFocused
-                                    ? Colors.white.withValues(alpha: 0.6)
-                                    : Colors.white.withValues(alpha: 0.05),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: TextField(
-                              controller: _otpControllers[index],
-                              focusNode: _focusNodes[index],
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              maxLength: 1,
-                              cursorColor: Colors.white,
-                              style: GoogleFonts.poppins(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                              ],
-                              decoration: const InputDecoration(
-                                counterText: "",
-                                border: InputBorder.none,
-                              ),
-                              onChanged: (value) {
-                                if (value.isNotEmpty && index < 5) {
-                                  _focusNodes[index + 1].requestFocus();
-                                } else if (value.isEmpty && index > 0) {
-                                  _focusNodes[index - 1].requestFocus();
-                                }
+                              return AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                width: 48,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1E1E1E),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isFocused
+                                        ? Colors.white.withValues(alpha: 0.6)
+                                        : Colors.white.withValues(alpha: 0.05),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: TextField(
+                                  controller: _otpControllers[index],
+                                  focusNode: _focusNodes[index],
+                                  keyboardType: TextInputType.number,
+                                  textAlign: TextAlign.center,
+                                  maxLength: 1,
+                                  cursorColor: Colors.white,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
+                                  decoration: const InputDecoration(
+                                    counterText: "",
+                                    border: InputBorder.none,
+                                  ),
+                                  onChanged: (value) {
+                                    if (value.isNotEmpty && index < 5) {
+                                      _focusNodes[index + 1].requestFocus();
+                                    } else if (value.isEmpty && index > 0) {
+                                      _focusNodes[index - 1].requestFocus();
+                                    }
 
-                                // Auto-verify on last digit
-                                if (value.isNotEmpty && index == 5) {
-                                  FocusScope.of(context).unfocus();
-                                  Future.delayed(
-                                    const Duration(milliseconds: 50),
-                                    () {
-                                      if (mounted) {
-                                        _verifyOtp();
-                                      }
-                                    },
-                                  );
-                                }
-                                setState(() {}); // Trigger focus update
-                              },
-                            ),
+                                    // Auto-verify on last digit
+                                    if (value.isNotEmpty && index == 5) {
+                                      FocusScope.of(context).unfocus();
+                                      _verifyOtp(); // Call verify securely
+                                    }
+                                  },
+                                ),
+                              );
+                            }),
                           );
-                        }),
+                        },
                       ),
                       const SizedBox(height: 40),
 
-                      // --- VERIFY BUTTON (Animated RED) ---
+                      // --- VERIFY BUTTON ---
                       GestureDetector(
                         onTapDown: (_) => setState(() => _verifyScale = 0.96),
                         onTapUp: (_) => setState(() => _verifyScale = 1.0),
@@ -487,9 +503,7 @@ class _OtpScreenState extends State<OtpScreen>
                             child: ElevatedButton(
                               onPressed: _isLoading ? null : _verifyOtp,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(
-                                  0xFFBB0013,
-                                ), // Requested Red
+                                backgroundColor: const Color(0xFFBB0013),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),

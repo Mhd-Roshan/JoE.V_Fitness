@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
 
 import 'login_screen.dart';
 
@@ -104,7 +105,7 @@ class _SignUpScreenState extends State<SignUpScreen>
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      barrierLabel: 'Dismiss',
+      barrierLabel: 'dismiss'.tr(), // TRANSLATED
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 350),
       pageBuilder: (_, _, _) => const SizedBox.shrink(),
@@ -159,7 +160,7 @@ class _SignUpScreenState extends State<SignUpScreen>
 
                       // Title
                       Text(
-                        'Registration\nSuccessful!',
+                        'registration_successful'.tr(), // TRANSLATED
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           color: Colors.white,
@@ -172,7 +173,7 @@ class _SignUpScreenState extends State<SignUpScreen>
 
                       // Subtitle
                       Text(
-                        'Your account has been created. Please sign in to verify your phone number.',
+                        'registration_success_desc'.tr(), // TRANSLATED
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           color: Colors.white70,
@@ -206,7 +207,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                             elevation: 0,
                           ),
                           child: Text(
-                            'Sign In Now',
+                            'sign_in_now_btn'.tr(), // TRANSLATED
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -231,12 +232,14 @@ class _SignUpScreenState extends State<SignUpScreen>
     final phone = _phoneController.text.trim();
 
     setState(() {
-      _nameError = name.isEmpty ? 'Please enter your name' : null;
+      _nameError = name.isEmpty ? 'err_enter_name'.tr() : null; // TRANSLATED
       _emailError = (email.isEmpty || !email.contains('@'))
-          ? 'Please enter a valid email'
+          ? 'err_valid_email'
+                .tr() // TRANSLATED
           : null;
       _phoneError = phone.length < 10
-          ? 'Please enter a valid 10-digit number'
+          ? 'err_valid_phone'
+                .tr() // TRANSLATED
           : null;
     });
 
@@ -261,7 +264,7 @@ class _SignUpScreenState extends State<SignUpScreen>
       if (existingUserQuery.docs.isNotEmpty) {
         setState(() => _isLoading = false);
         _showModernSnackBar(
-          'This number is already registered. Please Sign In.',
+          'err_phone_registered'.tr(), // TRANSLATED
           isError: false,
         );
         return;
@@ -285,7 +288,7 @@ class _SignUpScreenState extends State<SignUpScreen>
       if (!mounted) return;
       setState(() => _isLoading = false);
       _showModernSnackBar(
-        'An error occurred. Please check your connection.',
+        'err_connection'.tr(), // TRANSLATED
         isError: true,
       );
     }
@@ -390,7 +393,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    'Sign Up To JoE',
+                                    'sign_up_to_joe'.tr(), // TRANSLATED
                                     style: GoogleFonts.workSans(
                                       fontSize: 28,
                                       fontWeight: FontWeight.w900,
@@ -414,7 +417,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                                     ),
                                   ),
                                   Text(
-                                    'V',
+                                    'V', // Brand element
                                     style: GoogleFonts.workSans(
                                       fontSize: 28,
                                       fontWeight: FontWeight.w900,
@@ -426,7 +429,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                'Register account to beginning journey',
+                                'register_subtitle'.tr(), // TRANSLATED
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -438,8 +441,8 @@ class _SignUpScreenState extends State<SignUpScreen>
 
                               // --- Smooth Input Fields (Glassmorphic) ---
                               _AnimatedInputField(
-                                label: 'Name',
-                                hint: 'Enter Name',
+                                label: 'name_label'.tr(), // TRANSLATED
+                                hint: 'name_hint'.tr(), // TRANSLATED
                                 icon: Icons.person_outline,
                                 controller: _nameController,
                                 error: _nameError,
@@ -447,8 +450,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                               const SizedBox(height: 20),
 
                               _AnimatedInputField(
-                                label: 'Email',
-                                hint: 'Joevfitness@gmail.com',
+                                label: 'email_label'.tr(), // TRANSLATED
+                                hint: 'email_hint'.tr(), // TRANSLATED
                                 icon: Icons.email_outlined,
                                 controller: _emailController,
                                 error: _emailError,
@@ -457,8 +460,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                               const SizedBox(height: 20),
 
                               _AnimatedInputField(
-                                label: 'Phone',
-                                hint: 'Phone Number',
+                                label: 'phone_label'.tr(), // TRANSLATED
+                                hint: 'phone_hint'.tr(), // TRANSLATED
                                 icon: Icons.phone_outlined,
                                 controller: _phoneController,
                                 error: _phoneError,
@@ -523,7 +526,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                                                     MainAxisAlignment.center,
                                                 children: [
                                                   Text(
-                                                    'Sign Up',
+                                                    'sign_up_btn'
+                                                        .tr(), // TRANSLATED
                                                     style: GoogleFonts.workSans(
                                                       fontSize: 16,
                                                       fontWeight:
@@ -559,7 +563,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
-                                      "Already have an account? ",
+                                      'already_have_account'.tr(), // TRANSLATED
                                       style: GoogleFonts.workSans(
                                         color: Colors.white60,
                                         fontSize: 14,
@@ -575,7 +579,7 @@ class _SignUpScreenState extends State<SignUpScreen>
                                         ),
                                       ),
                                       child: Text(
-                                        'Sign In.',
+                                        'sign_in_link_dot'.tr(), // TRANSLATED
                                         style: GoogleFonts.workSans(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,

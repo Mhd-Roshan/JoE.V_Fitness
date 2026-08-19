@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS (Automatically exports 'intl')
 
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
 import 'progress_screen.dart';
 import 'trainer_selection_screen.dart';
-import 'profile_screen.dart'; // <-- Imported Profile Screen here
+import 'profile_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -43,21 +43,21 @@ class _ChatScreenState extends State<ChatScreen> {
   // --- SEND MESSAGE (PERFECTLY ALIGNED WITH REACT ADMIN) ---
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || currentUser == null) return;
+    if (text.isEmpty || currentUser == null) {
+      return;
+    }
 
     HapticFeedback.lightImpact();
     _messageController.clear();
 
     try {
       final String uid = currentUser!.uid;
-      // Get the user's name or fallback to "Unknown Client" to match React logic
       final String clientName =
           currentUser!.displayName != null &&
               currentUser!.displayName!.isNotEmpty
           ? currentUser!.displayName!
-          : 'Client';
+          : 'athlete'.tr(); // TRANSLATED FALLBACK
 
-      // React uses 'chatThreads' instead of 'chats'
       final chatDocRef = FirebaseFirestore.instance
           .collection('chatThreads')
           .doc(uid);
@@ -65,23 +65,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
       final batch = FirebaseFirestore.instance.batch();
 
-      // 1. Save message to subcollection matching React fields exactly
       batch.set(newMessageRef, {
         'text': text,
         'senderId': uid,
-        'senderRole': 'client', // React requires this to style the bubble
-        'createdAt': FieldValue.serverTimestamp(), // React requires createdAt
+        'senderRole': 'client',
+        'createdAt': FieldValue.serverTimestamp(),
         'type': 'text',
       });
 
-      // 2. Create/Update Parent Document so it appears in React Sidebar
       batch.set(chatDocRef, {
         'clientName': clientName,
         'lastMessage': text,
-        'lastMessageAt':
-            FieldValue.serverTimestamp(), // React uses lastMessageAt
+        'lastMessageAt': FieldValue.serverTimestamp(),
         'unreadCount': FieldValue.increment(1),
-        // Adding photoURL just in case you use it later
         'clientPhotoURL': currentUser!.photoURL,
       }, SetOptions(merge: true));
 
@@ -89,8 +85,8 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to send message.'),
+          SnackBar(
+            content: Text('failed_to_send_message'.tr()), // TRANSLATED
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -106,8 +102,8 @@ class _ChatScreenState extends State<ChatScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not open PDF file.'),
+          SnackBar(
+            content: Text('could_not_open_pdf'.tr()), // TRANSLATED
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -117,7 +113,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // --- SHOW DIET PDF MENU ---
   void _showDietTemplates() {
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      return;
+    }
 
     HapticFeedback.selectionClick();
 
@@ -135,7 +133,6 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Drag handle
                 Container(
                   margin: const EdgeInsets.symmetric(vertical: 12),
                   width: 40,
@@ -145,26 +142,31 @@ class _ChatScreenState extends State<ChatScreen> {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
-                      Icon(Icons.restaurant_menu_rounded, color: _navBgColor),
-                      SizedBox(width: 12),
+                      const Icon(
+                        Icons.restaurant_menu_rounded,
+                        color: _navBgColor,
+                      ),
+                      const SizedBox(width: 12),
                       Text(
-                        'Diet Plans',
-                        style: TextStyle(
+                        'diet_plans'.tr(),
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                           color: _textMain,
                         ),
-                      ),
+                      ), // TRANSLATED
                     ],
                   ),
                 ),
                 const Divider(height: 1),
 
-                // Content area querying chatThreads -> messages
                 Container(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.5,
@@ -189,7 +191,6 @@ class _ChatScreenState extends State<ChatScreen> {
                         );
                       }
 
-                      // Check for files. (React uses attachmentName, so we accept that too)
                       final pdfDocs =
                           snapshot.data?.docs.where((doc) {
                             final data = doc.data() as Map<String, dynamic>;
@@ -211,12 +212,12 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                "No diet plans available yet.",
+                                "no_diet_plans".tr(),
                                 style: TextStyle(
                                   color: Colors.grey.shade500,
                                   fontSize: 16,
                                 ),
-                              ),
+                              ), // TRANSLATED
                             ],
                           ),
                         );
@@ -241,7 +242,8 @@ class _ChatScreenState extends State<ChatScreen> {
                                 .toDate();
                             timeString = DateFormat(
                               'MMM d, yyyy • h:mm a',
-                            ).format(dt);
+                              context.locale.languageCode,
+                            ).format(dt); // LOCALIZED
                           }
 
                           return InkWell(
@@ -321,7 +323,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // --- NAVIGATION LOGIC ---
   void _navigate(Widget screen) {
-    if (_isNavigating) return;
+    if (_isNavigating) {
+      return;
+    }
     setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
 
@@ -334,12 +338,16 @@ class _ChatScreenState extends State<ChatScreen> {
         transitionDuration: const Duration(milliseconds: 150),
       ),
     ).then((_) {
-      if (mounted) setState(() => _isNavigating = false);
+      if (mounted) {
+        setState(() => _isNavigating = false);
+      }
     });
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) return;
+    if (_isNavigating || currentUser == null) {
+      return;
+    }
     setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
 
@@ -373,13 +381,14 @@ class _ChatScreenState extends State<ChatScreen> {
                   .doc(trainerId)
                   .get(),
             );
-
         nextScreen = trainerDoc.exists
             ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
             : const SelectTrainerScreen();
       }
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       Navigator.pop(context);
 
       await Navigator.pushReplacement(
@@ -394,9 +403,9 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Error loading booking.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('error_loading_data'.tr())),
+        ); // TRANSLATED
       }
     } finally {
       if (mounted) {
@@ -425,25 +434,22 @@ class _ChatScreenState extends State<ChatScreen> {
                 // --- FAST MESSAGES LIST ---
                 Expanded(
                   child: currentUser == null
-                      ? const Center(child: Text("Please log in to chat."))
+                      ? Center(
+                          child: Text("please_login_chat".tr()),
+                        ) // TRANSLATED
                       : StreamBuilder<QuerySnapshot>(
                           stream: FirebaseFirestore.instance
-                              .collection(
-                                'chatThreads',
-                              ) // Updated to chatThreads
+                              .collection('chatThreads')
                               .doc(currentUser!.uid)
                               .collection('messages')
-                              .orderBy(
-                                'createdAt',
-                                descending: true,
-                              ) // Updated to createdAt
+                              .orderBy('createdAt', descending: true)
                               .limit(100)
                               .snapshots(),
                           builder: (context, snapshot) {
                             if (snapshot.hasError) {
-                              return const Center(
-                                child: Text('Something went wrong'),
-                              );
+                              return Center(
+                                child: Text('something_went_wrong'.tr()),
+                              ); // TRANSLATED
                             }
                             if (snapshot.connectionState ==
                                 ConnectionState.waiting) {
@@ -454,7 +460,6 @@ class _ChatScreenState extends State<ChatScreen> {
                               );
                             }
 
-                            // Filter out PDFs from general chat view
                             final docs =
                                 snapshot.data?.docs.where((doc) {
                                   final data =
@@ -467,9 +472,9 @@ class _ChatScreenState extends State<ChatScreen> {
                             if (docs.isEmpty) {
                               return Center(
                                 child: Text(
-                                  "Send a message to start chatting with Admin.",
+                                  "send_message_start".tr(),
                                   style: TextStyle(color: Colors.grey.shade500),
-                                ),
+                                ), // TRANSLATED
                               );
                             }
 
@@ -528,15 +533,15 @@ class _ChatScreenState extends State<ChatScreen> {
                 },
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Chats',
-                style: TextStyle(
+              Text(
+                'chats_title'.tr(),
+                style: const TextStyle(
                   color: _textMain,
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                 ),
-              ),
+              ), // TRANSLATED
             ],
           ),
           Container(
@@ -555,10 +560,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 HapticFeedback.lightImpact();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: const Text(
-                      'No new notifications',
-                      style: TextStyle(color: Colors.white),
-                    ),
+                    content: Text(
+                      'no_new_notifications'.tr(),
+                      style: const TextStyle(color: Colors.white),
+                    ), // TRANSLATED
                     backgroundColor: _navBgColor,
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(
@@ -575,16 +580,17 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> data) {
-    // Determine if it's the current user based on senderRole or senderId
     bool isMe =
         data['senderRole'] == 'client' || data['senderId'] == currentUser?.uid;
     String message = data['text'] ?? '';
 
     String timeString = '';
     if (data['createdAt'] != null) {
-      // Updated to createdAt
       DateTime dt = (data['createdAt'] as Timestamp).toDate();
-      timeString = DateFormat('h:mm a').format(dt);
+      timeString = DateFormat(
+        'h:mm a',
+        context.locale.languageCode,
+      ).format(dt); // LOCALIZED
     }
 
     return Align(
@@ -637,7 +643,6 @@ class _ChatScreenState extends State<ChatScreen> {
       decoration: const BoxDecoration(color: _bgColor),
       child: Row(
         children: [
-          // Diet Icon Button
           GestureDetector(
             onTap: _showDietTemplates,
             child: Container(
@@ -661,8 +666,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const SizedBox(width: 12),
-
-          // Text Input
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -675,17 +678,15 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: const TextStyle(fontSize: 15),
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendMessage(),
-                decoration: const InputDecoration(
-                  hintText: 'Message .....',
-                  hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'message_hint'.tr(),
+                  hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                   border: InputBorder.none,
-                ),
+                ), // TRANSLATED
               ),
             ),
           ),
           const SizedBox(width: 12),
-
-          // Send Button
           GestureDetector(
             onTap: _sendMessage,
             child: Container(
@@ -733,41 +734,38 @@ class _ChatScreenState extends State<ChatScreen> {
                 _NavItem(
                   index: 0,
                   icon: Icons.home_filled,
-                  label: 'Home',
+                  label: 'home_nav'.tr(),
                   selectedIndex: selectedIndex,
                   onTap: () => _navigate(const HomeDashboardScreen()),
-                ),
+                ), // TRANSLATED
                 _NavItem(
                   index: 1,
                   icon: Icons.calendar_today_rounded,
-                  label: 'Booking',
+                  label: 'booking_nav'.tr(),
                   selectedIndex: selectedIndex,
                   onTap: _navigateToBooking,
-                ),
+                ), // TRANSLATED
                 _NavItem(
                   index: 2,
                   icon: Icons.bar_chart_rounded,
-                  label: 'Stats',
+                  label: 'stats_nav'.tr(),
                   selectedIndex: selectedIndex,
                   onTap: () => _navigate(const ProgressScreen()),
-                ),
+                ), // TRANSLATED
                 _NavItem(
                   index: 3,
                   icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Chats',
+                  label: 'chats_nav'.tr(),
                   selectedIndex: selectedIndex,
-                  onTap: () {}, // Already on Chats
-                ),
+                  onTap: () {},
+                ), // TRANSLATED
                 _NavItem(
                   index: 4,
                   icon: Icons.person_outline_rounded,
-                  label: 'Profile',
+                  label: 'profile_nav'.tr(),
                   selectedIndex: selectedIndex,
-                  onTap: () {
-                    // Navigate to the Profile Screen smoothly
-                    _navigate(const ProfileScreen());
-                  },
-                ),
+                  onTap: () => _navigate(const ProfileScreen()),
+                ), // TRANSLATED
               ],
             );
           },

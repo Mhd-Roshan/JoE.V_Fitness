@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
 
 import 'sign_up_screen.dart';
 import 'otp_screen.dart';
@@ -102,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen>
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Dismiss',
+      barrierLabel: 'dismiss'.tr(), // TRANSLATED
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 350),
       pageBuilder: (_, _, _) => const SizedBox.shrink(),
@@ -154,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'Account Not Found',
+                        'account_not_found_title'.tr(), // TRANSLATED
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           color: Colors.white,
@@ -165,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'This phone number is not registered yet. Please create an account to begin your journey.',
+                        'account_not_found_desc'.tr(), // TRANSLATED
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           color: Colors.white.withValues(alpha: 0.8),
@@ -181,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen>
                             child: TextButton(
                               onPressed: () => Navigator.pop(context),
                               child: Text(
-                                "Cancel",
+                                "cancel_btn".tr(), // TRANSLATED
                                 style: GoogleFonts.poppins(
                                   color: Colors.white70,
                                   fontWeight: FontWeight.w600,
@@ -215,7 +216,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   elevation: 0,
                                 ),
                                 child: Text(
-                                  'Sign Up',
+                                  'sign_up_btn'.tr(), // TRANSLATED
                                   style: GoogleFonts.poppins(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w600,
@@ -244,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen>
     final input = _phoneController.text.trim();
 
     if (input.isEmpty) {
-      setState(() => _errorText = 'Please enter your phone number');
+      setState(() => _errorText = 'err_enter_phone'.tr()); // TRANSLATED
       return;
     }
 
@@ -258,7 +259,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       if (cleanPhone.length < 10) {
         setState(() {
-          _errorText = 'Please enter a valid 10-digit number';
+          _errorText = 'err_valid_phone'.tr(); // TRANSLATED
           _isLoading = false;
         });
         return;
@@ -299,7 +300,7 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       setState(() => _isLoading = false);
       _showModernSnackBar(
-        'Error verifying account. Please check your connection.',
+        'err_verify_account'.tr(), // TRANSLATED
         isError: true,
       );
     }
@@ -355,7 +356,7 @@ class _LoginScreenState extends State<LoginScreen>
 
         if (hasCompletedAssessment) {
           _showModernSnackBar(
-            "Google Sign-In Successful! Routing to Home Screen...",
+            "google_signin_success".tr(), // TRANSLATED
             isError: false,
           );
         } else {
@@ -368,7 +369,10 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      _showModernSnackBar('Google Sign-In failed: $e', isError: true);
+      _showModernSnackBar(
+        'google_signin_failed'.tr(namedArgs: {'error': e.toString()}),
+        isError: true,
+      ); // TRANSLATED
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -473,7 +477,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    'Sign In To JoE',
+                                    'sign_in_to_joe'.tr(), // TRANSLATED
                                     style: GoogleFonts.workSans(
                                       fontSize: 28,
                                       fontWeight: FontWeight.w900,
@@ -497,7 +501,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                                   ),
                                   Text(
-                                    'V',
+                                    'V', // Not translated as per previous brand guidelines
                                     style: GoogleFonts.workSans(
                                       fontSize: 28,
                                       fontWeight: FontWeight.w900,
@@ -509,7 +513,7 @@ class _LoginScreenState extends State<LoginScreen>
                               ),
                               const SizedBox(height: 12),
                               Text(
-                                'Login to continue your journey',
+                                'login_subtitle'.tr(), // TRANSLATED
                                 style: GoogleFonts.poppins(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -521,8 +525,8 @@ class _LoginScreenState extends State<LoginScreen>
 
                               // --- GLASSMORPHIC INPUT FIELD ---
                               _AnimatedInputField(
-                                label: 'Phone',
-                                hint: 'Phone Number',
+                                label: 'phone_label'.tr(), // TRANSLATED
+                                hint: 'phone_hint'.tr(), // TRANSLATED
                                 icon: Icons.phone_outlined,
                                 controller: _phoneController,
                                 error: _errorText,
@@ -583,7 +587,8 @@ class _LoginScreenState extends State<LoginScreen>
                                                     ),
                                               )
                                             : Text(
-                                                'Sign In',
+                                                'sign_in_btn'
+                                                    .tr(), // TRANSLATED
                                                 key: const ValueKey('label'),
                                                 style: GoogleFonts.workSans(
                                                   fontSize: 16,
@@ -614,7 +619,7 @@ class _LoginScreenState extends State<LoginScreen>
                                       horizontal: 16,
                                     ),
                                     child: Text(
-                                      'Or Login with',
+                                      'or_login_with'.tr(), // TRANSLATED
                                       style: GoogleFonts.poppins(
                                         color: Colors.white70,
                                         fontSize: 13,
@@ -697,7 +702,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
-                                      "Don't have an account? ",
+                                      "dont_have_account".tr(), // TRANSLATED
                                       style: GoogleFonts.workSans(
                                         color: Colors.white60,
                                         fontSize: 14,
@@ -713,7 +718,7 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                       ),
                                       child: Text(
-                                        "Register ",
+                                        "register_link".tr(), // TRANSLATED
                                         style: GoogleFonts.workSans(
                                           color: Colors.white,
                                           decoration: TextDecoration.underline,

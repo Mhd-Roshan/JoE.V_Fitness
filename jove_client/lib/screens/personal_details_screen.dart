@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
 
 // Import your other screens for the bottom nav bar
 import 'home_dashboard_screen.dart';
@@ -85,7 +86,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     HapticFeedback.lightImpact();
     final ImagePicker picker = ImagePicker();
 
-    // Fix: Cache the messenger before await
+    // Cache the messenger before await
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
@@ -118,17 +119,17 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture updated!'),
-            backgroundColor: Color(0xFF34C759),
+          SnackBar(
+            content: Text('msg_profile_pic_updated'.tr()), // TRANSLATED
+            backgroundColor: const Color(0xFF34C759),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Failed to upload image. Please try again.'),
+          SnackBar(
+            content: Text('err_upload_image'.tr()), // TRANSLATED
             backgroundColor: Colors.red,
           ),
         );
@@ -146,7 +147,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     );
     bool isSavingPhone = false;
 
-    // Fix: Cache the messenger and navigator before await
+    // Cache the messenger and navigator before await
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
@@ -160,15 +161,18 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
-              title: const Text(
-                'Update Mobile Number',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              title: Text(
+                'dialog_update_mobile'.tr(), // TRANSLATED
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
               ),
               content: TextField(
                 controller: phoneTempController,
                 keyboardType: TextInputType.phone,
                 decoration: InputDecoration(
-                  hintText: '+91 9876543210',
+                  hintText: 'hint_mobile'.tr(), // TRANSLATED
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -179,9 +183,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
               actions: [
                 TextButton(
                   onPressed: isSavingPhone ? null : () => navigator.pop(),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(color: Colors.grey),
+                  child: Text(
+                    'btn_cancel'.tr(), // TRANSLATED
+                    style: const TextStyle(color: Colors.grey),
                   ),
                 ),
                 ElevatedButton(
@@ -210,17 +214,21 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                               );
                               navigator.pop();
                               scaffoldMessenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Mobile number updated!'),
-                                  backgroundColor: Color(0xFF34C759),
+                                SnackBar(
+                                  content: Text(
+                                    'msg_mobile_updated'.tr(),
+                                  ), // TRANSLATED
+                                  backgroundColor: const Color(0xFF34C759),
                                 ),
                               );
                             }
                           } catch (e) {
                             setStateDialog(() => isSavingPhone = false);
                             scaffoldMessenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Error updating number.'),
+                              SnackBar(
+                                content: Text(
+                                  'err_update_mobile'.tr(),
+                                ), // TRANSLATED
                                 backgroundColor: Colors.red,
                               ),
                             );
@@ -235,9 +243,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                             strokeWidth: 2,
                           ),
                         )
-                      : const Text(
-                          'Save',
-                          style: TextStyle(color: Colors.white),
+                      : Text(
+                          'btn_save'.tr(), // TRANSLATED
+                          style: const TextStyle(color: Colors.white),
                         ),
                 ),
               ],
@@ -254,7 +262,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     HapticFeedback.mediumImpact();
     setState(() => _isLoading = true);
 
-    // Fix: Cache messenger
+    // Cache messenger
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
@@ -269,17 +277,17 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Personal details saved successfully!'),
-            backgroundColor: Color(0xFF34C759),
+          SnackBar(
+            content: Text('msg_details_saved'.tr()), // TRANSLATED
+            backgroundColor: const Color(0xFF34C759),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         scaffoldMessenger.showSnackBar(
-          const SnackBar(
-            content: Text('Error saving changes.'),
+          SnackBar(
+            content: Text('err_save_changes'.tr()), // TRANSLATED
             backgroundColor: Colors.red,
           ),
         );
@@ -313,7 +321,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
 
-    // Fix: Cache the navigator
+    // Cache the navigator
     final navigator = Navigator.of(context);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
@@ -368,7 +376,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       if (mounted) {
         navigator.pop();
         scaffoldMessenger.showSnackBar(
-          const SnackBar(content: Text('Error loading booking.')),
+          SnackBar(content: Text('error_loading_booking'.tr())), // TRANSLATED
         );
       }
     } finally {
@@ -388,51 +396,59 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     return Scaffold(
       backgroundColor: _bgColor,
       extendBody: true,
-      bottomNavigationBar: isKeyboardOpen
-          ? const SizedBox.shrink()
-          : _buildBottomNavBar(),
+      body: Stack(
+        children: [
+          GestureDetector(
+            onTap: () => FocusScope.of(context).unfocus(),
+            child: SafeArea(
+              bottom: false, // Allows scrolling behind the nav bar smoothly
+              child: StreamBuilder<DocumentSnapshot>(
+                stream: _userStream,
+                builder: (context, snapshot) {
+                  var userData =
+                      snapshot.data?.data() as Map<String, dynamic>? ?? {};
+                  if (snapshot.hasData) {
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _populateData(userData),
+                    );
+                  }
 
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
+                  String photoUrl =
+                      userData['photoURL'] ?? currentUser?.photoURL ?? '';
 
-        child: SafeArea(
-          bottom: false,
-          child: StreamBuilder<DocumentSnapshot>(
-            stream: _userStream,
-            builder: (context, snapshot) {
-              var userData =
-                  snapshot.data?.data() as Map<String, dynamic>? ?? {};
-              if (snapshot.hasData) {
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _populateData(userData),
-                );
-              }
+                  return SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(
+                      bottom: 120,
+                    ), // Padding to avoid clipping behind navbar
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        RepaintBoundary(child: _buildTopAppBar()),
+                        const SizedBox(height: 16),
 
-              String photoUrl =
-                  userData['photoURL'] ?? currentUser?.photoURL ?? '';
+                        _buildAvatarSection(photoUrl),
+                        const SizedBox(height: 32),
 
-              return SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 120),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _buildTopAppBar(),
-                    const SizedBox(height: 16),
+                        _buildFormSection(),
+                        const SizedBox(height: 40),
 
-                    _buildAvatarSection(photoUrl),
-                    const SizedBox(height: 32),
-
-                    _buildFormSection(),
-                    const SizedBox(height: 40),
-
-                    _buildSaveButton(),
-                  ],
-                ),
-              );
-            },
+                        _buildSaveButton(),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
-        ),
+
+          // Using a Stack overlay exactly like the Profile screen for maximum layout smoothness
+          if (!isKeyboardOpen)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: _buildBottomNavBar(),
+            ),
+        ],
       ),
     );
   }
@@ -447,31 +463,39 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: _textMain,
-                  size: 20,
+          // Expanded added to constrain the title width gracefully
+          Expanded(
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new,
+                    color: _textMain,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pop(context);
+                  },
                 ),
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  Navigator.pop(context);
-                },
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Personal Details',
-                style: TextStyle(
-                  color: _textMain,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'personal_details_title'.tr(), // TRANSLATED
+                    style: const TextStyle(
+                      color: _textMain,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 12),
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
@@ -564,7 +588,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         GestureDetector(
           onTap: _isUploadingImage ? null : _pickAndUploadImage,
           child: Text(
-            _isUploadingImage ? 'Uploading...' : 'Update Photo',
+            _isUploadingImage
+                ? 'status_uploading'.tr()
+                : 'btn_update_photo'.tr(), // TRANSLATED
             style: TextStyle(
               color: Colors.grey.shade600,
               fontSize: 14,
@@ -582,22 +608,22 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionTitle('Basic Info'),
+          _buildSectionTitle('section_basic_info'.tr()), // TRANSLATED
           Row(
             children: [
               Expanded(
                 child: _buildInputCard(
-                  'Full name',
+                  'label_full_name'.tr(), // TRANSLATED
                   _nameController,
-                  'e.g. Rahul Kumar',
+                  'hint_name'.tr(), // TRANSLATED
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _buildInputCard(
-                  'Age',
+                  'label_age'.tr(), // TRANSLATED
                   _ageController,
-                  'e.g. 32',
+                  'hint_age'.tr(), // TRANSLATED
                   isNumber: true,
                 ),
               ),
@@ -605,9 +631,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           ),
           const SizedBox(height: 16),
 
-          const Text(
-            'Mobile number',
-            style: TextStyle(
+          Text(
+            'label_mobile'.tr(), // TRANSLATED
+            style: const TextStyle(
               color: _textMain,
               fontSize: 14,
               fontWeight: FontWeight.bold,
@@ -638,9 +664,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 ),
                 GestureDetector(
                   onTap: _showPhoneUpdateDialog,
-                  child: const Text(
-                    'Change',
-                    style: TextStyle(
+                  child: Text(
+                    'btn_change'.tr(), // TRANSLATED
+                    style: const TextStyle(
                       color: _navBgColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -653,23 +679,23 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
           const SizedBox(height: 32),
 
-          _buildSectionTitle('Body Info'),
+          _buildSectionTitle('section_body_info'.tr()), // TRANSLATED
           Row(
             children: [
               Expanded(
                 child: _buildInputCard(
-                  'Weight (KG)',
+                  'label_weight'.tr(), // TRANSLATED
                   _weightController,
-                  'e.g. 68.5',
+                  'hint_weight'.tr(), // TRANSLATED
                   isNumber: true,
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
                 child: _buildInputCard(
-                  'Height (CM)',
+                  'label_height'.tr(), // TRANSLATED
                   _heightController,
-                  'e.g. 175',
+                  'hint_height'.tr(), // TRANSLATED
                   isNumber: true,
                 ),
               ),
@@ -710,6 +736,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
             fontSize: 14,
             fontWeight: FontWeight.bold,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 8),
         Container(
@@ -776,13 +804,19 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                   ),
                 )
               : const Icon(Icons.save_outlined, color: Colors.white, size: 22),
-          label: Text(
-            _isLoading ? 'Saving...' : 'Save Changes',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+          label: Flexible(
+            child: Text(
+              _isLoading
+                  ? 'status_saving'.tr()
+                  : 'btn_save_changes'.tr(), // TRANSLATED
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ),
@@ -791,66 +825,64 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   Widget _buildBottomNavBar() {
-    return SafeArea(
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: _navBgColor,
-          borderRadius: BorderRadius.circular(40),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: ValueListenableBuilder<int>(
-          valueListenable: _selectedIndexNotifier,
-          builder: (context, selectedIndex, child) {
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _NavItem(
-                  index: 0,
-                  icon: Icons.home_filled,
-                  label: 'Home',
-                  selectedIndex: selectedIndex,
-                  onTap: () => _navigate(const HomeDashboardScreen()),
-                ),
-                _NavItem(
-                  index: 1,
-                  icon: Icons.calendar_today_rounded,
-                  label: 'Booking',
-                  selectedIndex: selectedIndex,
-                  onTap: _navigateToBooking,
-                ),
-                _NavItem(
-                  index: 2,
-                  icon: Icons.bar_chart_rounded,
-                  label: 'Stats',
-                  selectedIndex: selectedIndex,
-                  onTap: () => _navigate(const ProgressScreen()),
-                ),
-                _NavItem(
-                  index: 3,
-                  icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Chats',
-                  selectedIndex: selectedIndex,
-                  onTap: () => _navigate(const ChatScreen()),
-                ),
-                _NavItem(
-                  index: 4,
-                  icon: Icons.person_outline_rounded,
-                  label: 'Profile',
-                  selectedIndex: selectedIndex,
-                  onTap: () => _navigate(const ProfileScreen()),
-                ),
-              ],
-            );
-          },
-        ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: _navBgColor,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ValueListenableBuilder<int>(
+        valueListenable: _selectedIndexNotifier,
+        builder: (context, selectedIndex, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _NavItem(
+                index: 0,
+                icon: Icons.home_filled,
+                label: 'home_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const HomeDashboardScreen()),
+              ),
+              _NavItem(
+                index: 1,
+                icon: Icons.calendar_today_rounded,
+                label: 'booking_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: _navigateToBooking,
+              ),
+              _NavItem(
+                index: 2,
+                icon: Icons.bar_chart_rounded,
+                label: 'stats_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ProgressScreen()),
+              ),
+              _NavItem(
+                index: 3,
+                icon: Icons.chat_bubble_outline_rounded,
+                label: 'chats_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ChatScreen()),
+              ),
+              _NavItem(
+                index: 4,
+                icon: Icons.person_outline_rounded,
+                label: 'profile_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ProfileScreen()),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -873,38 +905,48 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-            : const EdgeInsets.all(10.0),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white70,
-              size: 20,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
+    // Uses Flexible to grant the selected item extra room and enforce a max-width, effectively stopping horizontal overflows
+    return Flexible(
+      flex: isSelected ? 3 : 1,
+      fit: FlexFit.loose,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: isSelected
+              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
+              : const EdgeInsets.all(10.0),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.black : Colors.white70,
+                size: 20,
               ),
+              if (isSelected) ...[
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// Hide TextDirection from intl to prevent conflicts with Flutter's TextDirection
-import 'package:intl/intl.dart' hide TextDirection;
+
+// easy_localization exports the intl package automatically.
+// We hide TextDirection here to prevent conflicts with Flutter's TextDirection.ltr
+import 'package:easy_localization/easy_localization.dart' hide TextDirection;
 
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
-import 'profile_screen.dart'; // <-- IMPORTED PROFILE SCREEN HERE
+import 'profile_screen.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -69,6 +71,19 @@ class _ProgressScreenState extends State<ProgressScreen> {
   void dispose() {
     _selectedIndexNotifier.dispose();
     super.dispose();
+  }
+
+  String _getLocalizedTimeframe(String tf) {
+    switch (tf) {
+      case 'Weekly':
+        return 'tf_weekly'.tr();
+      case 'Monthly':
+        return 'tf_monthly'.tr();
+      case 'Yearly':
+        return 'tf_yearly'.tr();
+      default:
+        return tf;
+    }
   }
 
   // --- DYNAMIC CHART DATA (NO DUMMY DATA) ---
@@ -134,8 +149,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
         DateTime d = now.subtract(Duration(days: i));
         String dateKey = DateFormat('yyyy-MM-dd').format(d);
         int steps = dailySteps[dateKey] ?? 0;
+        // Dynamically get localized short weekday (e.g. Mon, Tue)
         res.add({
-          'label': DateFormat('E').format(d),
+          'label': DateFormat.E(context.locale.toString()).format(d),
           'value': (steps / stepGoal).clamp(0.0, 1.0),
         });
       }
@@ -182,9 +198,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
-                  'Goal Achieved',
-                  style: TextStyle(
+                Text(
+                  'goal_achieved'.tr(), // TRANSLATED
+                  style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
                     color: _textMain,
@@ -201,15 +217,16 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       height: 1.4,
                     ),
                     children: [
-                      const TextSpan(text: 'You have completed your '),
+                      TextSpan(text: 'msg_completed_part1'.tr()), // TRANSLATED
                       TextSpan(
-                        text: '$goalName goal!\n',
+                        text:
+                            '$goalName ${'msg_completed_part2'.tr()}', // TRANSLATED
                         style: const TextStyle(
                           color: _textMain,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const TextSpan(text: 'Current Status: '),
+                      TextSpan(text: 'msg_current_status'.tr()), // TRANSLATED
                       TextSpan(
                         text: '$currentValue / $goalValue',
                         style: const TextStyle(
@@ -233,9 +250,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       elevation: 0,
                     ),
                     onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Done',
-                      style: TextStyle(
+                    child: Text(
+                      'btn_done'.tr(), // TRANSLATED
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -263,14 +280,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text(
-            'Set Hydration Goal',
-            style: TextStyle(fontWeight: FontWeight.w800, color: _textMain),
+          title: Text(
+            'set_hydration_goal'.tr(), // TRANSLATED
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: _textMain,
+            ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('How many Liters of water do you aim for daily?'),
+              Text('hydration_goal_desc'.tr()), // TRANSLATED
               const SizedBox(height: 16),
               TextField(
                 controller: controller,
@@ -296,7 +316,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'btn_cancel'.tr(),
+                style: const TextStyle(color: Colors.grey),
+              ), // TRANSLATED
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -323,9 +346,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   _changeWater(0, initialAmount, newGoalMl);
                 }
               },
-              child: const Text(
-                'Save',
-                style: TextStyle(
+              child: Text(
+                'btn_save'.tr(), // TRANSLATED
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -349,14 +372,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text(
-            'Set Sleep Goal',
-            style: TextStyle(fontWeight: FontWeight.w800, color: _textMain),
+          title: Text(
+            'set_sleep_goal'.tr(), // TRANSLATED
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: _textMain,
+            ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('How many hours of sleep do you aim for?'),
+              Text('sleep_goal_desc'.tr()), // TRANSLATED
               const SizedBox(height: 16),
               TextField(
                 controller: controller,
@@ -382,7 +408,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'btn_cancel'.tr(),
+                style: const TextStyle(color: Colors.grey),
+              ), // TRANSLATED
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -408,9 +437,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   _updateSleep(initialMinutes, initialMinutes, parsedGoalHrs);
                 }
               },
-              child: const Text(
-                'Save',
-                style: TextStyle(
+              child: Text(
+                'btn_save'.tr(), // TRANSLATED
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -434,14 +463,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          title: const Text(
-            'Set Steps Goal',
-            style: TextStyle(fontWeight: FontWeight.w800, color: _textMain),
+          title: Text(
+            'set_steps_goal'.tr(), // TRANSLATED
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: _textMain,
+            ),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('How many steps do you aim for daily?'),
+              Text('steps_goal_desc'.tr()), // TRANSLATED
               const SizedBox(height: 16),
               TextField(
                 controller: controller,
@@ -465,7 +497,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: Text(
+                'btn_cancel'.tr(),
+                style: const TextStyle(color: Colors.grey),
+              ), // TRANSLATED
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -489,9 +524,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   _updateSteps(initialSteps, initialSteps, parsedGoal);
                 }
               },
-              child: const Text(
-                'Save',
-                style: TextStyle(
+              child: Text(
+                'btn_save'.tr(), // TRANSLATED
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -524,7 +559,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           if (!_shownDialogs.contains(key)) {
             _shownDialogs.add(key);
             _showSuccessDialog(
-              goalName: 'Hydration',
+              goalName: 'hydration_title'.tr(), // TRANSLATED
               currentValue:
                   '${(newWaterLevel / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}L',
               goalValue:
@@ -535,7 +570,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update hydration.')),
+            SnackBar(content: Text('err_update_hydration'.tr())), // TRANSLATED
           );
         }
       }
@@ -553,7 +588,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update weight.')),
+            SnackBar(content: Text('err_update_weight'.tr())), // TRANSLATED
           );
         }
       }
@@ -587,7 +622,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           if (!_shownDialogs.contains(key)) {
             _shownDialogs.add(key);
             _showSuccessDialog(
-              goalName: 'Sleep',
+              goalName: 'sleep_title'.tr(), // TRANSLATED
               currentValue:
                   '${hours.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')} hrs',
               goalValue:
@@ -598,7 +633,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update sleep.')),
+            SnackBar(content: Text('err_update_sleep'.tr())), // TRANSLATED
           );
         }
       }
@@ -623,16 +658,16 @@ class _ProgressScreenState extends State<ProgressScreen> {
           if (!_shownDialogs.contains(key)) {
             _shownDialogs.add(key);
             _showSuccessDialog(
-              goalName: 'Steps',
-              currentValue: '$newSteps steps',
-              goalValue: '$goal steps',
+              goalName: 'steps_title'.tr(), // TRANSLATED
+              currentValue: '$newSteps ${'unit_steps'.tr().trim()}',
+              goalValue: '$goal ${'unit_steps'.tr().trim()}',
             );
           }
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update steps.')),
+            SnackBar(content: Text('err_update_steps'.tr())), // TRANSLATED
           );
         }
       }
@@ -699,9 +734,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Pop dialog on error
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Error loading booking.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('error_loading_booking'.tr())), // TRANSLATED
+        );
       }
     } finally {
       if (mounted) {
@@ -906,39 +941,46 @@ class _ProgressScreenState extends State<ProgressScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: _textMain,
-                  size: 20,
+          Expanded(
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new,
+                    color: _textMain,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    } else {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const HomeDashboardScreen(),
+                        ),
+                      );
+                    }
+                  },
                 ),
-                onPressed: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  } else {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HomeDashboardScreen(),
-                      ),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'Progress',
-                style: TextStyle(
-                  color: _textMain,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'progress_title'.tr(), // TRANSLATED
+                    style: const TextStyle(
+                      color: _textMain,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 12),
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
@@ -1009,7 +1051,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             : [],
                       ),
                       child: Text(
-                        tf,
+                        _getLocalizedTimeframe(tf), // TRANSLATED
                         style: TextStyle(
                           color: isSelected ? _textMain : Colors.grey.shade600,
                           fontWeight: isSelected
@@ -1017,6 +1059,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               : FontWeight.w600,
                           fontSize: 13,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -1028,14 +1072,19 @@ class _ProgressScreenState extends State<ProgressScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Activity Level',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                  color: _textMain,
+              Expanded(
+                child: Text(
+                  'activity_level'.tr(), // TRANSLATED
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: _textMain,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -1057,16 +1106,18 @@ class _ProgressScreenState extends State<ProgressScreen> {
             ],
           ),
           const SizedBox(height: 32),
-          SizedBox(
-            height: 140,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: chartData.map((data) {
-                double barWidth = chartData.length > 7 ? 12.0 : 20.0;
-                bool isToday =
-                    data['label'] == DateFormat('E').format(DateTime.now());
-                return Column(
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: chartData.map((data) {
+              double barWidth = chartData.length > 7 ? 12.0 : 20.0;
+              bool isToday =
+                  data['label'] ==
+                  DateFormat.E(
+                    context.locale.toString(),
+                  ).format(DateTime.now());
+              return Flexible(
+                child: Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Stack(
@@ -1097,6 +1148,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     const SizedBox(height: 12),
                     Text(
                       data['label'],
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.fade,
                       style: TextStyle(
                         color: isToday ? _activeBlue : Colors.grey.shade500,
                         fontWeight: isToday ? FontWeight.bold : FontWeight.w600,
@@ -1104,9 +1158,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       ),
                     ),
                   ],
-                );
-              }).toList(),
-            ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -1164,16 +1218,23 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 400),
-                          style: TextStyle(
-                            color: isWaterHigh ? Colors.white : _textMain,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.5,
+                        Expanded(
+                          child: AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 400),
+                            style: TextStyle(
+                              color: isWaterHigh ? Colors.white : _textMain,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                            child: Text(
+                              'hydration_title'.tr(), // TRANSLATED
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          child: const Text('Hydration'),
                         ),
+                        const SizedBox(width: 8),
                         Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1187,7 +1248,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
-                              child: const Text('Current'),
+                              child: Text('label_current'.tr()), // TRANSLATED
                             ),
                             AnimatedDefaultTextStyle(
                               duration: const Duration(milliseconds: 400),
@@ -1266,7 +1327,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 _NavItem(
                   index: 0,
                   icon: Icons.home_filled,
-                  label: 'Home',
+                  label: 'home_nav'.tr(), // TRANSLATED
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -1285,7 +1346,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 _NavItem(
                   index: 1,
                   icon: Icons.calendar_today_rounded,
-                  label: 'Booking',
+                  label: 'booking_nav'.tr(), // TRANSLATED
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -1295,14 +1356,14 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 _NavItem(
                   index: 2,
                   icon: Icons.bar_chart_rounded,
-                  label: 'Stats',
+                  label: 'stats_nav'.tr(), // TRANSLATED
                   selectedIndex: selectedIndex,
                   onTap: () {},
                 ),
                 _NavItem(
                   index: 3,
                   icon: Icons.chat_bubble_outline_rounded,
-                  label: 'Chats',
+                  label: 'chats_nav'.tr(), // TRANSLATED
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -1320,7 +1381,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 _NavItem(
                   index: 4,
                   icon: Icons.person_outline_rounded,
-                  label: 'Profile',
+                  label: 'profile_nav'.tr(), // TRANSLATED
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
@@ -1455,20 +1516,25 @@ class _WeightCardState extends State<_WeightCard> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Weight',
-                      style: TextStyle(
-                        color: Color(0xFF1A1A1A),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
+                    Expanded(
+                      child: Text(
+                        'weight_title'.tr(), // TRANSLATED
+                        style: const TextStyle(
+                          color: Color(0xFF1A1A1A),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          'Current',
+                          'label_current'.tr(), // TRANSLATED
                           style: TextStyle(
                             color: Colors.grey.shade500,
                             fontSize: 12,
@@ -1495,7 +1561,7 @@ class _WeightCardState extends State<_WeightCard> {
                             ),
                             const SizedBox(width: 2),
                             Text(
-                              'kg',
+                              'unit_kg'.tr(), // TRANSLATED
                               style: TextStyle(
                                 color: Colors.grey.shade500,
                                 fontSize: 13,
@@ -1511,9 +1577,9 @@ class _WeightCardState extends State<_WeightCard> {
               ),
               const Spacer(),
 
-              // INCREASED SIZE: Ruler container is now taller
+              // INCREASED SIZE to 105: prevents 2.0 pixel overflow for ruler ticks and bottom texts
               SizedBox(
-                height: 90,
+                height: 105,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
@@ -1710,20 +1776,25 @@ class _SleepCardState extends State<_SleepCard> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Sleep',
-                    style: TextStyle(
-                      color: Color(0xFF1A1A1A),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
+                  Expanded(
+                    child: Text(
+                      'sleep_title'.tr(), // TRANSLATED
+                      style: const TextStyle(
+                        color: Color(0xFF1A1A1A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'Current',
+                        'label_current'.tr(), // TRANSLATED
                         style: TextStyle(
                           color: Colors.grey.shade500,
                           fontSize: 12,
@@ -1746,10 +1817,10 @@ class _SleepCardState extends State<_SleepCard> {
 
             Expanded(
               child: widget.goalHours <= 0
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'Set Goal',
-                        style: TextStyle(
+                        'btn_set_goal'.tr(), // TRANSLATED
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: _sleepPurple,
@@ -2035,20 +2106,25 @@ class _StepsCardState extends State<_StepsCard> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Steps',
-                    style: TextStyle(
-                      color: Color(0xFF1A1A1A),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
+                  Expanded(
+                    child: Text(
+                      'steps_title'.tr(), // TRANSLATED
+                      style: const TextStyle(
+                        color: Color(0xFF1A1A1A),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'Current',
+                        'label_current'.tr(), // TRANSLATED
                         style: TextStyle(
                           color: Colors.grey.shade500,
                           fontSize: 12,
@@ -2071,10 +2147,10 @@ class _StepsCardState extends State<_StepsCard> {
 
             Expanded(
               child: widget.goalSteps <= 0
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'Set Goal',
-                        style: TextStyle(
+                        'btn_set_goal'.tr(), // TRANSLATED
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: _stepsColor,
@@ -2111,7 +2187,8 @@ class _StepsCardState extends State<_StepsCard> {
                           },
                           child: ListWheelScrollView.useDelegate(
                             controller: _scrollController,
-                            itemExtent: 40,
+                            itemExtent:
+                                50, // Extent increased from 40 to accommodate scaled fonts
                             physics: const FixedExtentScrollPhysics(),
                             perspective: 0.005,
                             onSelectedItemChanged: (index) {
@@ -2126,6 +2203,8 @@ class _StepsCardState extends State<_StepsCard> {
                                     (index * _stepIncrement) == _currentSteps;
                                 return Center(
                                   child: RichText(
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     text: TextSpan(
                                       children: [
                                         TextSpan(
@@ -2142,7 +2221,8 @@ class _StepsCardState extends State<_StepsCard> {
                                         ),
                                         if (isSelected)
                                           TextSpan(
-                                            text: ' steps',
+                                            text: 'unit_steps'
+                                                .tr(), // TRANSLATED
                                             style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w600,
@@ -2188,40 +2268,50 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeInOut,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-            : const EdgeInsets.all(10.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white,
-              size: 20,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
+    // Uses Flexible to grant the selected item extra room and enforce a max-width, effectively stopping horizontal overflows
+    return Flexible(
+      flex: isSelected ? 3 : 1,
+      fit: FlexFit.loose,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          padding: isSelected
+              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
+              : const EdgeInsets.all(10.0),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.black : Colors.white,
+                size: 20,
               ),
+              if (isSelected) ...[
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

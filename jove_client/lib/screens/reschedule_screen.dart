@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
 
 class RescheduleScreen extends StatefulWidget {
   final String bookingId;
@@ -98,8 +98,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Session Rescheduled Successfully!'),
+        SnackBar(
+          content: Text('reschedule_success'.tr()), // TRANSLATED
           backgroundColor: Colors.green,
         ),
       );
@@ -109,7 +109,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to reschedule session.')),
+        SnackBar(content: Text('reschedule_fail'.tr())), // TRANSLATED
       );
       setState(() => _isUpdating = false);
     }
@@ -117,14 +117,18 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Optionally dynamically set DateFormat locale: DateFormat('MMM yyyy', context.locale.languageCode)
     String currentMonthYear = DateFormat('MMM yyyy').format(_selectedDate!);
     String oldDateDisplay = '';
     try {
       DateTime oldDt = DateTime.parse(widget.bookingData['date']);
       oldDateDisplay = DateFormat('MMM dd, yyyy').format(oldDt).toUpperCase();
     } catch (e) {
-      oldDateDisplay = widget.bookingData['date'] ?? 'TBD';
+      oldDateDisplay = widget.bookingData['date'] ?? 'tbd'.tr(); // TRANSLATED
     }
+
+    String trainerName =
+        widget.bookingData['trainerName'] ?? 'unassigned'.tr(); // TRANSLATED
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -154,9 +158,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Text(
-                      'Reschedule',
-                      style: TextStyle(
+                    Text(
+                      'reschedule_title'.tr(), // TRANSLATED
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -181,9 +185,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Current Session',
-                    style: TextStyle(
+                  Text(
+                    'current_session'.tr(), // TRANSLATED
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                       color: _darkBlue,
@@ -216,7 +220,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.bookingData['sessionType'] ?? 'Training',
+                                widget.bookingData['sessionType'] ??
+                                    'training_default'.tr(), // TRANSLATED
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
@@ -232,11 +237,17 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                                     color: Colors.grey,
                                   ),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    'Trainer : ${widget.bookingData['trainerName']}',
-                                    style: const TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 12,
+                                  Expanded(
+                                    child: Text(
+                                      'trainer_name_format'.tr(
+                                        namedArgs: {'trainerName': trainerName},
+                                      ), // TRANSLATED
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 12,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
                                 ],
@@ -268,9 +279,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Date',
-                              style: TextStyle(
+                            Text(
+                              'date_label'.tr(), // TRANSLATED
+                              style: const TextStyle(
                                 color: Colors.grey,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -289,9 +300,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            const Text(
-                              'Time',
-                              style: TextStyle(
+                            Text(
+                              'time_label'.tr(), // TRANSLATED
+                              style: const TextStyle(
                                 color: Colors.grey,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -314,9 +325,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Select New Date',
-                        style: TextStyle(
+                      Text(
+                        'select_new_date'.tr(), // TRANSLATED
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                           color: _darkBlue,
@@ -393,9 +404,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    'Select Time',
-                    style: TextStyle(
+                  Text(
+                    'select_time_title'.tr(), // TRANSLATED
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                       color: _darkBlue,
@@ -412,9 +423,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Enter the time',
-                          style: TextStyle(
+                        Text(
+                          'enter_time_hint'.tr(), // TRANSLATED
+                          style: const TextStyle(
                             color: Colors.grey,
                             fontWeight: FontWeight.bold,
                           ),
@@ -443,7 +454,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                                     children: [
                                       Text(
                                         _selectedTime == null
-                                            ? 'Select Time'
+                                            ? 'select_time_btn'
+                                                  .tr() // TRANSLATED
                                             : _formatTimeStrict(_selectedTime!),
                                         style: const TextStyle(
                                           fontSize: 14,
@@ -483,9 +495,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                                           strokeWidth: 2,
                                         ),
                                       )
-                                    : const Text(
-                                        'Check',
-                                        style: TextStyle(
+                                    : Text(
+                                        'btn_check'.tr(), // TRANSLATED
+                                        style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -518,9 +530,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const Text(
-                    'Reason (Optional)',
-                    style: TextStyle(
+                  Text(
+                    'reason_optional'.tr(), // TRANSLATED
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w900,
                       color: _darkBlue,
@@ -531,7 +543,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                     controller: _reasonController,
                     maxLines: 3,
                     decoration: InputDecoration(
-                      hintText: 'Briefly explain why you\'re rescheduling....',
+                      hintText: 'reason_hint'.tr(), // TRANSLATED
                       hintStyle: TextStyle(
                         color: Colors.grey.shade400,
                         fontSize: 14,
@@ -575,9 +587,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                             ),
                       label: _isUpdating
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'Confirm Changes',
-                              style: TextStyle(
+                          : Text(
+                              'confirm_changes'.tr(), // TRANSLATED
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -609,11 +621,36 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildStaticNavItem(0, Icons.home_filled, 'Home', false),
-            _buildStaticNavItem(1, Icons.calendar_month, 'Booking', true),
-            _buildStaticNavItem(2, Icons.insert_chart_rounded, 'Stats', false),
-            _buildStaticNavItem(3, Icons.chat_bubble_rounded, 'Chats', false),
-            _buildStaticNavItem(4, Icons.person_rounded, 'Profile', false),
+            _buildStaticNavItem(
+              0,
+              Icons.home_filled,
+              'home_nav'.tr(),
+              false,
+            ), // TRANSLATED
+            _buildStaticNavItem(
+              1,
+              Icons.calendar_month,
+              'booking_nav'.tr(),
+              true,
+            ), // TRANSLATED
+            _buildStaticNavItem(
+              2,
+              Icons.insert_chart_rounded,
+              'stats_nav'.tr(),
+              false,
+            ), // TRANSLATED
+            _buildStaticNavItem(
+              3,
+              Icons.chat_bubble_rounded,
+              'chats_nav'.tr(),
+              false,
+            ), // TRANSLATED
+            _buildStaticNavItem(
+              4,
+              Icons.person_rounded,
+              'profile_nav'.tr(),
+              false,
+            ), // TRANSLATED
           ],
         ),
       ),

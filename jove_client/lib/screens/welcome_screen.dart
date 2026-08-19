@@ -1,6 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'onboarding_screen.dart';
 import 'auth/login_screen.dart';
 
@@ -14,6 +19,94 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen> {
   // Button press scale for smooth animation (matching login page)
   double _buttonScale = 1.0;
+
+  // --- LANGUAGE SELECTOR BOTTOM SHEET ---
+  void _showLanguageSelector() {
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(
+        0xFF121212,
+      ), // Dark theme to match welcome screen
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              // Drag handle
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade700,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'select_language'.tr(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildLangTile('English', 'en'),
+              _buildLangTile('മലയാളം', 'ml'),
+              _buildLangTile('हिन्दी', 'hi'),
+              _buildLangTile('தமிழ்', 'ta'),
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLangTile(String name, String code) {
+    bool isSelected = context.locale.languageCode == code;
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 32),
+      title: Text(
+        name,
+        style: TextStyle(
+          color: isSelected ? const Color(0xFF00CBE6) : Colors.white70,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 16,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check_circle_rounded, color: Color(0xFF00CBE6))
+          : null,
+      onTap: () async {
+        HapticFeedback.selectionClick();
+
+        // 1. Update language locally (Instantly changes UI)
+        await context.setLocale(Locale(code));
+
+        // 2. Save to Firebase (If user is logged in)
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .update({'appLanguage': code});
+          } catch (e) {
+            debugPrint("Error updating language in Firebase: $e");
+          }
+        }
+
+        if (mounted) Navigator.pop(context);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,48 +156,60 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               },
               child: Column(
                 children: [
-                  // --- LANGUAGE SELECTOR (CLEAR GLASS) ---
+                  // --- LANGUAGE SELECTOR (CLEAR GLASS - NOW CLICKABLE) ---
                   Align(
                     alignment: Alignment.topRight,
                     child: Container(
                       margin: const EdgeInsets.only(top: 16, right: 20),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(30),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
+                      child: GestureDetector(
+                        onTap: _showLanguageSelector,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(
+                              sigmaX: 12.0,
+                              sigmaY: 12.0,
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                width: 1.0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
                               ),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.language,
-                                  size: 16,
-                                  color: Colors.white,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  width: 1.0,
                                 ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Eng',
-                                  style: TextStyle(
-                                    fontFamily: 'WorkSans',
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.language,
+                                    size: 16,
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    letterSpacing: 0.5,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'lang_short'.tr(),
+                                    style: const TextStyle(
+                                      fontFamily: 'WorkSans',
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 16,
+                                    color: Colors.white70,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -227,7 +332,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
                   const SizedBox(height: 50),
 
-                  // --- NORMAL GET STARTED BUTTON (Match Login Page) ---
+                  // --- NORMAL GET STARTED BUTTON ---
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32.0),
                     child: GestureDetector(
@@ -235,6 +340,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       onTapUp: (_) => setState(() => _buttonScale = 1.0),
                       onTapCancel: () => setState(() => _buttonScale = 1.0),
                       onTap: () {
+                        HapticFeedback.selectionClick();
                         Navigator.push(
                           context,
                           PageRouteBuilder(
@@ -259,6 +365,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           height: 56,
                           child: ElevatedButton(
                             onPressed: () {
+                              HapticFeedback.selectionClick();
                               Navigator.push(
                                 context,
                                 PageRouteBuilder(
@@ -282,26 +389,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                                 0xFFBB0013,
                               ), // Login Page Red
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  22,
-                                ), // Pill shape
+                                borderRadius: BorderRadius.circular(22),
                               ),
                               elevation: 0,
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'Get Started',
-                                  style: TextStyle(
+                                  'get_started'.tr(),
+                                  style: const TextStyle(
                                     fontFamily: 'WorkSans',
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white,
                                   ),
                                 ),
-                                SizedBox(width: 8),
-                                Icon(
+                                const SizedBox(width: 8),
+                                const Icon(
                                   Icons.arrow_forward,
                                   color: Colors.white,
                                   size: 20,
@@ -320,9 +425,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Already have an account? ',
-                        style: TextStyle(
+                      Text(
+                        'already_have_account'.tr(),
+                        style: const TextStyle(
                           fontFamily: 'WorkSans',
                           color: Color(0xFF888888),
                           fontWeight: FontWeight.w500,
@@ -331,6 +436,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       ),
                       GestureDetector(
                         onTap: () {
+                          HapticFeedback.selectionClick();
                           Navigator.push(
                             context,
                             PageRouteBuilder(
@@ -346,9 +452,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             ),
                           );
                         },
-                        child: const Text(
-                          'Sign In',
-                          style: TextStyle(
+                        child: Text(
+                          'sign_in_link'.tr(),
+                          style: const TextStyle(
                             fontFamily: 'WorkSans',
                             color: Color.fromARGB(255, 216, 217, 218),
                             fontWeight: FontWeight.w700,

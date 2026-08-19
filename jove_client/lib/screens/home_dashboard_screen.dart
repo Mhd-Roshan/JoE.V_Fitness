@@ -1,15 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Added for Haptic Feedback
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import 'booking_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'reschedule_screen.dart';
 import 'progress_screen.dart';
 import 'chat_screen.dart';
-import 'profile_screen.dart'; // <-- IMPORTED PROFILE SCREEN HERE
+import 'profile_screen.dart';
+import 'health_profile_screen.dart';
 
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key});
@@ -24,9 +26,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   late Stream<DocumentSnapshot> _userStream;
   late Stream<QuerySnapshot> _bookingStream;
-  late Stream<QuerySnapshot> _chatStream;
+  late Stream<QuerySnapshot> _dietStream;
 
-  bool _isNavigating = false; // Prevents double-tap lag
+  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -37,14 +39,15 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         .collection('users')
         .doc(uid)
         .snapshots();
+
     _bookingStream = FirebaseFirestore.instance
         .collection('bookings')
         .where('userId', isEqualTo: uid)
         .snapshots();
-    _chatStream = FirebaseFirestore.instance
-        .collection('chats')
-        .where('participants', arrayContains: uid)
-        .orderBy('lastMessageTime', descending: true)
+
+    _dietStream = FirebaseFirestore.instance
+        .collection('diet_plans')
+        .where('userId', isEqualTo: uid)
         .snapshots();
   }
 
@@ -54,17 +57,14 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     super.dispose();
   }
 
-  // --- OPTIMIZED NAVIGATION (FIXES LAG) ---
-
-  // 1. Standard Navigation for Progress, Chat, and Profile
+  // --- BUTTERY SMOOTH NAVIGATION ---
   Future<void> _handleStandardNavigation(Widget screen, int index) async {
     if (_isNavigating) return;
-    HapticFeedback.selectionClick(); // <-- Added tactile feedback
+    HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = index;
 
-    // MAGIC ANTI-LAG TRICK: Yield the UI thread for 50ms so the tap animation
-    // and nav bar color change can render BEFORE building the heavy target screen.
+    // Yield the main thread so the ripple animation finishes before building the next screen
     await Future.delayed(const Duration(milliseconds: 50));
 
     if (!mounted) return;
@@ -73,9 +73,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       context,
       PageRouteBuilder(
         pageBuilder: (context, a, b) => screen,
-        transitionsBuilder: (context, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 150),
+        transitionsBuilder: (context, a, b, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 200),
       ),
     );
 
@@ -84,16 +86,14 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     }
   }
 
-  // 2. Booking Navigation (Requires Firebase check)
   Future<void> _handleBookingNavigation([
     Map<String, dynamic>? userData,
   ]) async {
     if (_isNavigating) return;
-    HapticFeedback.selectionClick(); // <-- Added tactile feedback
+    HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = 1;
 
-    // Instantly show visual feedback so UI doesn't freeze waiting for Firebase
     showDialog(
       context: context,
       barrierColor: Colors.transparent,
@@ -121,7 +121,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       if (trainerId == null || trainerId.isEmpty) {
         nextScreen = const SelectTrainerScreen();
       } else {
-        // Fetch from cache first for instantaneous loads
         DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
             .collection('trainers')
             .doc(trainerId)
@@ -143,30 +142,29 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       }
 
       if (!mounted) return;
-
-      // Pop loading dialog
       Navigator.pop(context);
 
-      // LAG FIX: Use pushReplacement to stop the navigation stack from leaking memory
       await Navigator.pushReplacement(
         context,
         PageRouteBuilder(
           pageBuilder: (context, a, b) => nextScreen,
-          transitionsBuilder: (context, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
+          transitionsBuilder: (context, a, b, child) => FadeTransition(
+            opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+            child: child,
+          ),
+          transitionDuration: const Duration(milliseconds: 200),
         ),
       );
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Pop dialog on error
+        Navigator.pop(context);
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Error loading data.')));
+        ).showSnackBar(SnackBar(content: Text('error_loading_data'.tr())));
       }
     } finally {
       if (mounted) {
-        _selectedIndexNotifier.value = 0; // Reset state silently
+        _selectedIndexNotifier.value = 0;
         setState(() => _isNavigating = false);
       }
     }
@@ -189,12 +187,10 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       if (sessionDateTime.difference(now).inMinutes < 120 &&
           sessionDateTime.isAfter(now)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Sessions cannot be rescheduled within 2 hours of start time.',
-            ),
+          SnackBar(
+            content: Text('error_reschedule_2hrs'.tr()),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 4),
+            duration: const Duration(seconds: 4),
           ),
         );
         return;
@@ -208,13 +204,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Error processing session date/time. Please contact support.',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('error_processing_datetime'.tr())));
     }
   }
 
@@ -238,13 +230,20 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             children: [
               SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 120),
-                physics: const BouncingScrollPhysics(),
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    RepaintBoundary(child: _HeaderSection(userData: userData)),
+                    RepaintBoundary(
+                      child: _HeaderSection(
+                        userData: userData,
+                        onProfileTap: () =>
+                            _handleStandardNavigation(const ProfileScreen(), 4),
+                      ),
+                    ),
 
-                    // RepaintBoundary drastically reduces lag on complex gradients/shadows
                     RepaintBoundary(
                       child: _UpcomingSessionSection(
                         bookingStream: _bookingStream,
@@ -256,24 +255,38 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       child: _QuickActionsSection(
                         userData: userData,
                         onBookingTap: () => _handleBookingNavigation(userData),
-                      ),
-                    ),
-
-                    RepaintBoundary(
-                      child: _TodayProgressSection(userData: userData),
-                    ),
-
-                    RepaintBoundary(
-                      child: _RecentChatsSection(
-                        chatStream: _chatStream,
-                        onChatTap: () =>
+                        onHealthTap: () {
+                          HapticFeedback.lightImpact();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const HealthProfileScreen(),
+                            ),
+                          );
+                        },
+                        onDietTap: () =>
                             _handleStandardNavigation(const ChatScreen(), 3),
                       ),
+                    ),
+
+                    RepaintBoundary(
+                      child: _TodayProgressSection(
+                        userData: userData,
+                        onProgressTap: () => _handleStandardNavigation(
+                          const ProgressScreen(),
+                          2,
+                        ),
+                      ),
+                    ),
+
+                    RepaintBoundary(
+                      child: _DietPlansSection(dietStream: _dietStream),
                     ),
                     const SizedBox(height: 20),
                   ],
                 ),
               ),
+
               Align(
                 alignment: Alignment.bottomCenter,
                 child: _FloatingNavBar(
@@ -283,9 +296,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                       _handleStandardNavigation(const ProgressScreen(), 2),
                   onChatsTap: () =>
                       _handleStandardNavigation(const ChatScreen(), 3),
-                  onProfileTap:
-                      () => // <-- ADDED PROFILE NAVIGATION
-                          _handleStandardNavigation(const ProfileScreen(), 4),
+                  onProfileTap: () =>
+                      _handleStandardNavigation(const ProfileScreen(), 4),
                   isNavigating: _isNavigating,
                 ),
               ),
@@ -299,7 +311,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
 class _HeaderSection extends StatelessWidget {
   final Map<String, dynamic> userData;
-  const _HeaderSection({required this.userData});
+  final VoidCallback onProfileTap;
+
+  const _HeaderSection({required this.userData, required this.onProfileTap});
 
   @override
   Widget build(BuildContext context) {
@@ -307,7 +321,7 @@ class _HeaderSection extends StatelessWidget {
         userData['fullName'] ??
         userData['name'] ??
         userData['firstName'] ??
-        'Athlete';
+        'athlete_fallback'.tr();
     String profilePic = userData['profilePic'] ?? userData['imageUrl'] ?? '';
     String todayDate = DateFormat('dd MMM yyyy').format(DateTime.now());
 
@@ -344,25 +358,218 @@ class _HeaderSection extends StatelessWidget {
               ),
             ],
           ),
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: Colors.grey.shade200,
-            backgroundImage: profilePic.isNotEmpty
-                ? NetworkImage(profilePic)
-                : null,
-            child: profilePic.isEmpty
-                ? Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                    style: TextStyle(
-                      color: Colors.grey.shade800,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  )
-                : null,
+          GestureDetector(
+            onTap: onProfileTap,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 26,
+                backgroundColor: Colors.grey.shade200,
+                backgroundImage: profilePic.isNotEmpty
+                    ? NetworkImage(profilePic)
+                    : null,
+                child: profilePic.isEmpty
+                    ? Text(
+                        userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
+                        style: TextStyle(
+                          color: Colors.grey.shade800,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _DietPlansSection extends StatelessWidget {
+  final Stream<QuerySnapshot> dietStream;
+
+  const _DietPlansSection({required this.dietStream});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'diet_plans'.tr(),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 90,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: dietStream,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7FA),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.restaurant_menu_rounded,
+                        color: Colors.grey.shade400,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'no_diet_plans'.tr(),
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  var data =
+                      snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                  String title = data['title'] ?? 'Diet Plan';
+                  String date = data['createdAt'] != null
+                      ? DateFormat(
+                          'dd MMM yyyy',
+                        ).format((data['createdAt'] as Timestamp).toDate())
+                      : 'Recent';
+
+                  return GestureDetector(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Opening PDF...')),
+                      );
+                    },
+                    child: Container(
+                      width: 260,
+                      margin: const EdgeInsets.only(right: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.grey.shade200,
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF0F1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.picture_as_pdf_rounded,
+                              color: Color(0xFFE53935),
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                    fontSize: 15,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  date,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
@@ -386,7 +593,7 @@ class _UpcomingSessionSection extends StatelessWidget {
           bool hasBooking = false;
           Map<String, dynamic>? bookingData;
           String? bookingId;
-          String displayDate = 'TBD';
+          String displayDate = 'tbd'.tr();
 
           if (bookingSnapshot.hasData &&
               bookingSnapshot.data!.docs.isNotEmpty) {
@@ -432,7 +639,7 @@ class _UpcomingSessionSection extends StatelessWidget {
               bookingData = nextBookingDoc.data() as Map<String, dynamic>;
 
               if (bookingData['date'] == todayFormatted) {
-                displayDate = 'Today';
+                displayDate = 'today'.tr();
               } else {
                 try {
                   DateTime parsed = DateFormat(
@@ -482,7 +689,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Upcoming Session',
+                      'upcoming_session'.tr(),
                       style: TextStyle(
                         color: Colors.black.withValues(alpha: 0.7),
                         fontSize: 14,
@@ -499,9 +706,9 @@ class _UpcomingSessionSection extends StatelessWidget {
                           color: const Color(0xFF34C759),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Text(
-                          'Confirmed',
-                          style: TextStyle(
+                        child: Text(
+                          'confirmed'.tr(),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
@@ -513,7 +720,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                 const SizedBox(height: 12),
                 if (hasBooking) ...[
                   Text(
-                    bookingData!['sessionType'] ?? 'Training Session',
+                    bookingData!['sessionType'] ?? 'training_session'.tr(),
                     style: const TextStyle(
                       color: Colors.black87,
                       fontSize: 24,
@@ -533,7 +740,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        bookingData['trainerName'] ?? 'Trainer',
+                        bookingData['trainerName'] ?? 'trainer'.tr(),
                         style: TextStyle(
                           color: Colors.black.withValues(alpha: 0.7),
                           fontSize: 13,
@@ -542,7 +749,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        '$displayDate • ${bookingData['time'] ?? 'TBD'}',
+                        '$displayDate • ${bookingData['time'] ?? 'tbd'.tr()}',
                         style: TextStyle(
                           color: Colors.black.withValues(alpha: 0.7),
                           fontSize: 13,
@@ -572,8 +779,8 @@ class _UpcomingSessionSection extends StatelessWidget {
                               const SizedBox(width: 6),
                               Text(
                                 bookingData['status'] == 'pending'
-                                    ? 'Pending'
-                                    : 'Arriving',
+                                    ? 'pending'.tr()
+                                    : 'arriving'.tr(),
                                 style: const TextStyle(
                                   color: Colors.black87,
                                   fontWeight: FontWeight.w800,
@@ -598,9 +805,9 @@ class _UpcomingSessionSection extends StatelessWidget {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text(
-                            'Reschedule',
-                            style: TextStyle(
+                          child: Text(
+                            'reschedule_btn'.tr(),
+                            style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               fontSize: 13,
                             ),
@@ -610,9 +817,9 @@ class _UpcomingSessionSection extends StatelessWidget {
                     ],
                   ),
                 ] else ...[
-                  const Text(
-                    'Rest Day',
-                    style: TextStyle(
+                  Text(
+                    'rest_day'.tr(),
+                    style: const TextStyle(
                       color: Colors.black87,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -621,7 +828,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Take time to recover, or book a new session.',
+                    'rest_day_desc'.tr(),
                     style: TextStyle(
                       color: Colors.black.withValues(alpha: 0.7),
                       fontSize: 14,
@@ -641,10 +848,14 @@ class _UpcomingSessionSection extends StatelessWidget {
 class _QuickActionsSection extends StatelessWidget {
   final Map<String, dynamic> userData;
   final VoidCallback onBookingTap;
+  final VoidCallback onHealthTap;
+  final VoidCallback onDietTap;
 
   const _QuickActionsSection({
     required this.userData,
     required this.onBookingTap,
+    required this.onHealthTap,
+    required this.onDietTap,
   });
 
   @override
@@ -652,11 +863,11 @@ class _QuickActionsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            'Quick Action',
-            style: TextStyle(
+            'quick_action_title'.tr(),
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Colors.black87,
@@ -664,32 +875,35 @@ class _QuickActionsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 56,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+        // OPTIMIZATION: Used SingleChildScrollView + Row instead of ListView
+        // This stops lazily loading overhead and makes it purely buttery for small lists.
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
             children: [
               _QuickActionPill(
-                title: 'Booking',
+                title: 'booking_action'.tr(),
                 icon: Icons.calendar_month_outlined,
                 pillColor: const Color.fromARGB(255, 180, 4, 22),
                 iconColor: const Color(0xFFBB0013),
                 textColor: Colors.white,
                 onTap: onBookingTap,
               ),
-              const _QuickActionPill(
-                title: 'Health',
+              _QuickActionPill(
+                title: 'health_action'.tr(),
                 icon: Icons.monitor_heart_outlined,
-                pillColor: Color.fromARGB(255, 143, 228, 240),
-                iconColor: Color.fromARGB(255, 0, 14, 199),
+                pillColor: const Color.fromARGB(255, 143, 228, 240),
+                iconColor: const Color.fromARGB(255, 0, 14, 199),
+                onTap: onHealthTap,
               ),
-              const _QuickActionPill(
-                title: 'Diet',
+              _QuickActionPill(
+                title: 'diet_action'.tr(),
                 icon: Icons.restaurant_menu_outlined,
-                pillColor: Color.fromARGB(78, 0, 233, 20),
-                iconColor: Color.fromARGB(255, 69, 221, 77),
+                pillColor: const Color.fromARGB(78, 0, 233, 20),
+                iconColor: const Color.fromARGB(255, 69, 221, 77),
+                onTap: onDietTap,
               ),
             ],
           ),
@@ -702,7 +916,12 @@ class _QuickActionsSection extends StatelessWidget {
 
 class _TodayProgressSection extends StatelessWidget {
   final Map<String, dynamic> userData;
-  const _TodayProgressSection({required this.userData});
+  final VoidCallback onProgressTap;
+
+  const _TodayProgressSection({
+    required this.userData,
+    required this.onProgressTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -746,66 +965,73 @@ class _TodayProgressSection extends StatelessWidget {
 
     return Column(
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Today Progress',
-                style: TextStyle(
+                'today_progress'.tr(),
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.black87,
-                size: 20,
+              GestureDetector(
+                onTap: onProgressTap,
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.black87,
+                  size: 20,
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 140,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+        // OPTIMIZATION: Used SingleChildScrollView + Row instead of ListView
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
             children: [
               _ProgressCard(
                 exactWidth: exactCardWidth,
-                title: 'Weight\nProgress',
+                title: 'weight_progress'.tr(),
                 value: weight,
-                unit: 'Kg',
+                unit: 'kg_unit'.tr(),
                 icon: Icons.monitor_weight_outlined,
                 iconColor: const Color(0xFFFF9500),
+                onTap: onProgressTap,
               ),
               _ProgressCard(
                 exactWidth: exactCardWidth,
-                title: 'Daily\nHydration',
+                title: 'daily_hydration'.tr(),
                 value: hydration,
-                unit: 'Liters',
+                unit: 'liters_unit'.tr(),
                 icon: Icons.water_drop_outlined,
                 iconColor: const Color(0xFF007AFF),
+                onTap: onProgressTap,
               ),
               _ProgressCard(
                 exactWidth: exactCardWidth,
-                title: 'Sleep\nDuration',
+                title: 'sleep_duration'.tr(),
                 value: sleep,
-                unit: 'Hours',
+                unit: 'hours_unit'.tr(),
                 icon: Icons.nightlight_outlined,
                 iconColor: const Color(0xFFAF52DE),
+                onTap: onProgressTap,
               ),
               _ProgressCard(
                 exactWidth: exactCardWidth,
-                title: 'Daily\nSteps',
+                title: 'daily_steps'.tr(),
                 value: steps,
-                unit: 'Steps',
+                unit: 'steps_unit'.tr(),
                 icon: Icons.directions_walk_outlined,
                 iconColor: const Color(0xFF34C759),
+                onTap: onProgressTap,
               ),
             ],
           ),
@@ -821,6 +1047,7 @@ class _ProgressCard extends StatelessWidget {
   final String title, value, unit;
   final IconData icon;
   final Color iconColor;
+  final VoidCallback onTap;
 
   const _ProgressCard({
     required this.exactWidth,
@@ -829,183 +1056,88 @@ class _ProgressCard extends StatelessWidget {
     required this.unit,
     required this.icon,
     required this.iconColor,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: exactWidth,
-      margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: iconColor.withValues(alpha: 0.25),
-          width: 1.5,
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        width: exactWidth,
+        margin: const EdgeInsets.only(right: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: iconColor.withValues(alpha: 0.25),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.grey.shade800,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  height: 1.2,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF5F5F5),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                unit,
-                style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecentChatsSection extends StatelessWidget {
-  final Stream<QuerySnapshot> chatStream;
-  final VoidCallback onChatTap;
-
-  const _RecentChatsSection({
-    required this.chatStream,
-    required this.onChatTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recent Chats',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.black87,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 100,
-          child: StreamBuilder<QuerySnapshot>(
-            stream: chatStream,
-            builder: (context, chatSnapshot) {
-              // Even if empty, we provide a placeholder that routes to ChatScreen
-              if (!chatSnapshot.hasData || chatSnapshot.data!.docs.isEmpty) {
-                return GestureDetector(
-                  onTap: onChatTap,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          color: Colors.grey.shade400,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'No recent chats. Tap to start.',
-                          style: TextStyle(color: Colors.grey.shade500),
-                        ),
-                      ],
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.grey.shade800,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    height: 1.2,
                   ),
-                );
-              }
-              return ListView.builder(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: chatSnapshot.data!.docs.length,
-                itemBuilder: (context, index) {
-                  var chat =
-                      chatSnapshot.data!.docs[index].data()
-                          as Map<String, dynamic>;
-                  return GestureDetector(
-                    onTap: onChatTap, // ADDED: TAP CARD TO CHAT
-                    child: _ChatCard(
-                      name: chat['senderName'] ?? 'Admin',
-                      message: chat['lastMessage'] ?? 'Tap to view message',
-                      avatarUrl:
-                          chat['senderImage'] ??
-                          'https://ui-avatars.com/api/?name=Admin&background=00215F&color=fff',
-                      isUnread: chat['unread'] ?? false,
-                    ),
-                  );
-                },
-              );
-            },
-          ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF5F5F5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: iconColor, size: 20),
+                ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  unit,
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -1082,103 +1214,6 @@ class _QuickActionPill extends StatelessWidget {
   }
 }
 
-class _ChatCard extends StatelessWidget {
-  final String name, message, avatarUrl;
-  final bool isUnread;
-
-  const _ChatCard({
-    required this.name,
-    required this.message,
-    required this.avatarUrl,
-    required this.isUnread,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 300,
-      margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade300, width: 1.5),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(radius: 24, backgroundImage: NetworkImage(avatarUrl)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                          fontSize: 15,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isUnread)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE2F5E1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text(
-                          'New',
-                          style: TextStyle(
-                            color: Color(0xFF34C759),
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline,
-                      size: 14,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        message,
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 13,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _FloatingNavBar extends StatelessWidget {
   final ValueNotifier<int> selectedIndexNotifier;
   final VoidCallback onBookingTap;
@@ -1221,7 +1256,7 @@ class _FloatingNavBar extends StatelessWidget {
               _NavItem(
                 index: 0,
                 icon: Icons.home_filled,
-                label: 'Home',
+                label: 'home_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
                   if (selectedIndex != 0 && !isNavigating) {
@@ -1233,7 +1268,7 @@ class _FloatingNavBar extends StatelessWidget {
               _NavItem(
                 index: 1,
                 icon: Icons.calendar_today_rounded,
-                label: 'Booking',
+                label: 'booking_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
                   if (selectedIndex != 1 && !isNavigating) {
@@ -1244,7 +1279,7 @@ class _FloatingNavBar extends StatelessWidget {
               _NavItem(
                 index: 2,
                 icon: Icons.bar_chart_rounded,
-                label: 'Stats',
+                label: 'stats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
                   if (selectedIndex != 2 && !isNavigating) {
@@ -1255,7 +1290,7 @@ class _FloatingNavBar extends StatelessWidget {
               _NavItem(
                 index: 3,
                 icon: Icons.chat_bubble_outline_rounded,
-                label: 'Chats',
+                label: 'chats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
                   if (selectedIndex != 3 && !isNavigating) {
@@ -1266,7 +1301,7 @@ class _FloatingNavBar extends StatelessWidget {
               _NavItem(
                 index: 4,
                 icon: Icons.person_outline_rounded,
-                label: 'Profile',
+                label: 'profile_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
                   if (selectedIndex != 4 && !isNavigating) {

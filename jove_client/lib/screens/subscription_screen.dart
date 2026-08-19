@@ -1,0 +1,1314 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+
+import 'home_dashboard_screen.dart';
+import 'booking_screen.dart';
+import 'progress_screen.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart';
+import 'trainer_selection_screen.dart';
+
+class SubscriptionScreen extends StatefulWidget {
+  const SubscriptionScreen({super.key});
+
+  @override
+  State<SubscriptionScreen> createState() => _SubscriptionScreenState();
+}
+
+class _SubscriptionScreenState extends State<SubscriptionScreen> {
+  // Theme Colors (Matching your Profile App Theme EXACTLY)
+  static const Color _bgColor = Color(0xFFF7F8FA);
+  static const Color _textMain = Color(0xFF1A1A1A);
+  static const Color _navBgColor = Color(0xFF00215F);
+  static const Color _redButton = Color(0xFFBB0013);
+  static const Color _iconBg = Color(0xFFF0F2F5);
+
+  // Custom Mesh Gradient mimicking the uploaded image
+  static const LinearGradient _meshGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    stops: [0.0, 0.35, 0.65, 0.85, 1.0],
+    colors: [
+      Color(0xFFE2F4EB), // Soft Mint / Cyan
+      Color(0xFFFDF0B9), // Soft Yellow
+      Color(0xFFFA6A48), // Vibrant Orange / Red
+      Color(0xFF0F4E53), // Dark Teal
+      Color(0xFFC7CDFA), // Soft Purple / Blue
+    ],
+  );
+
+  final User? currentUser = FirebaseAuth.instance.currentUser;
+
+  // Navigation State - 4 is Profile (since Subscription is a sub-page of Profile)
+  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
+  bool _isLoading = true;
+  bool _isNavigating = false;
+
+  // Firebase Data Variables
+  Map<String, dynamic>? _subscriptionData;
+  List<Map<String, dynamic>> _paymentHistory = [];
+  bool _autoRenew = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSubscriptionData();
+  }
+
+  @override
+  void dispose() {
+    _selectedIndexNotifier.dispose();
+    super.dispose();
+  }
+
+  // ==========================================
+  // FIREBASE LOGIC
+  // ==========================================
+  Future<void> _fetchSubscriptionData() async {
+    if (currentUser == null) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+
+    try {
+      DocumentSnapshot doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .get(const GetOptions(source: Source.serverAndCache));
+
+      if (doc.exists && doc.data() != null) {
+        var data = doc.data() as Map<String, dynamic>;
+
+        setState(() {
+          if (data['subscription'] is Map) {
+            _subscriptionData = Map<String, dynamic>.from(data['subscription']);
+            _autoRenew = _subscriptionData?['autoRenew'] ?? false;
+          }
+
+          if (data['paymentHistory'] is List) {
+            _paymentHistory = (data['paymentHistory'] as List)
+                .map(
+                  (e) => e is Map
+                      ? Map<String, dynamic>.from(e)
+                      : <String, dynamic>{},
+                )
+                .where((e) => e.isNotEmpty)
+                .toList();
+          }
+        });
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _checkAndShowRenewalPrompt();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching subscription data: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _toggleAutoRenew(bool value) async {
+    HapticFeedback.lightImpact();
+
+    // Optimistic UI update for immediate response
+    setState(() => _autoRenew = value);
+
+    if (currentUser == null) {
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .set({
+            'subscription': {'autoRenew': value},
+          }, SetOptions(merge: true));
+    } catch (e) {
+      if (mounted) {
+        // Revert on failure
+        setState(() => _autoRenew = !value);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('fail_update_auto_renew'.tr()), // TRANSLATED
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _updatePaymentMethod(String newMethod) async {
+    if (currentUser == null) {
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+
+    setState(() {
+      _subscriptionData ??= {};
+      _subscriptionData!['paymentMethod'] = newMethod;
+    });
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .set({
+            'subscription': {'paymentMethod': newMethod},
+          }, SetOptions(merge: true));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('payment_method_updated'.tr()), // TRANSLATED
+            backgroundColor: const Color(0xFF34C759),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('fail_update_payment_method'.tr()), // TRANSLATED
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _cancelSubscription() async {
+    HapticFeedback.mediumImpact();
+    bool confirm =
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              "cancel_subscription".tr(), // TRANSLATED
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: _redButton,
+              ),
+            ),
+            content: Text(
+              "cancel_sub_confirm_msg".tr(), // TRANSLATED
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  "keep_plan".tr(), // TRANSLATED
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _redButton,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  "cancel_plan".tr(), // TRANSLATED
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirm || currentUser == null || !mounted) {
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.3),
+      barrierDismissible: false,
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+    );
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .set({
+            'subscription': {'status': 'Cancelled', 'autoRenew': false},
+          }, SetOptions(merge: true));
+
+      setState(() {
+        _subscriptionData?['status'] = 'Cancelled';
+        _autoRenew = false;
+      });
+
+      if (mounted) {
+        Navigator.pop(context); // Pop loader
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('subscription_cancelled'.tr()), // TRANSLATED
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Pop loader
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('error_cancelling_plan'.tr()), // TRANSLATED
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _checkAndShowRenewalPrompt() {
+    if (_subscriptionData == null) {
+      return;
+    }
+
+    bool prompted = _subscriptionData?['promptedRenewal'] ?? false;
+    Timestamp? nextBillingTS = _subscriptionData?['nextBillingDate'];
+
+    if (nextBillingTS == null || _autoRenew || prompted) {
+      return;
+    }
+
+    DateTime nextBillingDate = nextBillingTS.toDate();
+    int daysUntilExpiry = nextBillingDate.difference(DateTime.now()).inDays;
+
+    if (daysUntilExpiry <= 7 && daysUntilExpiry >= 0) {
+      _showRenewalBottomSheet(daysUntilExpiry);
+    }
+  }
+
+  void _showRenewalBottomSheet(int daysRemaining) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange,
+                size: 60,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'sub_expiring_soon'.tr(), // TRANSLATED
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _navBgColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'sub_expires_in_days'.tr(
+                  namedArgs: {'days': daysRemaining.toString()},
+                ), // TRANSLATED
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _navBgColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: Text(
+                    'renew_now'.tr(), // TRANSLATED
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (currentUser != null) {
+      FirebaseFirestore.instance.collection('users').doc(currentUser!.uid).set({
+        'subscription': {'promptedRenewal': true},
+      }, SetOptions(merge: true));
+    }
+  }
+
+  void _showChangePaymentMethodDialog() {
+    HapticFeedback.lightImpact();
+
+    List<Map<String, dynamic>> availableMethods = [
+      {'name': 'UPI • jon@okicici', 'icon': Icons.paypal_rounded},
+      {'name': 'Credit Card •••• 1234', 'icon': Icons.credit_card_rounded},
+      {'name': 'Apple Pay • jon@doe.com', 'icon': Icons.apple_rounded},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'select_payment_method'.tr(), // TRANSLATED
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: _navBgColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ...availableMethods.map((method) {
+                bool isSelected =
+                    (_subscriptionData?['paymentMethod'] == method['name']);
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(method['icon'], color: _navBgColor),
+                  title: Text(
+                    method['name'],
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check_circle, color: Color(0xFF34C759))
+                      : null,
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (!isSelected) {
+                      _updatePaymentMethod(method['name']);
+                    }
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- NAVIGATION LOGIC ---
+  void _navigate(Widget screen) {
+    if (_isNavigating) {
+      return;
+    }
+
+    setState(() => _isNavigating = true);
+    HapticFeedback.selectionClick();
+
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (c, a, b) => screen,
+        transitionsBuilder: (c, a, b, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 150),
+      ),
+    ).then((_) {
+      if (mounted) {
+        setState(() => _isNavigating = false);
+      }
+    });
+  }
+
+  Future<void> _navigateToBooking() async {
+    if (_isNavigating || currentUser == null) {
+      return;
+    }
+
+    setState(() => _isNavigating = true);
+    HapticFeedback.selectionClick();
+
+    final navigator = Navigator.of(context);
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.3),
+      barrierDismissible: false,
+      builder: (context) =>
+          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+    );
+
+    try {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .get();
+      String? trainerId =
+          (userDoc.data() as Map<String, dynamic>?)?['assignedTrainerId'];
+
+      Widget nextScreen;
+      if (trainerId == null || trainerId.isEmpty) {
+        nextScreen = const SelectTrainerScreen();
+      } else {
+        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
+            .collection('trainers')
+            .doc(trainerId)
+            .get(const GetOptions(source: Source.cache))
+            .catchError(
+              (_) => FirebaseFirestore.instance
+                  .collection('trainers')
+                  .doc(trainerId)
+                  .get(),
+            );
+
+        nextScreen = trainerDoc.exists
+            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
+            : const SelectTrainerScreen();
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      navigator.pop();
+      await navigator.pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (c, a, b) => nextScreen,
+          transitionsBuilder: (c, a, b, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 150),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        navigator.pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('error_loading_booking'.tr())),
+        ); // TRANSLATED
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isNavigating = false;
+          _selectedIndexNotifier.value = 4;
+        });
+      }
+    }
+  }
+
+  // ==========================================
+  // MAIN BUILD
+  // ==========================================
+  @override
+  Widget build(BuildContext context) {
+    bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    String status =
+        _subscriptionData?['status']?.toString().toLowerCase() ?? 'inactive';
+    bool isActive = (status == 'active');
+
+    return Scaffold(
+      backgroundColor: _bgColor,
+      body: Stack(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: _navBgColor),
+                  )
+                : SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 120),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        RepaintBoundary(child: _buildTopAppBar()),
+
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24.0,
+                            vertical: 8.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'billing_and_plans'.tr(), // TRANSLATED
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: _navBgColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'manage_elite_membership'.tr(), // TRANSLATED
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Isolated complex gradient card
+                              RepaintBoundary(child: _buildCurrentPlanCard()),
+                              const SizedBox(height: 28),
+
+                              Text(
+                                'payment_method'.tr(), // TRANSLATED
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: _navBgColor,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Isolated payment method component
+                              RepaintBoundary(child: _buildPaymentMethodCard()),
+                              const SizedBox(height: 28),
+
+                              Text(
+                                'payment_history'.tr(), // TRANSLATED
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: _navBgColor,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              // Isolated payment list to prevent scroll lag
+                              RepaintBoundary(
+                                child: _buildPaymentHistoryList(),
+                              ),
+                              const SizedBox(height: 32),
+
+                              if (isActive) _buildCancelButton(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+
+          // Synced Bottom Nav Bar
+          if (!isKeyboardOpen)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: _buildBottomNavBar(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopAppBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Expanded to constrain the title naturally
+          Expanded(
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios_new,
+                    color: _textMain,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pop(context);
+                  },
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'subscription_title'.tr(), // TRANSLATED
+                    style: const TextStyle(
+                      color: _textMain,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: _textMain,
+                size: 24,
+              ),
+              onPressed: () => HapticFeedback.lightImpact(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCurrentPlanCard() {
+    String planName =
+        _subscriptionData?['planName'] ?? 'no_active_plan'.tr(); // TRANSLATED
+    String packageName = _subscriptionData?['packageName'] ?? '';
+    String price = _subscriptionData?['price']?.toString() ?? '0';
+
+    // Translating status logic
+    String rawStatus = _subscriptionData?['status'] ?? 'Inactive';
+    String translatedStatus = rawStatus.toLowerCase() == 'inactive'
+        ? 'status_inactive'.tr()
+        : rawStatus;
+
+    String formattedDate = 'not_applicable_short'.tr(); // TRANSLATED
+    if (_subscriptionData?['nextBillingDate'] != null) {
+      DateTime dt = (_subscriptionData!['nextBillingDate'] as Timestamp)
+          .toDate();
+      formattedDate = DateFormat('MMM dd, yyyy').format(dt);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: _meshGradient,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'current_plan'.tr(), // TRANSLATED
+                  style: const TextStyle(
+                    color: _navBgColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _navBgColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  translatedStatus.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            planName,
+            style: const TextStyle(
+              color: _navBgColor,
+              fontSize: 32,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -1,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              if (packageName.isNotEmpty)
+                Flexible(
+                  child: Text(
+                    '$packageName - ',
+                    style: const TextStyle(
+                      color: _navBgColor,
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              Text(
+                '₹$price ',
+                style: const TextStyle(
+                  color: _navBgColor,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  'per_month'.tr(), // TRANSLATED
+                  style: const TextStyle(
+                    color: _navBgColor,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'next_billing_date'.tr(), // TRANSLATED
+                      style: const TextStyle(
+                        color: _navBgColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formattedDate,
+                      style: const TextStyle(
+                        color: _navBgColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'auto_renew'.tr(), // TRANSLATED
+                        style: const TextStyle(
+                          color: _navBgColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        'renew_monthly'.tr(), // TRANSLATED
+                        style: TextStyle(
+                          color: _navBgColor.withValues(alpha: 0.7),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(
+                    height: 28,
+                    width: 48,
+                    child: CupertinoSwitch(
+                      value: _autoRenew,
+                      onChanged: _toggleAutoRenew,
+                      activeTrackColor: _navBgColor,
+                      inactiveTrackColor: Colors.black.withValues(alpha: 0.15),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentMethodCard() {
+    String methodInfo =
+        _subscriptionData?['paymentMethod'] ??
+        'no_payment_method_linked'.tr(); // TRANSLATED
+
+    IconData getMethodIcon() {
+      String lower = methodInfo.toLowerCase();
+      if (lower.contains('upi') || lower.contains('paypal')) {
+        return Icons.paypal_rounded;
+      }
+      if (lower.contains('apple')) {
+        return Icons.apple_rounded;
+      }
+      return Icons.credit_card_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _iconBg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(getMethodIcon(), color: _navBgColor, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    methodInfo,
+                    style: const TextStyle(
+                      color: _textMain,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: _showChangePaymentMethodDialog,
+            child: Text(
+              'change_btn'.tr(), // TRANSLATED
+              style: const TextStyle(
+                color: _redButton, // RED COLOR
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                decoration: TextDecoration.underline, // UNDERLINED
+                decorationColor: _redButton, // Underline color matches text
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentHistoryList() {
+    if (_paymentHistory.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          'no_recent_payments'.tr(), // TRANSLATED
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        children: List.generate(_paymentHistory.length, (index) {
+          var item = _paymentHistory[index];
+
+          DateTime dt = item['date'] != null
+              ? (item['date'] as Timestamp).toDate()
+              : DateTime.now();
+          String month = DateFormat('MMM').format(dt);
+          String fullDate = DateFormat('MMM dd').format(dt);
+          String amount = item['amount']?.toString() ?? '0';
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: _iconBg,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              month.toUpperCase(),
+                              style: const TextStyle(
+                                color: _navBgColor,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item['packageName'] ??
+                                      'default_package'.tr(), // TRANSLATED
+                                  style: const TextStyle(
+                                    color: _textMain,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$fullDate • ${item['method'] ?? 'UPI'}',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '₹$amount',
+                          style: const TextStyle(
+                            color: _textMain,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item['status'] ?? 'status_paid'.tr(), // TRANSLATED
+                          style: const TextStyle(
+                            color: Color(0xFF34C759),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (index != _paymentHistory.length - 1)
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Colors.grey.shade100,
+                  indent: 84,
+                  endIndent: 20,
+                ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildCancelButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton.icon(
+        onPressed: _cancelSubscription,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _redButton,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        icon: const Icon(Icons.cancel_outlined, color: Colors.white, size: 22),
+        label: Text(
+          'cancel_subscription'.tr(), // TRANSLATED
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
+  // --- EXACT BOTTOM NAV BAR FROM PROFILE ---
+  Widget _buildBottomNavBar() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: _navBgColor,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ValueListenableBuilder<int>(
+        valueListenable: _selectedIndexNotifier,
+        builder: (context, selectedIndex, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _NavItem(
+                index: 0,
+                icon: Icons.home_filled,
+                label: 'home_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const HomeDashboardScreen()),
+              ),
+              _NavItem(
+                index: 1,
+                icon: Icons.calendar_today_rounded,
+                label: 'booking_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: _navigateToBooking,
+              ),
+              _NavItem(
+                index: 2,
+                icon: Icons.bar_chart_rounded,
+                label: 'stats_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ProgressScreen()),
+              ),
+              _NavItem(
+                index: 3,
+                icon: Icons.chat_bubble_outline_rounded,
+                label: 'chats_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ChatScreen()),
+              ),
+              _NavItem(
+                index: 4,
+                icon: Icons.person_outline_rounded,
+                label: 'profile_nav'.tr(), // TRANSLATED
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ProfileScreen()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final int index, selectedIndex;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.index,
+    required this.icon,
+    required this.label,
+    required this.selectedIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    bool isSelected = selectedIndex == index;
+    // Uses Flexible to grant the selected item extra room and enforce a max-width, effectively stopping horizontal overflows
+    return Flexible(
+      flex: isSelected ? 3 : 1,
+      fit: FlexFit.loose,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: isSelected
+              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
+              : const EdgeInsets.all(10.0),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.black : Colors.white70,
+                size: 20,
+              ),
+              if (isSelected) ...[
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

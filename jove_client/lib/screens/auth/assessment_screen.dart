@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
 
 // IMPORTANT: IMPORT YOUR NEW PACKAGE SCREEN HERE
 import 'package_select_screen.dart';
@@ -16,7 +17,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
-  // CHANGED: We now only have 6 pages for the Assessment.
+  // We now only have 6 pages for the Assessment.
   // Page 7 is now handled by your PackageSelectScreen!
   final int _totalPages = 6;
   bool _isLoading = false;
@@ -31,13 +32,41 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   final List<String> _medicalConditions = [];
   final List<String> _physicalConstraints = [];
 
-  final List<Map<String, dynamic>> _goalOptions = [
-    {'title': 'Muscle building', 'icon': Icons.fitness_center},
-    {'title': 'Weight loss', 'icon': Icons.monitor_weight_outlined},
-    {'title': 'Medical recovery', 'icon': Icons.medical_services_outlined},
-    {'title': 'Lifestyle improvement', 'icon': Icons.self_improvement},
-    {'title': 'Stress reduction & Balance', 'icon': Icons.spa_outlined},
-  ];
+  // NEW: Firebase Stream for Goals
+  late Stream<QuerySnapshot> _availableGoalsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize the stream to fetch goals from Firebase
+    _availableGoalsStream = FirebaseFirestore.instance
+        .collection('fitness_goals')
+        .snapshots();
+  }
+
+  // Helper method to assign appropriate icons based on Firebase string
+  IconData _getIconForGoal(String title) {
+    String lowerTitle = title.toLowerCase();
+    if (lowerTitle.contains('muscle') || lowerTitle.contains('strength')) {
+      return Icons.fitness_center_rounded;
+    }
+    if (lowerTitle.contains('weight') || lowerTitle.contains('fat')) {
+      return Icons.monitor_weight_outlined;
+    }
+    if (lowerTitle.contains('medical') || lowerTitle.contains('injury')) {
+      return Icons.medical_services_outlined;
+    }
+    if (lowerTitle.contains('lifestyle') || lowerTitle.contains('health')) {
+      return Icons.self_improvement_rounded;
+    }
+    if (lowerTitle.contains('stress') || lowerTitle.contains('balance')) {
+      return Icons.spa_outlined;
+    }
+    if (lowerTitle.contains('cardio') || lowerTitle.contains('stamina')) {
+      return Icons.favorite_border_rounded;
+    }
+    return Icons.track_changes_rounded; // Default fallback icon
+  }
 
   // ==========================================
   // ERROR MESSAGE HELPER
@@ -61,19 +90,19 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   // ==========================================
   void _nextPage() {
     if (_currentPage == 0 && _selectedGoals.isEmpty) {
-      _showError('Please select at least one fitness goal to continue.');
+      _showError('err_select_goal'.tr()); // TRANSLATED
       return;
     }
     if (_currentPage == 1 && _selectedGender.isEmpty) {
-      _showError('Please select your gender to continue.');
+      _showError('err_select_gender'.tr()); // TRANSLATED
       return;
     }
     if (_currentPage == 4 && _medicalConditions.isEmpty) {
-      _showError('Please add a condition or click "Skip For Now".');
+      _showError('err_medical_condition'.tr()); // TRANSLATED
       return;
     }
     if (_currentPage == 5 && _physicalConstraints.isEmpty) {
-      _showError('Please add an injury/constraint or click "Skip For Now".');
+      _showError('err_physical_constraint'.tr()); // TRANSLATED
       return;
     }
 
@@ -109,7 +138,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   }
 
   // ==========================================
-  // SAVE DATA & NAVIGATE TO PACKAGES (UPDATED)
+  // SAVE DATA & NAVIGATE TO PACKAGES
   // ==========================================
   Future<void> _saveAssessmentAndGoToPackages() async {
     setState(() => _isLoading = true);
@@ -141,7 +170,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
         );
       }
     } catch (e) {
-      _showError("Failed to save data. Please try again.");
+      _showError('err_save_failed'.tr()); // TRANSLATED
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -196,29 +225,28 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                   _buildHeightPage(), // 3
                   _buildTagsPage(
                     // 4
-                    title: "Any Medical Conditions?",
+                    title: 'medical_conditions_title'.tr(), // TRANSLATED
                     illustration: Icons.medical_services,
                     selectedTags: _medicalConditions,
                     suggestedTags: [
-                      'Diabetes',
-                      'Asthma',
-                      'Hypertension',
-                      'Thyroid',
-                    ],
+                      'cond_diabetes'.tr(),
+                      'cond_asthma'.tr(),
+                      'cond_hypertension'.tr(),
+                      'cond_thyroid'.tr(),
+                    ], // TRANSLATED
                   ),
                   _buildTagsPage(
                     // 5
-                    title: "Any Physical Constraints?",
+                    title: 'physical_constraints_title'.tr(), // TRANSLATED
                     illustration: Icons.healing,
                     selectedTags: _physicalConstraints,
                     suggestedTags: [
-                      'Knee Pain',
-                      'Back Pain',
-                      'Shoulder Injury',
-                      'Arthritis',
-                    ],
+                      'inj_knee'.tr(),
+                      'inj_back'.tr(),
+                      'inj_shoulder'.tr(),
+                      'inj_arthritis'.tr(),
+                    ], // TRANSLATED
                   ),
-                  // Package screen removed! Now it's a separate file.
                 ],
               ),
             ),
@@ -254,9 +282,9 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                   if (_currentPage == 4 || _currentPage == 5)
                     TextButton(
                       onPressed: _skipPage,
-                      child: const Text(
-                        'Skip For Now',
-                        style: TextStyle(
+                      child: Text(
+                        'skip_for_now'.tr(), // TRANSLATED
+                        style: const TextStyle(
                           color: Colors.grey,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -280,8 +308,9 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                           ? const CircularProgressIndicator(color: Colors.white)
                           : Text(
                               _currentPage == _totalPages - 1
-                                  ? 'View Packages'
-                                  : 'Continue',
+                                  ? 'view_packages'
+                                        .tr() // TRANSLATED
+                                  : 'continue_btn'.tr(), // TRANSLATED
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -300,7 +329,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   }
 
   // ==========================================
-  // PAGE 0: GOALS
+  // PAGE 0: GOALS (FETCHED FROM FIREBASE)
   // ==========================================
   Widget _buildGoalPage() {
     return Padding(
@@ -308,9 +337,9 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
       child: Column(
         children: [
           const SizedBox(height: 20),
-          const Text(
-            "What is your main goal?",
-            style: TextStyle(
+          Text(
+            'main_goal_title'.tr(), // TRANSLATED
+            style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.bold,
               color: Colors.grey,
@@ -318,61 +347,94 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
           ),
           const SizedBox(height: 30),
           Expanded(
-            child: ListView.builder(
-              itemCount: _goalOptions.length,
-              itemBuilder: (context, index) {
-                final option = _goalOptions[index];
-                bool isSelected = _selectedGoals.contains(option['title']);
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _availableGoalsStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF01BCE3)),
+                  );
+                }
 
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (isSelected) {
-                        _selectedGoals.remove(option['title']);
-                      } else {
-                        _selectedGoals.add(option['title']);
-                      }
-                    });
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? const Color(0xFFF4FAFF)
-                          : const Color(0xFFF4F4F4),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF01BCE3)
-                            : Colors.transparent,
-                        width: 2,
-                      ),
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Text(
+                      'no_goals_found'.tr(), // TRANSLATED
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.grey, fontSize: 16),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          option['icon'],
+                  );
+                }
+
+                final docs = snapshot.data!.docs;
+
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    var data = docs[index].data() as Map<String, dynamic>;
+                    String title =
+                        data['title'] ?? 'unknown_goal'.tr(); // TRANSLATED
+                    bool isSelected = _selectedGoals.contains(title);
+                    IconData icon = _getIconForGoal(title);
+
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            _selectedGoals.remove(title);
+                          } else {
+                            _selectedGoals.add(title);
+                          }
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
                           color: isSelected
-                              ? const Color(0xFF01BCE3)
-                              : Colors.grey,
-                          size: 28,
-                        ),
-                        const SizedBox(width: 16),
-                        Text(
-                          option['title'],
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                              ? const Color(0xFFF4FAFF)
+                              : const Color(0xFFF4F4F4),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
                             color: isSelected
-                                ? const Color(0xFF00225D)
-                                : Colors.black87,
+                                ? const Color(0xFF01BCE3)
+                                : Colors.transparent,
+                            width: 2,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              icon,
+                              color: isSelected
+                                  ? const Color(0xFF01BCE3)
+                                  : Colors.grey,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: isSelected
+                                      ? const Color(0xFF00225D)
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check_circle,
+                                color: Color(0xFF01BCE3),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),
@@ -391,9 +453,9 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
       child: Column(
         children: [
           const SizedBox(height: 20),
-          const Text(
-            "What's your gender?",
-            style: TextStyle(
+          Text(
+            'gender_title'.tr(), // TRANSLATED
+            style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.bold,
               color: Colors.grey,
@@ -401,13 +463,13 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
           ),
           const SizedBox(height: 40),
           _genderCard(
-            gender: 'Male',
+            gender: 'gender_male'.tr(), // TRANSLATED
             symbol: '♂',
             imagePath: 'assets/images/male.png',
           ),
           const SizedBox(height: 20),
           _genderCard(
-            gender: 'Female',
+            gender: 'gender_female'.tr(), // TRANSLATED
             symbol: '♀',
             imagePath: 'assets/images/female.png',
           ),
@@ -532,10 +594,10 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
   // ==========================================
   Widget _buildWeightPage() {
     return _buildMeasurementPage(
-      title: "What's your Weight?",
+      title: 'weight_title'.tr(), // TRANSLATED
       isMetric: _isKg,
-      metricLabel: 'kg',
-      imperialLabel: 'lbs',
+      metricLabel: 'unit_kg'.tr(), // TRANSLATED
+      imperialLabel: 'unit_lbs'.tr(), // TRANSLATED
       currentValue: _weight,
       onUnitToggle: (val) => setState(() => _isKg = val),
       onValueChanged: (val) => setState(() => _weight = val),
@@ -544,10 +606,10 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
 
   Widget _buildHeightPage() {
     return _buildMeasurementPage(
-      title: "What's your height?",
+      title: 'height_title'.tr(), // TRANSLATED
       isMetric: _isCm,
-      metricLabel: 'cm',
-      imperialLabel: 'ft/in',
+      metricLabel: 'unit_cm'.tr(), // TRANSLATED
+      imperialLabel: 'unit_ft'.tr(), // TRANSLATED
       currentValue: _height,
       onUnitToggle: (val) => setState(() => _isCm = val),
       onValueChanged: (val) => setState(() => _height = val),
@@ -747,8 +809,8 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                       Expanded(
                         child: TextField(
                           controller: controller,
-                          decoration: const InputDecoration(
-                            hintText: 'Type to add...',
+                          decoration: InputDecoration(
+                            hintText: 'type_to_add'.tr(), // TRANSLATED
                             border: InputBorder.none,
                           ),
                           onSubmitted: (val) {
@@ -781,9 +843,9 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
             const SizedBox(height: 20),
             Row(
               children: [
-                const Text(
-                  'Most Common: ',
-                  style: TextStyle(color: Colors.grey),
+                Text(
+                  'most_common'.tr(), // TRANSLATED
+                  style: const TextStyle(color: Colors.grey),
                 ),
                 Expanded(
                   child: Wrap(

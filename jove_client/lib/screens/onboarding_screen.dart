@@ -1,6 +1,7 @@
 import 'dart:ui'; // Required for ImageFilter.blur
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
 import 'auth/login_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -14,30 +15,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
+  // Replaced hardcoded text with translation keys
   final List<Map<String, String>> _pages = [
     {
       'image': 'assets/images/sc2.jpg',
-      'title': 'Transform Your\nBody & Mind',
-      'quote':
-          'Improve your flexibility, build strength, reduce stress, and find inner peace through expert-guided yoga sessions designed for all experience levels.',
+      'title': 'onboarding_title_1',
+      'quote': 'onboarding_desc_1',
     },
     {
       'image': 'assets/images/sc3.jpg',
-      'title': 'Dance Your Way\nto Fitness',
-      'quote':
-          'Burn calories, improve heart health, boost energy, strengthen your body, enhance flexibility and coordination, reduce stress, increase stamina, and make fitness fun.',
+      'title': 'onboarding_title_2',
+      'quote': 'onboarding_desc_2',
     },
     {
       'image': 'assets/images/sc4.jpg',
-      'title': 'Health Metrics &\nFitness Analytics',
-      'quote':
-          'Track your workouts, monitor your progress, measure key health metrics, and gain insights to achieve your fitness goals.',
+      'title': 'onboarding_title_3',
+      'quote': 'onboarding_desc_3',
     },
     {
       'image': 'assets/images/sc5.jpg',
-      'title': 'Nutrition & Diet\nGuidance',
-      'quote':
-          'Follow personalized meal plans, monitor your trainer\'s diet recommendations, and maintain healthy eating habits to support your fitness goals.',
+      'title': 'onboarding_title_4',
+      'quote': 'onboarding_desc_4',
     },
   ];
 
@@ -142,7 +140,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 children: [
                   // Title
                   Text(
-                    page['title']!,
+                    page['title']!.tr(), // TRANSLATED
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       color: Colors.white,
@@ -166,7 +164,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: Text(
-                      page['quote']!,
+                      page['quote']!.tr(), // TRANSLATED
                       textAlign: TextAlign.center,
                       style: GoogleFonts.poppins(
                         color: Colors.white.withValues(alpha: 0.95),
@@ -247,8 +245,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 children: [
                                   Text(
                                     _currentPage == _pages.length - 1
-                                        ? 'START'
-                                        : 'NEXT',
+                                        ? 'start_btn'
+                                              .tr() // TRANSLATED
+                                        : 'next_btn'.tr(), // TRANSLATED
                                     style: GoogleFonts.poppins(
                                       color: Colors.white,
                                       fontSize: 17,

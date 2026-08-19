@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
 
 const navy = Color(0xFF00225D);
 const cyan = Color(0xFF01BCE3);
@@ -55,7 +56,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
   void _onContinueTap() {
     // 1. Check if a package is selected!
     if (_selectedPackageId == null) {
-      _showModernSnackBar('Please select a package to continue.');
+      _showModernSnackBar('err_select_package'.tr()); // TRANSLATED
       return;
     }
 
@@ -89,7 +90,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Package selected successfully!',
+            'success_package_selected'.tr(), // TRANSLATED
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: Colors.green,
@@ -116,7 +117,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: navy),
         title: Text(
-          'Select Packages',
+          'select_packages_title'.tr(), // TRANSLATED
           style: GoogleFonts.poppins(color: navy, fontWeight: FontWeight.w600),
         ),
       ),
@@ -128,7 +129,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
             children: [
               const SizedBox(height: 10),
               Text(
-                'Choose your package',
+                'choose_package_heading'.tr(), // TRANSLATED
                 style: GoogleFonts.poppins(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -152,7 +153,9 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
 
                     if (snapshot.hasError) {
                       return Text(
-                        'Could not load packages: ${snapshot.error}',
+                        'err_load_packages'.tr(
+                          namedArgs: {'error': snapshot.error.toString()},
+                        ), // TRANSLATED
                         style: GoogleFonts.poppins(color: Colors.red),
                       );
                     }
@@ -162,7 +165,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                     if (docs.isEmpty) {
                       return Center(
                         child: Text(
-                          'No packages are available yet.\nPlease check back shortly.',
+                          'no_packages_available'.tr(), // TRANSLATED
                           textAlign: TextAlign.center,
                           style: GoogleFonts.poppins(color: Colors.grey),
                         ),
@@ -178,6 +181,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                         final data = doc.data() as Map<String, dynamic>;
                         final isSelected = _selectedPackageId == id;
 
+                        // --- SKIPPED TRANSLATING INSIDE THE BOX AS REQUESTED ---
                         final name = data['name'] ?? 'Package';
                         final order = data['order'] ?? 0;
                         final price = data['price'] ?? 0;
@@ -419,7 +423,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                   activeColor: navy,
                   checkColor: Colors.white,
                   title: Text(
-                    'Auto-renew monthly',
+                    'auto_renew_monthly'.tr(), // TRANSLATED
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       color: Colors.black87,
@@ -427,7 +431,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    'Cancel anytime',
+                    'cancel_anytime'.tr(), // TRANSLATED
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -463,7 +467,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'Continue',
+                              'continue_btn'.tr(), // TRANSLATED
                               style: GoogleFonts.poppins(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,

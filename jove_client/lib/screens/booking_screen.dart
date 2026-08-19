@@ -1,15 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <-- Added for Haptic Feedback
-import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS (Handles DateFormat automatically)
 
 import 'trainer_selection_screen.dart';
 import 'progress_screen.dart';
 import 'home_dashboard_screen.dart';
 import 'chat_screen.dart';
-import 'profile_screen.dart'; // <-- ADDED PROFILE SCREEN IMPORT
+import 'profile_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Trainer trainer;
@@ -28,19 +28,15 @@ class _BookingScreenState extends State<BookingScreen> {
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(1);
 
   bool _isChecking = false;
-  bool _isNavigating = false; // Prevents double-tap lag
+  bool _isNavigating = false;
   String _availabilityStatus = 'none';
 
   List<Map<String, dynamic>> _trainerSessions = [];
 
-  // CACHED DATES FOR PERFORMANCE
   late List<DateTime> _cachedVisibleDates;
-
-  // Scroll Controller for Auto-Rotating Sessions
   final ScrollController _sessionsScrollController = ScrollController();
   bool _userInteractedWithSessions = false;
 
-  // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _activeBlue = Color(0xFF003AA3);
@@ -60,7 +56,6 @@ class _BookingScreenState extends State<BookingScreen> {
     _loadTrainerSpecializations();
     _selectedTime = const TimeOfDay(hour: 8, minute: 30);
 
-    // Wait for the FIRST frame to render, then start auto-scroll.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _startSessionAutoScroll();
@@ -75,18 +70,20 @@ class _BookingScreenState extends State<BookingScreen> {
     super.dispose();
   }
 
-  // --- OPTIMIZED NAVIGATION (FIXES LAG) ---
   Future<void> _handleStandardNavigation(Widget screen, int index) async {
-    if (_isNavigating) return;
-    HapticFeedback.selectionClick(); // <-- Added for tactile feedback
+    if (_isNavigating) {
+      return;
+    }
+
+    HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = index;
 
-    // MAGIC ANTI-LAG TRICK: Yield the UI thread for 50ms so the tap animation
-    // and nav bar color change can render BEFORE building the heavy target screen.
     await Future.delayed(const Duration(milliseconds: 50));
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     await Navigator.pushReplacement(
       context,
@@ -119,7 +116,7 @@ class _BookingScreenState extends State<BookingScreen> {
       _sessionsScrollController
           .animateTo(
             maxScroll,
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 3), // Sped up for smoother feel
             curve: Curves.easeInOut,
           )
           .then((_) {
@@ -143,7 +140,7 @@ class _BookingScreenState extends State<BookingScreen> {
     _sessionsScrollController
         .animateTo(
           0,
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 3), // Sped up for smoother feel
           curve: Curves.easeInOut,
         )
         .then((_) {
@@ -156,7 +153,7 @@ class _BookingScreenState extends State<BookingScreen> {
   String _formatTimeStrict(TimeOfDay time) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-    return DateFormat('h:mm a').format(dt);
+    return DateFormat('h:mm a', context.locale.languageCode).format(dt);
   }
 
   void _loadTrainerSpecializations() {
@@ -167,8 +164,8 @@ class _BookingScreenState extends State<BookingScreen> {
     } else {
       _trainerSessions = [
         {
-          'name': 'General Training',
-          'sub': 'Customized workout session',
+          'name': 'general_training'.tr(),
+          'sub': 'customized_workout'.tr(),
           'icon': Icons.fitness_center,
         },
       ];
@@ -181,17 +178,20 @@ class _BookingScreenState extends State<BookingScreen> {
     if (lowerSpec.contains('strength') ||
         lowerSpec.contains('power') ||
         lowerSpec.contains('weight')) {
-      return {'sub': 'Focused on power and form', 'icon': Icons.fitness_center};
+      return {'sub': 'focused_power_form'.tr(), 'icon': Icons.fitness_center};
     } else if (lowerSpec.contains('hiit') ||
         lowerSpec.contains('cardio') ||
         lowerSpec.contains('cycling') ||
         lowerSpec.contains('running')) {
       return {
-        'sub': 'Maximum calorie burn',
+        'sub': 'max_calorie_burn'.tr(),
         'icon': Icons.directions_run_rounded,
       };
     }
-    return {'sub': 'Personalized training', 'icon': Icons.sports_gymnastics};
+    return {
+      'sub': 'personalized_training'.tr(),
+      'icon': Icons.sports_gymnastics,
+    };
   }
 
   Future<void> _pickTime() async {
@@ -200,7 +200,11 @@ class _BookingScreenState extends State<BookingScreen> {
       context: context,
       initialTime: _selectedTime ?? TimeOfDay.now(),
     );
-    if (!mounted) return;
+
+    if (!mounted) {
+      return;
+    }
+
     if (picked != null) {
       setState(() {
         _selectedTime = picked;
@@ -210,7 +214,10 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Future<void> _checkAvailability() async {
-    if (_selectedTime == null || _selectedDate == null) return;
+    if (_selectedTime == null || _selectedDate == null) {
+      return;
+    }
+
     HapticFeedback.mediumImpact();
 
     setState(() {
@@ -229,7 +236,9 @@ class _BookingScreenState extends State<BookingScreen> {
       );
 
       if (selectedDateTime.isBefore(now)) {
-        if (!mounted) return;
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _isChecking = false;
           _availabilityStatus = 'past';
@@ -252,14 +261,18 @@ class _BookingScreenState extends State<BookingScreen> {
         return data['status'] != 'cancelled';
       });
 
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
       setState(() {
         _isChecking = false;
         _availabilityStatus = isTaken ? 'taken' : 'available';
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _isChecking = false;
         _availabilityStatus = 'error';
@@ -269,7 +282,10 @@ class _BookingScreenState extends State<BookingScreen> {
 
   void _showConfirmationBottomSheet() {
     HapticFeedback.selectionClick();
-    String formattedDate = DateFormat('EEEE, MMM d').format(_selectedDate!);
+    String formattedDate = DateFormat(
+      'EEEE, MMM d',
+      context.locale.languageCode,
+    ).format(_selectedDate!);
     String formattedTime = _formatTimeStrict(_selectedTime!);
     Map<String, dynamic> activeSessionData = _trainerSessions.firstWhere(
       (s) => s['name'] == _selectedSession,
@@ -323,7 +339,7 @@ class _BookingScreenState extends State<BookingScreen> {
                           return FadeTransition(
                             opacity: CurvedAnimation(
                               parent: animation,
-                              curve: Curves.easeOut,
+                              curve: Curves.easeOutCubic,
                             ),
                             child: SizeTransition(
                               sizeFactor: animation,
@@ -345,7 +361,7 @@ class _BookingScreenState extends State<BookingScreen> {
                                   });
                                 },
                                 () {
-                                  HapticFeedback.heavyImpact(); // Success haptic
+                                  HapticFeedback.heavyImpact();
                                   setModalState(() {
                                     isSuccess = true;
                                   });
@@ -385,7 +401,7 @@ class _BookingScreenState extends State<BookingScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              'Selected session',
+              'selected_session'.tr(),
               style: TextStyle(
                 color: Colors.blue.shade800,
                 fontSize: 12,
@@ -394,9 +410,9 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Confirm Session',
-            style: TextStyle(
+          Text(
+            'confirm_session_title'.tr(),
+            style: const TextStyle(
               color: Colors.black,
               fontSize: 28,
               fontWeight: FontWeight.w900,
@@ -464,7 +480,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Date',
+                        'date'.tr(),
                         style: TextStyle(
                           color: Colors.grey.shade500,
                           fontSize: 13,
@@ -496,7 +512,7 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        'Time',
+                        'time'.tr(),
                         style: TextStyle(
                           color: Colors.grey.shade500,
                           fontSize: 13,
@@ -549,15 +565,17 @@ class _BookingScreenState extends State<BookingScreen> {
                                 'createdAt': FieldValue.serverTimestamp(),
                               });
                         }
-                        if (!context.mounted) return;
+                        if (!context.mounted) {
+                          return;
+                        }
                         onSuccess();
                       } catch (e) {
-                        if (!context.mounted) return;
+                        if (!context.mounted) {
+                          return;
+                        }
                         setBookingState(false);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Failed to book session.'),
-                          ),
+                          SnackBar(content: Text('failed_to_book'.tr())),
                         );
                       }
                     },
@@ -577,19 +595,19 @@ class _BookingScreenState extends State<BookingScreen> {
                         strokeWidth: 2.5,
                       ),
                     )
-                  : const Row(
+                  : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          'Confirm session',
-                          style: TextStyle(
+                          'confirm_session_btn'.tr(),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 17,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        SizedBox(width: 8),
-                        Icon(
+                        const SizedBox(width: 8),
+                        const Icon(
                           Icons.arrow_forward,
                           color: Colors.white,
                           size: 20,
@@ -612,9 +630,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ),
               icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-              label: const Text(
-                'Edit session',
-                style: TextStyle(
+              label: Text(
+                'edit_session'.tr(),
+                style: const TextStyle(
                   color: Colors.blue,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -636,24 +654,19 @@ class _BookingScreenState extends State<BookingScreen> {
         children: [
           Stack(
             alignment: Alignment.center,
-            children: [
-              const Icon(
+            children: const [
+              Icon(
                 Icons.verified,
                 color: Color.fromARGB(255, 78, 255, 131),
                 size: 85,
               ),
-              const Icon(
-                Icons.check,
-                color: Colors.black,
-                size: 40,
-                weight: 800,
-              ),
+              Icon(Icons.check, color: Colors.black, size: 40, weight: 800),
             ],
           ),
           const SizedBox(height: 24),
-          const Text(
-            'Successful',
-            style: TextStyle(
+          Text(
+            'successful'.tr(),
+            style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
               color: Colors.black,
@@ -662,7 +675,7 @@ class _BookingScreenState extends State<BookingScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Your session is successfully booked.',
+            'session_booked_success'.tr(),
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 15,
@@ -695,9 +708,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
                 elevation: 0,
               ),
-              child: const Text(
-                'Done',
-                style: TextStyle(
+              child: Text(
+                'done'.tr(),
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -731,9 +744,9 @@ class _BookingScreenState extends State<BookingScreen> {
                 },
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Booking',
-                style: TextStyle(
+              Text(
+                'booking_title'.tr(),
+                style: const TextStyle(
                   color: _textMain,
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
@@ -766,7 +779,11 @@ class _BookingScreenState extends State<BookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String monthYear = DateFormat('MMMM yyyy').format(_selectedDate!);
+    // Localized Month-Year string
+    String monthYear = DateFormat(
+      'MMMM yyyy',
+      context.locale.languageCode,
+    ).format(_selectedDate!);
     List<Map<String, dynamic>> displayedSessions = _trainerSessions;
 
     return Scaffold(
@@ -787,9 +804,9 @@ class _BookingScreenState extends State<BookingScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Schedule',
-                          style: TextStyle(
+                        Text(
+                          'schedule'.tr(),
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                             color: _textMain,
@@ -810,7 +827,6 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // RepaintBoundary isolates horizontal scrolling from the rest of the UI
                   RepaintBoundary(
                     child: SizedBox(
                       height: 88,
@@ -826,8 +842,10 @@ class _BookingScreenState extends State<BookingScreen> {
                                 _selectedDate!.year == date.year &&
                                 _selectedDate!.month == date.month &&
                                 _selectedDate!.day == date.day;
-
-                            String dayName = DateFormat('EEE').format(date);
+                            String dayName = DateFormat(
+                              'EEE',
+                              context.locale.languageCode,
+                            ).format(date); // Localized day name
                             String dayNumber = DateFormat('dd').format(date);
 
                             return GestureDetector(
@@ -922,11 +940,11 @@ class _BookingScreenState extends State<BookingScreen> {
 
                   const SizedBox(height: 44),
 
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
-                      'Available Sessions',
-                      style: TextStyle(
+                      'available_sessions'.tr(),
+                      style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: _textMain,
@@ -935,7 +953,6 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // RepaintBoundary isolates horizontal auto-scrolling
                   RepaintBoundary(
                     child: SizedBox(
                       height: 52,
@@ -955,7 +972,6 @@ class _BookingScreenState extends State<BookingScreen> {
                             children: displayedSessions.map((session) {
                               bool isSelected =
                                   _selectedSession == session['name'];
-
                               return GestureDetector(
                                 onTap: () {
                                   HapticFeedback.lightImpact();
@@ -1063,9 +1079,9 @@ class _BookingScreenState extends State<BookingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Select Time',
-                          style: TextStyle(
+                        Text(
+                          'select_time'.tr(),
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
                             color: _textMain,
@@ -1092,7 +1108,7 @@ class _BookingScreenState extends State<BookingScreen> {
                                     children: [
                                       Text(
                                         _selectedTime == null
-                                            ? 'Choose'
+                                            ? 'choose'.tr()
                                             : _formatTimeStrict(_selectedTime!),
                                         style: const TextStyle(
                                           color: _textMain,
@@ -1133,9 +1149,9 @@ class _BookingScreenState extends State<BookingScreen> {
                                           strokeWidth: 2,
                                         ),
                                       )
-                                    : const Text(
-                                        'Check',
-                                        style: TextStyle(
+                                    : Text(
+                                        'check'.tr(),
+                                        style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 15,
                                           fontWeight: FontWeight.bold,
@@ -1154,18 +1170,18 @@ class _BookingScreenState extends State<BookingScreen> {
                               color: Colors.green.shade50,
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.check_circle,
                                   color: Colors.green,
                                   size: 18,
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 8),
                                 Text(
-                                  'Time is available!',
-                                  style: TextStyle(
+                                  'time_available'.tr(),
+                                  style: const TextStyle(
                                     color: Colors.green,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -1181,14 +1197,18 @@ class _BookingScreenState extends State<BookingScreen> {
                               color: Colors.red.shade50,
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.cancel, color: Colors.red, size: 18),
-                                SizedBox(width: 8),
+                                const Icon(
+                                  Icons.cancel,
+                                  color: Colors.red,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
                                 Text(
-                                  'Slot is already booked.',
-                                  style: TextStyle(
+                                  'slot_booked'.tr(),
+                                  style: const TextStyle(
                                     color: Colors.red,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -1204,18 +1224,18 @@ class _BookingScreenState extends State<BookingScreen> {
                               color: Colors.orange.shade50,
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.access_time_filled,
                                   color: Colors.orange,
                                   size: 18,
                                 ),
-                                SizedBox(width: 8),
+                                const SizedBox(width: 8),
                                 Text(
-                                  'Cannot book a time in the past.',
-                                  style: TextStyle(
+                                  'cannot_book_past'.tr(),
+                                  style: const TextStyle(
                                     color: Colors.orange,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -1244,9 +1264,9 @@ class _BookingScreenState extends State<BookingScreen> {
                               borderRadius: BorderRadius.circular(20),
                             ),
                           ),
-                          child: const Text(
-                            'Proceed to Book',
-                            style: TextStyle(
+                          child: Text(
+                            'proceed_to_book'.tr(),
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -1261,7 +1281,6 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
 
-          // RepaintBoundary on Nav Bar
           RepaintBoundary(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -1288,7 +1307,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         _NavItem(
                           index: 0,
                           icon: Icons.home_filled,
-                          label: 'Home',
+                          label: 'home_nav'.tr(),
                           selectedIndex: selectedIndex,
                           onTap: () {
                             HapticFeedback.selectionClick();
@@ -1310,14 +1329,14 @@ class _BookingScreenState extends State<BookingScreen> {
                         _NavItem(
                           index: 1,
                           icon: Icons.calendar_today_rounded,
-                          label: 'Booking',
+                          label: 'booking_nav'.tr(),
                           selectedIndex: selectedIndex,
                           onTap: () {},
                         ),
                         _NavItem(
                           index: 2,
                           icon: Icons.bar_chart_rounded,
-                          label: 'Stats',
+                          label: 'stats_nav'.tr(),
                           selectedIndex: selectedIndex,
                           onTap: () => _handleStandardNavigation(
                             const ProgressScreen(),
@@ -1327,7 +1346,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         _NavItem(
                           index: 3,
                           icon: Icons.chat_bubble_outline_rounded,
-                          label: 'Chats',
+                          label: 'chats_nav'.tr(),
                           selectedIndex: selectedIndex,
                           onTap: () =>
                               _handleStandardNavigation(const ChatScreen(), 3),
@@ -1335,7 +1354,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         _NavItem(
                           index: 4,
                           icon: Icons.person_outline_rounded,
-                          label: 'Profile',
+                          label: 'profile_nav'.tr(),
                           selectedIndex: selectedIndex,
                           onTap: () => _handleStandardNavigation(
                             const ProfileScreen(),
