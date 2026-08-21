@@ -27,6 +27,15 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
 
   // Stream only for the global goals list to prevent full-screen rebuilds
+  static const List<String> _defaultGoals = [
+    'Muscle Building & Strength',
+    'Weight & Fat Loss',
+    'Cardio & Stamina',
+    'Healthy Lifestyle & Flexibility',
+    'Stress Relief & Mental Wellness',
+    'Injury Recovery & Rehabilitation',
+  ];
+
   late final Stream<QuerySnapshot> _availableGoalsStream;
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
 
@@ -305,25 +314,20 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       );
     }
 
-    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(20),
-        child: Text(
-          'no_goals_found'.tr(), // TRANSLATED
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      );
+    List<String> goalTitles = [];
+    if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+      goalTitles = snapshot.data!.docs.map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+        return data['title']?.toString() ?? '';
+      }).where((t) => t.isNotEmpty).toList();
+    }
+
+    if (goalTitles.isEmpty) {
+      goalTitles = _defaultGoals;
     }
 
     return Column(
-      children: snapshot.data!.docs.map((doc) {
-        var data = doc.data() as Map<String, dynamic>;
-        String title = data['title'] ?? 'unknown_goal'.tr(); // TRANSLATED
-
+      children: goalTitles.map((title) {
         return GoalCard(
           title: title,
           isSelected: _selectedGoals.contains(title),

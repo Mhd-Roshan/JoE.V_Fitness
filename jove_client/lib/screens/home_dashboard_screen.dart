@@ -13,6 +13,14 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'health_profile_screen.dart';
 
+// --- CACHED FORMATTERS FOR PERFORMANCE ---
+class _Formatters {
+  static final DateFormat date = DateFormat('yyyy-MM-dd');
+  static final DateFormat dateTime = DateFormat('yyyy-MM-dd h:mm a');
+  static final DateFormat displayDate = DateFormat('MMM d');
+  static final DateFormat fullDate = DateFormat('dd MMM yyyy');
+}
+
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({super.key});
 
@@ -24,10 +32,11 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(0);
 
-  late Stream<DocumentSnapshot> _userStream;
-  late Stream<QuerySnapshot> _bookingStream;
-  late Stream<QuerySnapshot> _dietStream;
+  late final Stream<DocumentSnapshot> _userStream;
+  late final Stream<QuerySnapshot> _bookingStream;
+  late final Stream<QuerySnapshot> _dietStream;
 
+  // We only track navigation state now. No loading overlays!
   bool _isNavigating = false;
 
   @override
@@ -57,15 +66,12 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     super.dispose();
   }
 
-  // --- BUTTERY SMOOTH NAVIGATION ---
   Future<void> _handleStandardNavigation(Widget screen, int index) async {
     if (_isNavigating) return;
+
     HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = index;
-
-    // Yield the main thread so the ripple animation finishes before building the next screen
-    await Future.delayed(const Duration(milliseconds: 50));
 
     if (!mounted) return;
 
@@ -73,37 +79,28 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       context,
       PageRouteBuilder(
         pageBuilder: (context, a, b) => screen,
-        transitionsBuilder: (context, a, b, child) => FadeTransition(
-          opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 200),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: child,
+          );
+        },
+        // 150ms feels instantly native and snappy
+        transitionDuration: const Duration(milliseconds: 150),
       ),
     );
 
-    if (mounted) {
-      setState(() => _isNavigating = false);
-    }
+    if (mounted) setState(() => _isNavigating = false);
   }
 
   Future<void> _handleBookingNavigation([
     Map<String, dynamic>? userData,
   ]) async {
     if (_isNavigating) return;
+
     HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = 1;
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF003AA3)),
-      ),
-    );
-
-    await Future.delayed(const Duration(milliseconds: 50));
 
     try {
       if (userData == null) {
@@ -121,43 +118,31 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       if (trainerId == null || trainerId.isEmpty) {
         nextScreen = const SelectTrainerScreen();
       } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache))
-            .catchError(
-              (_) => FirebaseFirestore.instance
-                  .collection('trainers')
-                  .doc(trainerId)
-                  .get(),
-            );
-
-        if (trainerDoc.exists) {
-          nextScreen = BookingScreen(
-            trainer: Trainer.fromFirestore(trainerDoc),
-          );
-        } else {
-          nextScreen = const SelectTrainerScreen();
-        }
+        // ZERO LAG: We DO NOT await the network here anymore.
+        // We instantly pass the ID to the BookingScreen and let it route immediately!
+        nextScreen = BookingScreen(trainerId: trainerId);
       }
 
       if (!mounted) return;
-      Navigator.pop(context);
 
       await Navigator.pushReplacement(
         context,
         PageRouteBuilder(
           pageBuilder: (context, a, b) => nextScreen,
-          transitionsBuilder: (context, a, b, child) => FadeTransition(
-            opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
-            child: child,
-          ),
-          transitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOut,
+              ),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 150),
         ),
       );
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('error_loading_data'.tr())));
@@ -179,9 +164,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       String dateStr = bookingData['date'] ?? '';
       String timeStr = bookingData['time'] ?? '';
 
-      DateTime sessionDateTime = DateFormat(
-        'yyyy-MM-dd h:mm a',
-      ).parse('$dateStr $timeStr');
+      DateTime sessionDateTime = _Formatters.dateTime.parse(
+        '$dateStr $timeStr',
+      );
       DateTime now = DateTime.now();
 
       if (sessionDateTime.difference(now).inMinutes < 120 &&
@@ -198,9 +183,19 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) =>
+        PageRouteBuilder(
+          pageBuilder: (context, a, b) =>
               RescheduleScreen(bookingId: bookingId, bookingData: bookingData),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOut,
+              ),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 150),
         ),
       );
     } catch (e) {
@@ -214,6 +209,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
+      extendBody: true,
       body: StreamBuilder<DocumentSnapshot>(
         stream: _userStream,
         builder: (context, userSnapshot) {
@@ -223,7 +219,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             );
           }
 
-          var userData =
+          final userData =
               userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
 
           return Stack(
@@ -236,69 +232,55 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    RepaintBoundary(
-                      child: _HeaderSection(
-                        userData: userData,
-                        onProfileTap: () =>
-                            _handleStandardNavigation(const ProfileScreen(), 4),
-                      ),
+                    _HeaderSection(
+                      userData: userData,
+                      onProfileTap: () =>
+                          _handleStandardNavigation(const ProfileScreen(), 4),
                     ),
-
-                    RepaintBoundary(
-                      child: _UpcomingSessionSection(
-                        bookingStream: _bookingStream,
-                        onReschedule: _handleRescheduleClick,
-                      ),
+                    _UpcomingSessionSection(
+                      bookingStream: _bookingStream,
+                      onReschedule: _handleRescheduleClick,
                     ),
-
-                    RepaintBoundary(
-                      child: _QuickActionsSection(
-                        userData: userData,
-                        onBookingTap: () => _handleBookingNavigation(userData),
-                        onHealthTap: () {
-                          HapticFeedback.lightImpact();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const HealthProfileScreen(),
-                            ),
-                          );
-                        },
-                        onDietTap: () =>
-                            _handleStandardNavigation(const ChatScreen(), 3),
-                      ),
+                    _QuickActionsSection(
+                      onBookingTap: () => _handleBookingNavigation(userData),
+                      onHealthTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const HealthProfileScreen(),
+                          ),
+                        );
+                      },
+                      onDietTap: () =>
+                          _handleStandardNavigation(const ChatScreen(), 3),
                     ),
-
-                    RepaintBoundary(
-                      child: _TodayProgressSection(
-                        userData: userData,
-                        onProgressTap: () => _handleStandardNavigation(
-                          const ProgressScreen(),
-                          2,
-                        ),
-                      ),
+                    _TodayProgressSection(
+                      userData: userData,
+                      onProgressTap: () =>
+                          _handleStandardNavigation(const ProgressScreen(), 2),
                     ),
-
-                    RepaintBoundary(
-                      child: _DietPlansSection(dietStream: _dietStream),
-                    ),
+                    _DietPlansSection(dietStream: _dietStream),
                     const SizedBox(height: 20),
                   ],
                 ),
               ),
 
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: _FloatingNavBar(
-                  selectedIndexNotifier: _selectedIndexNotifier,
-                  onBookingTap: () => _handleBookingNavigation(userData),
-                  onStatsTap: () =>
-                      _handleStandardNavigation(const ProgressScreen(), 2),
-                  onChatsTap: () =>
-                      _handleStandardNavigation(const ChatScreen(), 3),
-                  onProfileTap: () =>
-                      _handleStandardNavigation(const ProfileScreen(), 4),
-                  isNavigating: _isNavigating,
+              // Floating Nav Bar
+              RepaintBoundary(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _FloatingNavBar(
+                    selectedIndexNotifier: _selectedIndexNotifier,
+                    onBookingTap: () => _handleBookingNavigation(userData),
+                    onStatsTap: () =>
+                        _handleStandardNavigation(const ProgressScreen(), 2),
+                    onChatsTap: () =>
+                        _handleStandardNavigation(const ChatScreen(), 3),
+                    onProfileTap: () =>
+                        _handleStandardNavigation(const ProfileScreen(), 4),
+                    isNavigating: _isNavigating,
+                  ),
                 ),
               ),
             ],
@@ -317,13 +299,14 @@ class _HeaderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String userName =
+    final String userName =
         userData['fullName'] ??
         userData['name'] ??
         userData['firstName'] ??
         'athlete_fallback'.tr();
-    String profilePic = userData['profilePic'] ?? userData['imageUrl'] ?? '';
-    String todayDate = DateFormat('dd MMM yyyy').format(DateTime.now());
+    final String profilePic =
+        userData['profilePic'] ?? userData['imageUrl'] ?? '';
+    final String todayDate = _Formatters.fullDate.format(DateTime.now());
 
     return Padding(
       padding: EdgeInsets.only(
@@ -358,7 +341,7 @@ class _HeaderSection extends StatelessWidget {
               ),
             ],
           ),
-          GestureDetector(
+          _BouncingButton(
             onTap: onProfileTap,
             child: Container(
               decoration: BoxDecoration(
@@ -470,18 +453,17 @@ class _DietPlansSection extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 itemCount: snapshot.data!.docs.length,
                 itemBuilder: (context, index) {
-                  var data =
+                  final data =
                       snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                  String title = data['title'] ?? 'Diet Plan';
-                  String date = data['createdAt'] != null
-                      ? DateFormat(
-                          'dd MMM yyyy',
-                        ).format((data['createdAt'] as Timestamp).toDate())
+                  final String title = data['title'] ?? 'Diet Plan';
+                  final String date = data['createdAt'] != null
+                      ? _Formatters.fullDate.format(
+                          (data['createdAt'] as Timestamp).toDate(),
+                        )
                       : 'Recent';
 
-                  return GestureDetector(
+                  return _BouncingButton(
                     onTap: () {
-                      HapticFeedback.lightImpact();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Opening PDF...')),
                       );
@@ -595,63 +577,66 @@ class _UpcomingSessionSection extends StatelessWidget {
           String? bookingId;
           String displayDate = 'tbd'.tr();
 
+          final DateTime now = DateTime.now();
+          final String todayFormatted = _Formatters.date.format(now);
+
           if (bookingSnapshot.hasData &&
               bookingSnapshot.data!.docs.isNotEmpty) {
-            DateTime now = DateTime.now();
-            String todayFormatted = DateFormat('yyyy-MM-dd').format(now);
+            DateTime? closestFutureDate;
 
-            var futureBookings = bookingSnapshot.data!.docs.where((doc) {
-              var data = doc.data() as Map<String, dynamic>;
-              if (data['status'] == 'cancelled') return false;
+            // Highly Optimized O(N) linear scan to find next booking
+            for (var doc in bookingSnapshot.data!.docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              if (data['status'] == 'cancelled') continue;
 
               try {
-                DateTime sessionDateTime = DateFormat(
-                  'yyyy-MM-dd h:mm a',
-                ).parse('${data['date']} ${data['time']}');
-                return sessionDateTime.isAfter(now);
-              } catch (e) {
-                return (data['date'] ?? '').compareTo(todayFormatted) >= 0;
-              }
-            }).toList();
+                final sessionDateTime = _Formatters.dateTime.parse(
+                  '${data['date']} ${data['time']}',
+                );
 
-            if (futureBookings.isNotEmpty) {
-              var parsedBookings = futureBookings.map((doc) {
-                var data = doc.data() as Map<String, dynamic>;
-                DateTime? dt;
-                try {
-                  dt = DateFormat(
-                    'yyyy-MM-dd h:mm a',
-                  ).parse('${data['date']} ${data['time']}');
-                } catch (e) {
-                  dt = DateTime(2099);
+                if (sessionDateTime.isAfter(now)) {
+                  if (closestFutureDate == null ||
+                      sessionDateTime.isBefore(closestFutureDate)) {
+                    closestFutureDate = sessionDateTime;
+                    bookingId = doc.id;
+                    bookingData = data;
+                    hasBooking = true;
+                  }
                 }
-                return {'doc': doc, 'dt': dt};
-              }).toList();
+              } catch (e) {
+                // Quick fallback for poorly formatted data
+                if ((data['date'] ?? '').compareTo(todayFormatted) >= 0) {
+                  if (!hasBooking) {
+                    bookingId = doc.id;
+                    bookingData = data;
+                    hasBooking = true;
+                  }
+                }
+              }
+            }
 
-              parsedBookings.sort(
-                (a, b) => (a['dt'] as DateTime).compareTo(b['dt'] as DateTime),
-              );
-
-              var nextBookingDoc =
-                  parsedBookings.first['doc'] as DocumentSnapshot;
-              hasBooking = true;
-              bookingId = nextBookingDoc.id;
-              bookingData = nextBookingDoc.data() as Map<String, dynamic>;
-
+            if (hasBooking && bookingData != null) {
               if (bookingData['date'] == todayFormatted) {
                 displayDate = 'today'.tr();
               } else {
                 try {
-                  DateTime parsed = DateFormat(
-                    'yyyy-MM-dd',
-                  ).parse(bookingData['date']);
-                  displayDate = DateFormat('MMM d').format(parsed);
-                } catch (e) {
+                  DateTime parsed = _Formatters.date.parse(bookingData['date']);
+                  displayDate = _Formatters.displayDate.format(parsed);
+                } catch (_) {
                   displayDate = bookingData['date'];
                 }
               }
             }
           }
+
+          bool isTodaySunday = now.weekday == DateTime.sunday;
+          bool isNextBookingNotToday =
+              hasBooking && bookingData!['date'] != todayFormatted;
+
+          final String cardHeaderTitle =
+              (isTodaySunday || isNextBookingNotToday || !hasBooking)
+              ? '${'rest_day'.tr()} 🌴 • ${'upcoming_session'.tr()}'
+              : 'upcoming_session'.tr();
 
           return Container(
             width: double.infinity,
@@ -689,11 +674,11 @@ class _UpcomingSessionSection extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'upcoming_session'.tr(),
+                      cardHeaderTitle,
                       style: TextStyle(
                         color: Colors.black.withValues(alpha: 0.7),
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     if (hasBooking)
@@ -793,23 +778,22 @@ class _UpcomingSessionSection extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: ElevatedButton(
-                          onPressed: () =>
-                              onReschedule(bookingId!, bookingData!),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFBB0013),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
+                        child: _BouncingButton(
+                          onTap: () => onReschedule(bookingId!, bookingData!),
+                          child: Container(
+                            alignment: Alignment.center,
                             padding: const EdgeInsets.symmetric(vertical: 10),
-                            shape: RoundedRectangleBorder(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFBB0013),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                          ),
-                          child: Text(
-                            'reschedule_btn'.tr(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13,
+                            child: Text(
+                              'reschedule_btn'.tr(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ),
@@ -846,13 +830,11 @@ class _UpcomingSessionSection extends StatelessWidget {
 }
 
 class _QuickActionsSection extends StatelessWidget {
-  final Map<String, dynamic> userData;
   final VoidCallback onBookingTap;
   final VoidCallback onHealthTap;
   final VoidCallback onDietTap;
 
   const _QuickActionsSection({
-    required this.userData,
     required this.onBookingTap,
     required this.onHealthTap,
     required this.onDietTap,
@@ -875,8 +857,6 @@ class _QuickActionsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        // OPTIMIZATION: Used SingleChildScrollView + Row instead of ListView
-        // This stops lazily loading overhead and makes it purely buttery for small lists.
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
@@ -925,43 +905,39 @@ class _TodayProgressSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    double exactCardWidth = (MediaQuery.of(context).size.width - 48 - 16) / 2;
+    final double exactCardWidth =
+        (MediaQuery.of(context).size.width - 48 - 16) / 2;
+    final String today = _Formatters.date.format(DateTime.now());
 
-    String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-
-    Map<String, dynamic> dailyWeightMap = userData['dailyWeight'] != null
-        ? Map<String, dynamic>.from(userData['dailyWeight'])
-        : {};
-    String weight =
-        dailyWeightMap[today]?.toString() ??
+    // Safe Map Casting (Avoids expensive Map.from clones)
+    final dailyWeightMap = userData['dailyWeight'] as Map<String, dynamic>?;
+    final String weight =
+        dailyWeightMap?[today]?.toString() ??
         userData['weight']?.toString() ??
         '0';
 
-    Map<String, dynamic> dailyHydrationMap = userData['dailyHydration'] != null
-        ? Map<String, dynamic>.from(userData['dailyHydration'])
-        : {};
-    String hydration = dailyHydrationMap[today] != null
-        ? (dailyHydrationMap[today] / 1000).toString().replaceAll(
-            RegExp(r'\.0$'),
-            '',
-          )
-        : '0';
-
-    Map<String, dynamic> dailySleepMap = userData['dailySleep'] != null
-        ? Map<String, dynamic>.from(userData['dailySleep'])
-        : {};
-    String sleep =
-        dailySleepMap[today]?.toString() ??
+    final dailySleepMap = userData['dailySleep'] as Map<String, dynamic>?;
+    final String sleep =
+        dailySleepMap?[today]?.toString() ??
         userData['sleep']?.toString() ??
         '0';
 
-    Map<String, dynamic> dailyStepsMap = userData['dailySteps'] != null
-        ? Map<String, dynamic>.from(userData['dailySteps'])
-        : {};
-    String steps =
-        dailyStepsMap[today]?.toString() ??
+    final dailyStepsMap = userData['dailySteps'] as Map<String, dynamic>?;
+    final String steps =
+        dailyStepsMap?[today]?.toString() ??
         userData['steps']?.toString() ??
         '0';
+
+    final dailyHydrationMap =
+        userData['dailyHydration'] as Map<String, dynamic>?;
+    final double hydNum =
+        (dailyHydrationMap?[today] as num?)?.toDouble() ?? 0.0;
+    final double hydVal = hydNum / 1000;
+
+    // Optimized string formatting logic avoiding heavy RegEx execution
+    final String hydration = (hydVal % 1 == 0)
+        ? hydVal.toInt().toString()
+        : hydVal.toStringAsFixed(1);
 
     return Column(
       children: [
@@ -990,7 +966,6 @@ class _TodayProgressSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        // OPTIMIZATION: Used SingleChildScrollView + Row instead of ListView
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
@@ -1061,11 +1036,8 @@ class _ProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
+    return _BouncingButton(
+      onTap: onTap,
       child: Container(
         width: exactWidth,
         margin: const EdgeInsets.only(right: 16),
@@ -1161,13 +1133,8 @@ class _QuickActionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        if (onTap != null) {
-          HapticFeedback.lightImpact();
-          onTap!();
-        }
-      },
+    return _BouncingButton(
+      onTap: onTap,
       child: Container(
         width: 145,
         margin: const EdgeInsets.only(right: 12),
@@ -1271,9 +1238,7 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'booking_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 1 && !isNavigating) {
-                    onBookingTap();
-                  }
+                  if (selectedIndex != 1 && !isNavigating) onBookingTap();
                 },
               ),
               _NavItem(
@@ -1282,9 +1247,7 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'stats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 2 && !isNavigating) {
-                    onStatsTap();
-                  }
+                  if (selectedIndex != 2 && !isNavigating) onStatsTap();
                 },
               ),
               _NavItem(
@@ -1293,9 +1256,7 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'chats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 3 && !isNavigating) {
-                    onChatsTap();
-                  }
+                  if (selectedIndex != 3 && !isNavigating) onChatsTap();
                 },
               ),
               _NavItem(
@@ -1304,9 +1265,7 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'profile_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 4 && !isNavigating) {
-                    onProfileTap();
-                  }
+                  if (selectedIndex != 4 && !isNavigating) onProfileTap();
                 },
               ),
             ],
@@ -1333,8 +1292,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isSelected = selectedIndex == index;
+    final bool isSelected = selectedIndex == index;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
@@ -1369,6 +1329,40 @@ class _NavItem extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BouncingButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  const _BouncingButton({required this.child, required this.onTap});
+  @override
+  State<_BouncingButton> createState() => _BouncingButtonState();
+}
+
+class _BouncingButtonState extends State<_BouncingButton> {
+  bool _isPressed = false;
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = true),
+      onTapUp: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = false),
+      onTapCancel: widget.onTap == null
+          ? null
+          : () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }

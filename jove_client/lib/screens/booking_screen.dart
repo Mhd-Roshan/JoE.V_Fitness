@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS (Handles DateFormat automatically)
+import 'package:easy_localization/easy_localization.dart';
 
 import 'trainer_selection_screen.dart';
 import 'progress_screen.dart';
@@ -11,63 +12,159 @@ import 'home_dashboard_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 
+class _Formatters {
+  static final Map<String, DateFormat> _time = {};
+  static final Map<String, DateFormat> _dbDate = {};
+  static final Map<String, DateFormat> _full = {};
+  static final Map<String, DateFormat> _monthYear = {};
+  static final Map<String, DateFormat> _dayName = {};
+  static final Map<String, DateFormat> _dayNum = {};
+
+  static DateFormat time(String loc) =>
+      _time.putIfAbsent(loc, () => DateFormat('h:mm a', loc));
+  static DateFormat dbDate(String loc) =>
+      _dbDate.putIfAbsent(loc, () => DateFormat('yyyy-MM-dd', loc));
+  static DateFormat full(String loc) =>
+      _full.putIfAbsent(loc, () => DateFormat('EEEE, MMM d', loc));
+  static DateFormat monthYear(String loc) =>
+      _monthYear.putIfAbsent(loc, () => DateFormat('MMMM yyyy', loc));
+  static DateFormat dayName(String loc) =>
+      _dayName.putIfAbsent(loc, () => DateFormat('EEE', loc));
+  static DateFormat dayNum(String loc) =>
+      _dayNum.putIfAbsent(loc, () => DateFormat('dd', loc));
+}
+
 class BookingScreen extends StatefulWidget {
-  final Trainer trainer;
+  final Trainer? trainer;
+  final String? trainerId;
 
-  const BookingScreen({super.key, required this.trainer});
-
+  const BookingScreen({super.key, this.trainer, this.trainerId});
   @override
   State<BookingScreen> createState() => _BookingScreenState();
 }
 
 class _BookingScreenState extends State<BookingScreen> {
+  Trainer? _trainer;
+  bool _isLoadingTrainer = false;
+
   DateTime? _selectedDate;
   String? _selectedSession;
   TimeOfDay? _selectedTime;
 
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(1);
+  final ScrollController _dateScrollController = ScrollController();
 
   bool _isChecking = false;
   bool _isNavigating = false;
   String _availabilityStatus = 'none';
 
   List<Map<String, dynamic>> _trainerSessions = [];
-
   late List<DateTime> _cachedVisibleDates;
-  final ScrollController _sessionsScrollController = ScrollController();
-  bool _userInteractedWithSessions = false;
 
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _activeBlue = Color(0xFF003AA3);
   static const Color _redButtonColor = Color(0xFFBB0013);
-  static const Color _limeGreen = Color(0xFFD4FF4E);
 
   @override
   void initState() {
     super.initState();
-    _selectedDate = DateTime.now();
 
-    _cachedVisibleDates = List.generate(
-      15,
-      (index) => _selectedDate!.add(Duration(days: index - 2)),
-    );
+    if (widget.trainer != null) {
+      _trainer = widget.trainer;
+      _initializeScreen();
+    } else if (widget.trainerId != null) {
+      _isLoadingTrainer = true;
+      _fetchTrainerAndInitialize(widget.trainerId!);
+    }
+  }
+
+  void _initializeScreen() {
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    _cachedVisibleDates = [];
+
+    for (int i = -15; i <= 30; i++) {
+      DateTime date = today.add(Duration(days: i));
+      if (date.weekday != DateTime.sunday) {
+        _cachedVisibleDates.add(date);
+      }
+    }
+
+    _selectedDate = today.weekday == DateTime.sunday
+        ? today.add(const Duration(days: 1))
+        : today;
 
     _loadTrainerSpecializations();
     _selectedTime = const TimeOfDay(hour: 8, minute: 30);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _startSessionAutoScroll();
-      }
+      _scrollToSelectedDate();
     });
+  }
+
+  Future<void> _fetchTrainerAndInitialize(String id) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('trainers')
+          .doc(id)
+          .get(const GetOptions(source: Source.cache))
+          .catchError(
+            (_) =>
+                FirebaseFirestore.instance.collection('trainers').doc(id).get(),
+          );
+
+      if (doc.exists && mounted) {
+        _trainer = Trainer.fromFirestore(doc);
+        _initializeScreen();
+      }
+    } catch (e) {
+      debugPrint('Error fetching trainer: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingTrainer = false);
+      }
+    }
   }
 
   @override
   void dispose() {
     _selectedIndexNotifier.dispose();
-    _sessionsScrollController.dispose();
+    _dateScrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToSelectedDate() {
+    if (!_dateScrollController.hasClients || _selectedDate == null) {
+      return;
+    }
+
+    int index = _cachedVisibleDates.indexWhere(
+      (date) =>
+          date.year == _selectedDate!.year &&
+          date.month == _selectedDate!.month &&
+          date.day == _selectedDate!.day,
+    );
+
+    if (index == -1) {
+      return;
+    }
+
+    const double itemWidth = 70.0;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double centerOfItem = 24.0 + (index * itemWidth) + (58.0 / 2);
+    double targetOffset = centerOfItem - (screenWidth / 2);
+
+    targetOffset = targetOffset.clamp(
+      0.0,
+      _dateScrollController.position.maxScrollExtent,
+    );
+
+    _dateScrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _handleStandardNavigation(Widget screen, int index) async {
@@ -77,9 +174,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
     HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
-    _selectedIndexNotifier.value = index;
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    _selectedIndexNotifier.value = index;
 
     if (!mounted) {
       return;
@@ -89,8 +185,12 @@ class _BookingScreenState extends State<BookingScreen> {
       context,
       PageRouteBuilder(
         pageBuilder: (context, a, b) => screen,
-        transitionsBuilder: (context, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: child,
+          );
+        },
         transitionDuration: const Duration(milliseconds: 150),
       ),
     );
@@ -100,65 +200,15 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  void _startSessionAutoScroll() {
-    Future.delayed(const Duration(seconds: 1), _scrollSessionsForward);
-  }
-
-  void _scrollSessionsForward() {
-    if (!mounted ||
-        !_sessionsScrollController.hasClients ||
-        _userInteractedWithSessions) {
-      return;
-    }
-
-    final maxScroll = _sessionsScrollController.position.maxScrollExtent;
-    if (maxScroll > 0) {
-      _sessionsScrollController
-          .animateTo(
-            maxScroll,
-            duration: const Duration(seconds: 3), // Sped up for smoother feel
-            curve: Curves.easeInOut,
-          )
-          .then((_) {
-            if (mounted && !_userInteractedWithSessions) {
-              Future.delayed(
-                const Duration(seconds: 1),
-                _scrollSessionsBackward,
-              );
-            }
-          });
-    }
-  }
-
-  void _scrollSessionsBackward() {
-    if (!mounted ||
-        !_sessionsScrollController.hasClients ||
-        _userInteractedWithSessions) {
-      return;
-    }
-
-    _sessionsScrollController
-        .animateTo(
-          0,
-          duration: const Duration(seconds: 3), // Sped up for smoother feel
-          curve: Curves.easeInOut,
-        )
-        .then((_) {
-          if (mounted && !_userInteractedWithSessions) {
-            Future.delayed(const Duration(seconds: 1), _scrollSessionsForward);
-          }
-        });
-  }
-
-  String _formatTimeStrict(TimeOfDay time) {
+  String _formatTimeStrict(TimeOfDay time, String locale) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-    return DateFormat('h:mm a', context.locale.languageCode).format(dt);
+    return _Formatters.time(locale).format(dt);
   }
 
   void _loadTrainerSpecializations() {
-    if (widget.trainer.specializations.isNotEmpty) {
-      _trainerSessions = widget.trainer.specializations.map((spec) {
+    if (_trainer != null && _trainer!.specializations.isNotEmpty) {
+      _trainerSessions = _trainer!.specializations.map((spec) {
         return {'name': spec, ..._getVisualsForSpecialization(spec)};
       }).toList();
     } else {
@@ -174,7 +224,7 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Map<String, dynamic> _getVisualsForSpecialization(String spec) {
-    String lowerSpec = spec.toLowerCase();
+    final String lowerSpec = spec.toLowerCase();
     if (lowerSpec.contains('strength') ||
         lowerSpec.contains('power') ||
         lowerSpec.contains('weight')) {
@@ -201,33 +251,30 @@ class _BookingScreenState extends State<BookingScreen> {
       initialTime: _selectedTime ?? TimeOfDay.now(),
     );
 
-    if (!mounted) {
+    if (!mounted || picked == null) {
       return;
     }
 
-    if (picked != null) {
-      setState(() {
-        _selectedTime = picked;
-        _availabilityStatus = 'none';
-      });
-    }
+    setState(() {
+      _selectedTime = picked;
+      _availabilityStatus = 'none';
+    });
   }
 
   Future<void> _checkAvailability() async {
-    if (_selectedTime == null || _selectedDate == null) {
+    if (_selectedTime == null || _selectedDate == null || _trainer == null) {
       return;
     }
 
     HapticFeedback.mediumImpact();
-
     setState(() {
       _isChecking = true;
       _availabilityStatus = 'none';
     });
 
     try {
-      DateTime now = DateTime.now();
-      DateTime selectedDateTime = DateTime(
+      final DateTime now = DateTime.now();
+      final DateTime selectedDateTime = DateTime(
         _selectedDate!.year,
         _selectedDate!.month,
         _selectedDate!.day,
@@ -236,58 +283,54 @@ class _BookingScreenState extends State<BookingScreen> {
       );
 
       if (selectedDateTime.isBefore(now)) {
-        if (!mounted) {
-          return;
+        if (mounted) {
+          setState(() {
+            _isChecking = false;
+            _availabilityStatus = 'past';
+          });
         }
-        setState(() {
-          _isChecking = false;
-          _availabilityStatus = 'past';
-        });
         return;
       }
 
-      String dbDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-      String dbTime = _formatTimeStrict(_selectedTime!);
+      final String locale = context.locale.languageCode;
+      final String dbDate = _Formatters.dbDate(locale).format(_selectedDate!);
+      final String dbTime = _formatTimeStrict(_selectedTime!, locale);
 
-      var snapshot = await FirebaseFirestore.instance
+      final snapshot = await FirebaseFirestore.instance
           .collection('bookings')
-          .where('trainerId', isEqualTo: widget.trainer.id)
+          .where('trainerId', isEqualTo: _trainer!.id)
           .where('date', isEqualTo: dbDate)
           .where('time', isEqualTo: dbTime)
           .get();
 
-      bool isTaken = snapshot.docs.any((doc) {
-        var data = doc.data();
-        return data['status'] != 'cancelled';
-      });
+      final bool isTaken = snapshot.docs.any(
+        (doc) => doc.data()['status'] != 'cancelled',
+      );
 
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+          _availabilityStatus = isTaken ? 'taken' : 'available';
+        });
       }
-
-      setState(() {
-        _isChecking = false;
-        _availabilityStatus = isTaken ? 'taken' : 'available';
-      });
     } catch (e) {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+          _availabilityStatus = 'error';
+        });
       }
-      setState(() {
-        _isChecking = false;
-        _availabilityStatus = 'error';
-      });
     }
   }
 
-  void _showConfirmationBottomSheet() {
+  void _showConfirmationBottomSheet(String locale) {
     HapticFeedback.selectionClick();
-    String formattedDate = DateFormat(
-      'EEEE, MMM d',
-      context.locale.languageCode,
+
+    final String formattedDate = _Formatters.full(
+      locale,
     ).format(_selectedDate!);
-    String formattedTime = _formatTimeStrict(_selectedTime!);
-    Map<String, dynamic> activeSessionData = _trainerSessions.firstWhere(
+    final String formattedTime = _formatTimeStrict(_selectedTime!, locale);
+    final Map<String, dynamic> activeSessionData = _trainerSessions.firstWhere(
       (s) => s['name'] == _selectedSession,
     );
 
@@ -307,18 +350,11 @@ class _BookingScreenState extends State<BookingScreen> {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
+                  color: Colors.white.withValues(alpha: 0.95),
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(36),
                   ),
-                  border: Border(
-                    top: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      width: 1.5,
-                    ),
-                  ),
                 ),
-                clipBehavior: Clip.antiAlias,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -334,19 +370,8 @@ class _BookingScreenState extends State<BookingScreen> {
                       ),
                       const SizedBox(height: 32),
                       AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        transitionBuilder: (child, animation) {
-                          return FadeTransition(
-                            opacity: CurvedAnimation(
-                              parent: animation,
-                              curve: Curves.easeOutCubic,
-                            ),
-                            child: SizeTransition(
-                              sizeFactor: animation,
-                              child: child,
-                            ),
-                          );
-                        },
+                        duration: const Duration(milliseconds: 300),
+                        switchInCurve: Curves.easeOutBack,
                         child: isSuccess
                             ? _buildSuccessView(context)
                             : _buildConfirmView(
@@ -355,16 +380,12 @@ class _BookingScreenState extends State<BookingScreen> {
                                 formattedDate,
                                 formattedTime,
                                 localIsBooking,
-                                (bool bookingState) {
-                                  setModalState(() {
-                                    localIsBooking = bookingState;
-                                  });
-                                },
+                                locale,
+                                (bool state) =>
+                                    setModalState(() => localIsBooking = state),
                                 () {
                                   HapticFeedback.heavyImpact();
-                                  setModalState(() {
-                                    isSuccess = true;
-                                  });
+                                  setModalState(() => isSuccess = true);
                                 },
                               ),
                       ),
@@ -385,6 +406,7 @@ class _BookingScreenState extends State<BookingScreen> {
     String formattedDate,
     String formattedTime,
     bool isBooking,
+    String locale,
     Function(bool) setBookingState,
     VoidCallback onSuccess,
   ) {
@@ -464,7 +486,6 @@ class _BookingScreenState extends State<BookingScreen> {
           const SizedBox(height: 24),
           Divider(color: Colors.grey.shade200, height: 1),
           const SizedBox(height: 24),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -535,56 +556,49 @@ class _BookingScreenState extends State<BookingScreen> {
             ],
           ),
           const SizedBox(height: 36),
-
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: isBooking
-                  ? null
-                  : () async {
-                      HapticFeedback.lightImpact();
-                      setBookingState(true);
-                      try {
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user != null) {
-                          String dbDate = DateFormat(
-                            'yyyy-MM-dd',
-                          ).format(_selectedDate!);
-                          String dbTime = _formatTimeStrict(_selectedTime!);
-                          await FirebaseFirestore.instance
-                              .collection('bookings')
-                              .add({
-                                'userId': user.uid,
-                                'trainerId': widget.trainer.id,
-                                'trainerName': widget.trainer.name,
-                                'date': dbDate,
-                                'time': dbTime,
-                                'sessionType': _selectedSession,
-                                'status': 'confirmed',
-                                'createdAt': FieldValue.serverTimestamp(),
-                              });
-                        }
-                        if (!context.mounted) {
-                          return;
-                        }
-                        onSuccess();
-                      } catch (e) {
-                        if (!context.mounted) {
-                          return;
-                        }
-                        setBookingState(false);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('failed_to_book'.tr())),
-                        );
+          _BouncingButton(
+            onTap: isBooking
+                ? null
+                : () async {
+                    setBookingState(true);
+                    try {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null && _trainer != null) {
+                        await FirebaseFirestore.instance
+                            .collection('bookings')
+                            .add({
+                              'userId': user.uid,
+                              'trainerId': _trainer!.id,
+                              'trainerName': _trainer!.name,
+                              'date': _Formatters.dbDate(
+                                locale,
+                              ).format(_selectedDate!),
+                              'time': _formatTimeStrict(_selectedTime!, locale),
+                              'sessionType': _selectedSession,
+                              'status': 'confirmed',
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
                       }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _redButtonColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                elevation: 0,
+                      if (!context.mounted) {
+                        return;
+                      }
+                      onSuccess();
+                    } catch (e) {
+                      if (!context.mounted) {
+                        return;
+                      }
+                      setBookingState(false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('failed_to_book'.tr())),
+                      );
+                    }
+                  },
+            child: Container(
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _redButtonColor,
+                borderRadius: BorderRadius.circular(28),
               ),
               child: isBooking
                   ? const SizedBox(
@@ -617,26 +631,29 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
           const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.blue, width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
+          _BouncingButton(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.blue, width: 1.5),
+                borderRadius: BorderRadius.circular(28),
               ),
-              icon: const Icon(Icons.edit, color: Colors.blue, size: 18),
-              label: Text(
-                'edit_session'.tr(),
-                style: const TextStyle(
-                  color: Colors.blue,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.edit, color: Colors.blue, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'edit_session'.tr(),
+                    style: const TextStyle(
+                      color: Colors.blue,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -684,29 +701,33 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
           const SizedBox(height: 40),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton(
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (context, a, b) => const HomeDashboardScreen(),
-                    transitionsBuilder: (context, a, b, child) =>
-                        FadeTransition(opacity: a, child: child),
-                    transitionDuration: const Duration(milliseconds: 150),
-                  ),
-                  (route) => false,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _redButtonColor,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(28),
+          _BouncingButton(
+            onTap: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, a, b) => const HomeDashboardScreen(),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                        return FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
+                          ),
+                          child: child,
+                        );
+                      },
+                  transitionDuration: const Duration(milliseconds: 150),
                 ),
-                elevation: 0,
+                (route) => false,
+              );
+            },
+            child: Container(
+              height: 56,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: _redButtonColor,
+                borderRadius: BorderRadius.circular(28),
               ),
               child: Text(
                 'done'.tr(),
@@ -755,23 +776,6 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
             ],
           ),
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(
-                Icons.notifications_none_rounded,
-                color: _textMain,
-                size: 24,
-              ),
-              onPressed: () {
-                HapticFeedback.lightImpact();
-              },
-            ),
-          ),
         ],
       ),
     );
@@ -779,15 +783,23 @@ class _BookingScreenState extends State<BookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Localized Month-Year string
-    String monthYear = DateFormat(
-      'MMMM yyyy',
-      context.locale.languageCode,
+    if (_isLoadingTrainer || _trainer == null) {
+      return Scaffold(
+        backgroundColor: _bgColor,
+        body: const Center(
+          child: CircularProgressIndicator(color: _activeBlue),
+        ),
+      );
+    }
+
+    final String locale = context.locale.languageCode;
+    final String monthYear = _Formatters.monthYear(
+      locale,
     ).format(_selectedDate!);
-    List<Map<String, dynamic>> displayedSessions = _trainerSessions;
 
     return Scaffold(
       backgroundColor: _bgColor,
+      extendBody: true,
       body: Stack(
         children: [
           SafeArea(
@@ -827,119 +839,107 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  RepaintBoundary(
-                    child: SizedBox(
-                      height: 88,
-                      width: double.infinity,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Row(
-                          children: _cachedVisibleDates.map((date) {
-                            bool isSelected =
-                                _selectedDate != null &&
-                                _selectedDate!.year == date.year &&
-                                _selectedDate!.month == date.month &&
-                                _selectedDate!.day == date.day;
-                            String dayName = DateFormat(
-                              'EEE',
-                              context.locale.languageCode,
-                            ).format(date); // Localized day name
-                            String dayNumber = DateFormat('dd').format(date);
+                  SizedBox(
+                    height: 88,
+                    width: double.infinity,
+                    child: SingleChildScrollView(
+                      controller: _dateScrollController,
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        children: _cachedVisibleDates.map((date) {
+                          final bool isSelected =
+                              _selectedDate!.year == date.year &&
+                              _selectedDate!.month == date.month &&
+                              _selectedDate!.day == date.day;
+                          final String dayName = _Formatters.dayName(
+                            locale,
+                          ).format(date);
+                          final String dayNumber = _Formatters.dayNum(
+                            locale,
+                          ).format(date);
 
-                            return GestureDetector(
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                setState(() {
-                                  _selectedDate = date;
-                                  _availabilityStatus = 'none';
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                curve: Curves.easeInOut,
-                                margin: const EdgeInsets.only(right: 12),
-                                width: 58,
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
+                          return _BouncingButton(
+                            onTap: () {
+                              setState(() {
+                                _selectedDate = date;
+                                _availabilityStatus = 'none';
+                              });
+                              _scrollToSelectedDate();
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              curve: Curves.easeOutCubic,
+                              margin: const EdgeInsets.only(right: 12),
+                              width: 58,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: isSelected ? _activeBlue : Colors.white,
+                                borderRadius: BorderRadius.circular(35),
+                                border: Border.all(
                                   color: isSelected
-                                      ? _activeBlue
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(35),
-                                  border: isSelected
-                                      ? Border.all(color: Colors.transparent)
-                                      : Border.all(
-                                          color: Colors.grey.shade300,
-                                          width: 1,
-                                        ),
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: _activeBlue.withValues(
-                                              alpha: 0.3,
-                                            ),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ]
-                                      : [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.02,
-                                            ),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
+                                      ? Colors.transparent
+                                      : Colors.grey.shade300,
+                                  width: 1,
                                 ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      dayName,
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: _activeBlue.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    dayName,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.grey.shade500,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.grey.shade100,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      dayNumber,
                                       style: TextStyle(
                                         color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey.shade500,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
+                                            ? _activeBlue
+                                            : _textMain,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
                                       ),
                                     ),
-                                    const SizedBox(height: 6),
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey.shade100,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        dayNumber,
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? _activeBlue
-                                              : _textMain,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            );
-                          }).toList(),
-                        ),
+                            ),
+                          );
+                        }).toList(),
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 44),
-
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Text(
@@ -953,111 +953,13 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  RepaintBoundary(
-                    child: SizedBox(
-                      height: 52,
-                      child: NotificationListener<ScrollNotification>(
-                        onNotification: (ScrollNotification scrollInfo) {
-                          if (scrollInfo is UserScrollNotification) {
-                            _userInteractedWithSessions = true;
-                          }
-                          return false;
-                        },
-                        child: SingleChildScrollView(
-                          controller: _sessionsScrollController,
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
-                            children: displayedSessions.map((session) {
-                              bool isSelected =
-                                  _selectedSession == session['name'];
-                              return GestureDetector(
-                                onTap: () {
-                                  HapticFeedback.lightImpact();
-                                  setState(
-                                    () => _selectedSession = session['name'],
-                                  );
-                                },
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 200),
-                                  curve: Curves.easeInOut,
-                                  margin: const EdgeInsets.only(right: 12),
-                                  padding: const EdgeInsets.fromLTRB(
-                                    6,
-                                    6,
-                                    20,
-                                    6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? _limeGreen
-                                        : Colors.white,
-                                    borderRadius: BorderRadius.circular(30),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? Colors.transparent
-                                          : Colors.grey.shade300,
-                                      width: 1,
-                                    ),
-                                    boxShadow: isSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: _limeGreen.withValues(
-                                                alpha: 0.4,
-                                              ),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 4),
-                                            ),
-                                          ]
-                                        : [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: 0.02,
-                                              ),
-                                              blurRadius: 4,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? Colors.white
-                                              : Colors.grey.shade100,
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                        ),
-                                        child: Icon(
-                                          session['icon'],
-                                          color: Colors.black87,
-                                          size: 20,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        session['name'],
-                                        style: const TextStyle(
-                                          color: _textMain,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    ),
+                  _SessionSelectionList(
+                    trainerSessions: _trainerSessions,
+                    onSessionSelected: (sessionName) {
+                      setState(() {
+                        _selectedSession = sessionName;
+                      });
+                    },
                   ),
 
                   const SizedBox(height: 32),
@@ -1091,7 +993,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         Row(
                           children: [
                             Expanded(
-                              child: GestureDetector(
+                              child: _BouncingButton(
                                 onTap: _pickTime,
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -1109,7 +1011,10 @@ class _BookingScreenState extends State<BookingScreen> {
                                       Text(
                                         _selectedTime == null
                                             ? 'choose'.tr()
-                                            : _formatTimeStrict(_selectedTime!),
+                                            : _formatTimeStrict(
+                                                _selectedTime!,
+                                                locale,
+                                              ),
                                         style: const TextStyle(
                                           color: _textMain,
                                           fontSize: 15,
@@ -1127,18 +1032,17 @@ class _BookingScreenState extends State<BookingScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            SizedBox(
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: _isChecking
-                                    ? null
-                                    : _checkAvailability,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: _redButtonColor,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  elevation: 0,
+                            _BouncingButton(
+                              onTap: _isChecking ? null : _checkAvailability,
+                              child: Container(
+                                height: 52,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _redButtonColor,
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: _isChecking
                                     ? const SizedBox(
@@ -1244,7 +1148,6 @@ class _BookingScreenState extends State<BookingScreen> {
                             ),
                           ),
                         ],
-                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
@@ -1253,16 +1156,15 @@ class _BookingScreenState extends State<BookingScreen> {
                     const SizedBox(height: 32),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton(
-                          onPressed: _showConfirmationBottomSheet,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _redButtonColor,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                      child: _BouncingButton(
+                        onTap: () => _showConfirmationBottomSheet(locale),
+                        child: Container(
+                          width: double.infinity,
+                          height: 55,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: _redButtonColor,
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             'proceed_to_book'.tr(),
@@ -1309,22 +1211,10 @@ class _BookingScreenState extends State<BookingScreen> {
                           icon: Icons.home_filled,
                           label: 'home_nav'.tr(),
                           selectedIndex: selectedIndex,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder: (context, a, b) =>
-                                    const HomeDashboardScreen(),
-                                transitionsBuilder: (context, a, b, child) =>
-                                    FadeTransition(opacity: a, child: child),
-                                transitionDuration: const Duration(
-                                  milliseconds: 150,
-                                ),
-                              ),
-                              (route) => false,
-                            );
-                          },
+                          onTap: () => _handleStandardNavigation(
+                            const HomeDashboardScreen(),
+                            0,
+                          ),
                         ),
                         _NavItem(
                           index: 1,
@@ -1374,6 +1264,143 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 }
 
+class _SessionSelectionList extends StatefulWidget {
+  final List<Map<String, dynamic>> trainerSessions;
+  final Function(String) onSessionSelected;
+
+  const _SessionSelectionList({
+    required this.trainerSessions,
+    required this.onSessionSelected,
+  });
+
+  @override
+  State<_SessionSelectionList> createState() => _SessionSelectionListState();
+}
+
+class _SessionSelectionListState extends State<_SessionSelectionList> {
+  String? _localSelectedSession;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.trainerSessions.isNotEmpty) {
+      _localSelectedSession = widget.trainerSessions.first['name'];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 52,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Row(
+          children: widget.trainerSessions.map((session) {
+            final bool isSelected = _localSelectedSession == session['name'];
+            return _BouncingButton(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _localSelectedSession = session['name']);
+                widget.onSessionSelected(session['name']);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCubic,
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.fromLTRB(6, 6, 20, 6),
+                decoration: BoxDecoration(
+                  color: isSelected ? const Color(0xFFD4FF4E) : Colors.white,
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(
+                    color: isSelected
+                        ? Colors.transparent
+                        : Colors.grey.shade300,
+                    width: 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: const Color(
+                              0xFFD4FF4E,
+                            ).withValues(alpha: 0.4),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : [],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        session['icon'],
+                        color: Colors.black87,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      session['name'],
+                      style: const TextStyle(
+                        color: Color(0xFF1A1A1A),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+class _BouncingButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  const _BouncingButton({required this.child, required this.onTap});
+  @override
+  State<_BouncingButton> createState() => _BouncingButtonState();
+}
+
+class _BouncingButtonState extends State<_BouncingButton> {
+  bool _isPressed = false;
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = true),
+      onTapUp: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = false),
+      onTapCancel: widget.onTap == null
+          ? null
+          : () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class _NavItem extends StatelessWidget {
   final int index, selectedIndex;
   final IconData icon;
@@ -1390,11 +1417,12 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    bool isSelected = selectedIndex == index;
+    final bool isSelected = selectedIndex == index;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 150),
         curve: Curves.easeOutCubic,
         padding: isSelected
             ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)

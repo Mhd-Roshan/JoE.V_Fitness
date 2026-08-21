@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // REQUIRED FOR METHODCHANNEL
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:no_screenshot/no_screenshot.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
@@ -20,6 +19,9 @@ class ChangeTrainerScreen extends StatefulWidget {
 }
 
 class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
+  // --- NATIVE SCREENSHOT CHANNEL ---
+  static const platform = MethodChannel('com.example.jove_client/screenshot');
+
   // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
@@ -29,7 +31,6 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
-  final NoScreenshot _noScreenshot = NoScreenshot.instance;
 
   bool _isLoading = true;
   bool _isNavigating = false;
@@ -42,20 +43,23 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
   @override
   void initState() {
     super.initState();
-    _disableScreenshots();
+    _disableScreenshots(); // Calls Native Kotlin code
     _fetchData();
   }
 
   @override
   void dispose() {
-    _enableScreenshots();
+    _enableScreenshots(); // Calls Native Kotlin code
     _selectedIndexNotifier.dispose();
     super.dispose();
   }
 
+  // ==========================================
+  // NATIVE SCREENSHOT CONTROLS
+  // ==========================================
   Future<void> _disableScreenshots() async {
     try {
-      await _noScreenshot.screenshotOff();
+      await platform.invokeMethod('disableScreenshots');
     } catch (e) {
       debugPrint("Error disabling screenshots: $e");
     }
@@ -63,12 +67,15 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
 
   Future<void> _enableScreenshots() async {
     try {
-      await _noScreenshot.screenshotOn();
+      await platform.invokeMethod('enableScreenshots');
     } catch (e) {
       debugPrint("Error enabling screenshots: $e");
     }
   }
 
+  // ==========================================
+  // DATA FETCHING & LOGIC
+  // ==========================================
   Future<void> _fetchData() async {
     if (currentUser == null) return;
 
@@ -140,9 +147,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
         Navigator.pop(context); // Close Loader
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'success_switch_trainer'.tr(args: [newTrainerName]),
-            ), // TRANSLATED WITH ARGS
+            content: Text('success_switch_trainer'.tr(args: [newTrainerName])),
             backgroundColor: Colors.green,
           ),
         );
@@ -154,7 +159,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
         Navigator.pop(context); // Close Loader
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('failed_switch_trainer'.tr()), // TRANSLATED
+            content: Text('failed_switch_trainer'.tr()),
             backgroundColor: Colors.red,
           ),
         );
@@ -167,7 +172,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
 
     String name = _parseStringOrList(
       trainer['name'] ?? trainer['fullName'] ?? 'trainer'.tr(),
-    ); // TRANSLATED
+    );
     String imageUrl =
         trainer['profileImageUrl'] ??
         trainer['photoUrl'] ??
@@ -176,10 +181,10 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
         '';
     String specialty = _parseStringOrList(
       trainer['specialty'] ?? trainer['title'] ?? 'elite_trainer'.tr(),
-    ); // TRANSLATED
+    );
     String bio = _parseStringOrList(
       trainer['bio'] ?? trainer['description'] ?? 'no_bio_available'.tr(),
-    ); // TRANSLATED
+    );
     String rating = trainer['rating']?.toString() ?? '';
 
     dynamic rawTags =
@@ -326,7 +331,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                         fontWeight: FontWeight.w900,
                         color: _navBgColor,
                       ),
-                    ), // TRANSLATED
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       bio,
@@ -346,7 +351,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                           fontWeight: FontWeight.w900,
                           color: _navBgColor,
                         ),
-                      ), // TRANSLATED
+                      ),
                       const SizedBox(height: 12),
                       Wrap(
                         spacing: 8,
@@ -412,7 +417,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                 child: Text(
                   _isPackageExpired
                       ? 'switch_to_trainer'.tr(args: [name])
-                      : 'package_must_expire'.tr(), // TRANSLATED
+                      : 'package_must_expire'.tr(),
                   style: TextStyle(
                     color: _isPackageExpired
                         ? Colors.white
@@ -429,6 +434,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
     );
   }
 
+  // ==========================================
+  // NAVIGATION LOGIC
+  // ==========================================
   void _navigate(Widget screen) {
     if (_isNavigating) return;
     setState(() => _isNavigating = true);
@@ -506,7 +514,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
         navigator.pop();
         scaffoldMessenger.showSnackBar(
           SnackBar(content: Text('error_loading_data'.tr())),
-        ); // TRANSLATED
+        );
       }
     } finally {
       if (mounted) {
@@ -518,6 +526,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
     }
   }
 
+  // ==========================================
+  // UI BUILDERS
+  // ==========================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -550,7 +561,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                         child: Padding(
                           padding: const EdgeInsets.only(left: 24, bottom: 12),
                           child: Text(
-                            'select_trainers'.tr(), // TRANSLATED
+                            'select_trainers'.tr(),
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -607,7 +618,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                 ),
-              ), // TRANSLATED
+              ),
             ],
           ),
           Container(
@@ -643,7 +654,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
           _currentTrainerData?['fullName'] ??
           _userData?['assignedTrainerName'] ??
           'assigned_trainer'.tr(),
-    ); // TRANSLATED
+    );
     String imageUrl =
         _currentTrainerData?['profileImageUrl'] ??
         _currentTrainerData?['photoUrl'] ??
@@ -662,7 +673,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
       _currentTrainerData?['tier'] ??
           _currentTrainerData?['level'] ??
           'trainer'.tr(),
-    ); // TRANSLATED
+    );
     String certs = _parseStringOrList(
       _currentTrainerData?['certifications'] ??
           _currentTrainerData?['description'],
@@ -732,7 +743,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
-                ), // TRANSLATED
+                ),
               ),
             ),
             Positioned(
@@ -841,7 +852,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ), // TRANSLATED
+            ),
           ],
         ),
       ),
@@ -860,7 +871,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                 color: Colors.grey.shade500,
                 fontWeight: FontWeight.bold,
               ),
-            ), // TRANSLATED
+            ),
           ),
         ),
       );
@@ -1025,7 +1036,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                             color: _navBgColor,
                             fontWeight: FontWeight.bold,
                           ),
-                        ), // TRANSLATED
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1050,7 +1061,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                                 : Colors.grey.shade500,
                             fontWeight: FontWeight.bold,
                           ),
-                        ), // TRANSLATED
+                        ),
                       ),
                     ),
                   ],
@@ -1090,35 +1101,35 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                 label: 'home_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const HomeDashboardScreen()),
-              ), // TRANSLATED
+              ),
               _NavItem(
                 index: 1,
                 icon: Icons.calendar_today_rounded,
                 label: 'booking_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: _navigateToBooking,
-              ), // TRANSLATED
+              ),
               _NavItem(
                 index: 2,
                 icon: Icons.bar_chart_rounded,
                 label: 'stats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ProgressScreen()),
-              ), // TRANSLATED
+              ),
               _NavItem(
                 index: 3,
                 icon: Icons.chat_bubble_outline_rounded,
                 label: 'chats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ChatScreen()),
-              ), // TRANSLATED
+              ),
               _NavItem(
                 index: 4,
                 icon: Icons.person_outline_rounded,
                 label: 'profile_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ProfileScreen()),
-              ), // TRANSLATED
+              ),
             ],
           );
         },

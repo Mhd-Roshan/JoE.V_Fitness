@@ -17,6 +17,7 @@ import 'health_profile_screen.dart';
 import 'subscription_screen.dart';
 import 'notification_settings_screen.dart';
 import 'app_language_screen.dart';
+import 'support_screen.dart'; // <-- ADDED SUPPORT SCREEN IMPORT
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -498,7 +499,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _MenuItemData(
                                 icon: Icons.help_outline_rounded,
                                 title: 'support'.tr(),
-                                onTap: () => HapticFeedback.lightImpact(),
+                                onTap: () => _pushScreen(
+                                  const SupportScreen(),
+                                ), // <-- NAVIGATES TO SUPPORT NOW
                               ),
                             ]),
                           ],

@@ -1,0 +1,1161 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:easy_localization/easy_localization.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart'; // Ensure this is present
+
+// Import your existing screens for navigation
+import 'home_dashboard_screen.dart';
+import 'booking_screen.dart';
+import 'progress_screen.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart';
+import 'trainer_selection_screen.dart';
+
+class SupportScreen extends StatefulWidget {
+  const SupportScreen({super.key});
+
+  @override
+  State<SupportScreen> createState() => _SupportScreenState();
+}
+
+class _SupportScreenState extends State<SupportScreen> {
+  // Theme Colors (Matching Profile Page)
+  static const Color _bgColor = Color(0xFFF7F8FA);
+  static const Color _textMain = Color(0xFF1A1A1A);
+  static const Color _navBgColor = Color(0xFF00215F);
+  static const Color _redButton = Color(0xFFBB0013);
+  static const Color _iconBg = Color(0xFFF0F2F5);
+
+  final User? currentUser = FirebaseAuth.instance.currentUser;
+
+  // State Notifiers for Buttery Smooth UI
+  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
+  final ValueNotifier<int> _tabNotifier = ValueNotifier<int>(0);
+  final ValueNotifier<bool> _isSubmitting = ValueNotifier<bool>(false);
+
+  // Form Controllers & State
+  final TextEditingController _messageController = TextEditingController();
+  final ValueNotifier<String> _subjectNotifier = ValueNotifier<String>(
+    'Technical Issues',
+  );
+
+  // Real File Upload State
+  File? _attachedFile;
+  String? _attachedFileName;
+
+  final List<String> _subjects = [
+    'Technical Issues',
+    'Billing & Payments',
+    'Trainer Feedback',
+    'General Enquiry',
+  ];
+
+  late Stream<QuerySnapshot> _ticketsStream;
+  bool _isNavigating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = currentUser?.uid ?? '';
+    _ticketsStream = FirebaseFirestore.instance
+        .collection('support_tickets')
+        .where('userId', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  @override
+  void dispose() {
+    _selectedIndexNotifier.dispose();
+    _tabNotifier.dispose();
+    _isSubmitting.dispose();
+    _messageController.dispose();
+    _subjectNotifier.dispose();
+    super.dispose();
+  }
+
+  // ==========================================
+  // URL LAUNCHERS & ACTIONS (REAL DATA)
+  // ==========================================
+  Future<void> _handleChatNavigation() async {
+    HapticFeedback.selectionClick();
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChatScreen()),
+    );
+  }
+
+  Future<void> _handleCallAction() async {
+    HapticFeedback.selectionClick();
+    final Uri url = Uri.parse('tel:+91987654345');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not open phone dialer")),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleEmailAction() async {
+    HapticFeedback.selectionClick();
+    final Uri url = Uri.parse('mailto:admin@gmail.com?subject=Support Enquiry');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not open email app")),
+        );
+      }
+    }
+  }
+
+  Future<void> _openAttachmentUrl(String url) async {
+    HapticFeedback.lightImpact();
+    final Uri uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  // ==========================================
+  // REAL FILE PICKER & FIREBASE UPLOAD
+  // ==========================================
+  Future<void> _pickFile() async {
+    HapticFeedback.lightImpact();
+    try {
+      PlatformFile? file = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      );
+
+      if (file != null && file.path != null) {
+        setState(() {
+          _attachedFile = File(file.path!);
+          _attachedFileName = file.name;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error picking file. Please try again.")),
+      );
+    }
+  }
+
+  Future<void> _submitTicket() async {
+    if (_messageController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please describe your issue.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    _isSubmitting.value = true;
+
+    try {
+      String? uploadedFileUrl;
+
+      // 1. Upload File to Firebase Storage (if selected)
+      if (_attachedFile != null && currentUser != null) {
+        final storageRef = FirebaseStorage.instance.ref().child(
+          'support_attachments/${currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}_$_attachedFileName',
+        );
+
+        await storageRef.putFile(_attachedFile!);
+        uploadedFileUrl = await storageRef.getDownloadURL();
+      }
+
+      // 2. Save Ticket to Firestore
+      await FirebaseFirestore.instance.collection('support_tickets').add({
+        'userId': currentUser?.uid ?? 'unknown',
+        'subject': _subjectNotifier.value,
+        'message': _messageController.text.trim(),
+        'attachmentUrl': uploadedFileUrl,
+        'attachmentName': _attachedFileName,
+        'status': 'Pending',
+        'adminReply': null,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      // Reset Form
+      _messageController.clear();
+      _subjectNotifier.value = _subjects.first;
+      setState(() {
+        _attachedFile = null;
+        _attachedFileName = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message sent successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // Switch to Inbox tab instantly
+      _tabNotifier.value = 1;
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to send message. Please check connection.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      _isSubmitting.value = false;
+    }
+  }
+
+  // --- NAVIGATION LOGIC ---
+  Future<void> _handleStandardNavigation(Widget screen, int index) async {
+    if (_isNavigating) return;
+    HapticFeedback.selectionClick();
+    setState(() => _isNavigating = true);
+    _selectedIndexNotifier.value = index;
+
+    await Future.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
+
+    await Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (context, a, b) => screen,
+        transitionsBuilder: (context, a, b, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 200),
+      ),
+    );
+  }
+
+  Future<void> _navigateToBooking() async {
+    if (_isNavigating || currentUser == null) return;
+    _isNavigating = true;
+    HapticFeedback.selectionClick();
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black12,
+      barrierDismissible: false,
+      builder: (_) =>
+          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+    );
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .get();
+      final userData = userDoc.data() ?? {};
+      final String? trainerId = userData['assignedTrainerId'];
+      Widget nextScreen;
+
+      if (trainerId == null || trainerId.isEmpty) {
+        nextScreen = const SelectTrainerScreen();
+      } else {
+        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
+            .collection('trainers')
+            .doc(trainerId)
+            .get(const GetOptions(source: Source.cache))
+            .catchError(
+              (_) => FirebaseFirestore.instance
+                  .collection('trainers')
+                  .doc(trainerId)
+                  .get(),
+            );
+
+        nextScreen = trainerDoc.exists
+            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
+            : const SelectTrainerScreen();
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      await Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (c, a, b) => nextScreen,
+          transitionsBuilder: (c, a, b, child) =>
+              FadeTransition(opacity: a, child: child),
+          transitionDuration: const Duration(milliseconds: 150),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Error loading booking.')));
+    } finally {
+      if (mounted) {
+        _isNavigating = false;
+        _selectedIndexNotifier.value = 4;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _bgColor,
+      body: Stack(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _buildTopAppBar(),
+                const SizedBox(height: 12),
+                _buildTabToggle(),
+                const SizedBox(height: 16),
+
+                Expanded(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _tabNotifier,
+                    builder: (context, tabIndex, child) {
+                      return AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: tabIndex == 0
+                            ? _buildContactFormTab()
+                            : _buildInboxTab(),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: _FloatingNavBar(
+              selectedIndexNotifier: _selectedIndexNotifier,
+              onHomeTap: () =>
+                  _handleStandardNavigation(const HomeDashboardScreen(), 0),
+              onBookingTap: _navigateToBooking,
+              onStatsTap: () =>
+                  _handleStandardNavigation(const ProgressScreen(), 2),
+              onChatsTap: () =>
+                  _handleStandardNavigation(const ChatScreen(), 3),
+              onProfileTap: () =>
+                  _handleStandardNavigation(const ProfileScreen(), 4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopAppBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: _textMain,
+                  size: 20,
+                ),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Contact Support',
+                style: TextStyle(
+                  color: _textMain,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: _textMain,
+                size: 24,
+              ),
+              onPressed: () {},
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabToggle() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ValueListenableBuilder<int>(
+        valueListenable: _tabNotifier,
+        builder: (context, currentIndex, _) {
+          return Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _tabNotifier.value = 0;
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: currentIndex == 0
+                          ? Colors.white
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: currentIndex == 0
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 4,
+                              ),
+                            ]
+                          : [],
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Submit Issue',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: currentIndex == 0
+                              ? _navBgColor
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _tabNotifier.value = 1;
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: currentIndex == 1
+                          ? Colors.white
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: currentIndex == 1
+                          ? [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 4,
+                              ),
+                            ]
+                          : [],
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Inbox',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: currentIndex == 1
+                              ? _navBgColor
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ==========================================
+  // TAB 1: SUBMIT NEW ISSUE
+  // ==========================================
+  Widget _buildContactFormTab() {
+    return SingleChildScrollView(
+      key: const PageStorageKey('ContactForm'),
+      padding: const EdgeInsets.only(bottom: 120, left: 24, right: 24),
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Session Alert',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: _navBgColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Contact Cards (WITH REAL CLICK ACTIONS)
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Column(
+              children: [
+                _buildContactCard(
+                  Icons.chat_bubble_outline,
+                  'Chat with us',
+                  'Quick replies for general queries',
+                  _handleChatNavigation,
+                ),
+                Divider(height: 1, thickness: 1, color: Colors.grey.shade100),
+                _buildContactCard(
+                  Icons.phone_outlined,
+                  'Call support',
+                  '+91 987654345   8 AM - 9 PM',
+                  _handleCallAction,
+                ),
+                Divider(height: 1, thickness: 1, color: Colors.grey.shade100),
+                _buildContactCard(
+                  Icons.email_outlined,
+                  'Email us',
+                  'admin@gmail.com',
+                  _handleEmailAction,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+          const Text(
+            'Direct Message',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: _navBgColor,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Subject Dropdown
+          const Text(
+            'Enquiry Subject',
+            style: TextStyle(fontWeight: FontWeight.bold, color: _navBgColor),
+          ),
+          const SizedBox(height: 8),
+          ValueListenableBuilder<String>(
+            valueListenable: _subjectNotifier,
+            builder: (context, subject, _) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: subject,
+                    isExpanded: true,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.grey,
+                    ),
+                    items: _subjects.map((String val) {
+                      return DropdownMenuItem<String>(
+                        value: val,
+                        child: Text(
+                          val,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) _subjectNotifier.value = val;
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // Message Field
+          const Text(
+            'How can i help you',
+            style: TextStyle(fontWeight: FontWeight.bold, color: _navBgColor),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _messageController,
+            maxLines: 4,
+            decoration: InputDecoration(
+              hintText: 'Describe the issue in details....',
+              hintStyle: TextStyle(color: Colors.grey.shade500),
+              filled: true,
+              fillColor: _iconBg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Attachment (REAL FILE PICKER)
+          const Text(
+            'Attachment (Optional)',
+            style: TextStyle(fontWeight: FontWeight.bold, color: _navBgColor),
+          ),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: _pickFile,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: _attachedFile != null
+                    ? const Color(0xFFE3F2FD)
+                    : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: _attachedFile != null
+                      ? Colors.blue
+                      : Colors.grey.shade300,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    _attachedFile != null
+                        ? Icons.check_circle_outline_rounded
+                        : Icons.cloud_upload_rounded,
+                    color: _attachedFile != null
+                        ? Colors.blue
+                        : Colors.grey.shade600,
+                    size: 32,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _attachedFileName ??
+                        'Drop screenshots here or tap to select',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _attachedFile != null
+                          ? Colors.blue.shade800
+                          : Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (_attachedFile != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8.0),
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _attachedFile = null;
+                          _attachedFileName = null;
+                        }),
+                        child: const Text(
+                          "Remove",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Submit Button
+          ValueListenableBuilder<bool>(
+            valueListenable: _isSubmitting,
+            builder: (context, isSubmitting, _) {
+              return SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton.icon(
+                  onPressed: isSubmitting ? null : _submitTicket,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _redButton,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  icon: isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Send Message',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                  label: isSubmitting
+                      ? const SizedBox.shrink()
+                      : const Icon(
+                          Icons.send_rounded,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Updated Contact Card to accept an onTap function
+  Widget _buildContactCard(
+    IconData icon,
+    String title,
+    String subtitle,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: _iconBg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: _navBgColor, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _navBgColor,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.grey.shade300,
+              size: 14,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ==========================================
+  // TAB 2: INBOX (LIVE FIRESTORE DATA)
+  // ==========================================
+  Widget _buildInboxTab() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _ticketsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(color: _navBgColor),
+          );
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.inbox_rounded,
+                  size: 60,
+                  color: Colors.grey.shade300,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'No support tickets yet.',
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 120, left: 24, right: 24),
+          physics: const BouncingScrollPhysics(),
+          itemCount: snapshot.data!.docs.length,
+          itemBuilder: (context, index) {
+            var ticket =
+                snapshot.data!.docs[index].data() as Map<String, dynamic>;
+            String subject = ticket['subject'] ?? 'Support Ticket';
+            String message = ticket['message'] ?? '';
+            String status = ticket['status'] ?? 'Pending';
+            String? adminReply = ticket['adminReply'];
+            String? attachmentUrl = ticket['attachmentUrl'];
+            Timestamp? date = ticket['createdAt'];
+
+            String dateStr = date != null
+                ? DateFormat('dd MMM, hh:mm a').format(date.toDate())
+                : '';
+            Color statusColor = status == 'Pending'
+                ? Colors.orange
+                : (status == 'Answered' ? Colors.green : Colors.grey);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        subject,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: _navBgColor,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    style: const TextStyle(color: Colors.black87, fontSize: 14),
+                  ),
+
+                  // SHOW ATTACHMENT IF IT EXISTS
+                  if (attachmentUrl != null && attachmentUrl.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    ActionChip(
+                      backgroundColor: _iconBg,
+                      side: BorderSide.none,
+                      avatar: const Icon(
+                        Icons.attachment_rounded,
+                        size: 16,
+                        color: _navBgColor,
+                      ),
+                      label: const Text(
+                        "View Attachment",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _navBgColor,
+                        ),
+                      ),
+                      onPressed: () => _openAttachmentUrl(attachmentUrl),
+                    ),
+                  ],
+
+                  const SizedBox(height: 8),
+                  Text(
+                    dateStr,
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                  ),
+
+                  // ADMIN REPLY BUBBLE
+                  if (adminReply != null && adminReply.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: _iconBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _navBgColor.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.support_agent_rounded,
+                            color: _navBgColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Admin Reply',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _navBgColor,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  adminReply,
+                                  style: const TextStyle(
+                                    color: Colors.black87,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// --- BOTTOM NAVBAR COMPONENT ---
+class _FloatingNavBar extends StatelessWidget {
+  final ValueNotifier<int> selectedIndexNotifier;
+  final VoidCallback onHomeTap;
+  final VoidCallback onBookingTap;
+  final VoidCallback onStatsTap;
+  final VoidCallback onChatsTap;
+  final VoidCallback onProfileTap;
+
+  const _FloatingNavBar({
+    required this.selectedIndexNotifier,
+    required this.onHomeTap,
+    required this.onBookingTap,
+    required this.onStatsTap,
+    required this.onChatsTap,
+    required this.onProfileTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00215F),
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ValueListenableBuilder<int>(
+        valueListenable: selectedIndexNotifier,
+        builder: (context, selectedIndex, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _NavItem(
+                index: 0,
+                icon: Icons.home_filled,
+                label: 'Home',
+                selectedIndex: selectedIndex,
+                onTap: onHomeTap,
+              ),
+              _NavItem(
+                index: 1,
+                icon: Icons.calendar_today_rounded,
+                label: 'Booking',
+                selectedIndex: selectedIndex,
+                onTap: onBookingTap,
+              ),
+              _NavItem(
+                index: 2,
+                icon: Icons.bar_chart_rounded,
+                label: 'Stats',
+                selectedIndex: selectedIndex,
+                onTap: onStatsTap,
+              ),
+              _NavItem(
+                index: 3,
+                icon: Icons.chat_bubble_outline_rounded,
+                label: 'Chats',
+                selectedIndex: selectedIndex,
+                onTap: onChatsTap,
+              ),
+              _NavItem(
+                index: 4,
+                icon: Icons.person_outline_rounded,
+                label: 'Profile',
+                selectedIndex: selectedIndex,
+                onTap: onProfileTap,
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final int index, selectedIndex;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.index,
+    required this.icon,
+    required this.label,
+    required this.selectedIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    bool isSelected = selectedIndex == index;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        padding: isSelected
+            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
+            : const EdgeInsets.all(10.0),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white
+              : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.black : Colors.white,
+              size: 20,
+            ),
+            if (isSelected) ...[
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

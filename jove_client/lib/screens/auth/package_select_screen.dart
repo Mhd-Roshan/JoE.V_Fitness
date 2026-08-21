@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+import 'package:easy_localization/easy_localization.dart';
 
 const navy = Color(0xFF00225D);
 const cyan = Color(0xFF01BCE3);
@@ -21,8 +22,18 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
   bool _autoRenew = true;
   bool _isContinuing = false;
 
+  // Cached stream so it doesn't restart on every setState or Hot Reload
+  late final Stream<QuerySnapshot> _packagesStream =
+      _db.collection('packages').orderBy('order').snapshots();
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
   // --- MODERN FLOATING ALERT ---
   void _showModernSnackBar(String message) {
+    HapticFeedback.heavyImpact();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -54,13 +65,11 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
 
   // --- CONTINUE BUTTON LOGIC ---
   void _onContinueTap() {
-    // 1. Check if a package is selected!
     if (_selectedPackageId == null) {
-      _showModernSnackBar('err_select_package'.tr()); // TRANSLATED
+      _showModernSnackBar('err_select_package'.tr());
       return;
     }
 
-    // 2. If selected, proceed
     _db.collection('packages').doc(_selectedPackageId).get().then((doc) {
       _handleContinue(doc.data() ?? {});
     });
@@ -80,18 +89,15 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
 
       if (!mounted) return;
 
-      // Navigator.push(context,
-      //   MaterialPageRoute(builder: (_) => OrderSummaryScreen(
-      //     packageId: _selectedPackageId!,
-      //     packageData: selectedPackageData,
-      //   )));
-
-      // Replace with your actual routing, but here is a success modern snackbar
+      HapticFeedback.mediumImpact();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'success_package_selected'.tr(), // TRANSLATED
-            style: GoogleFonts.poppins(color: Colors.white),
+            'success_package_selected'.tr(),
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
@@ -101,6 +107,8 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
           margin: const EdgeInsets.all(20),
         ),
       );
+
+      // Navigator.push(context, MaterialPageRoute(builder: (_) => OrderSummaryScreen(...)));
     } finally {
       if (mounted) setState(() => _isContinuing = false);
     }
@@ -109,15 +117,13 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(
-        0xFFF8F9FA,
-      ), // Very light grey for modern contrast
+      backgroundColor: const Color(0xFFF8F9FA), // Very light grey
       appBar: AppBar(
         backgroundColor: const Color(0xFFF8F9FA),
         elevation: 0,
         iconTheme: const IconThemeData(color: navy),
         title: Text(
-          'select_packages_title'.tr(), // TRANSLATED
+          'Packages', // CHANGED: Renamed as requested
           style: GoogleFonts.poppins(color: navy, fontWeight: FontWeight.w600),
         ),
       ),
@@ -129,7 +135,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
             children: [
               const SizedBox(height: 10),
               Text(
-                'choose_package_heading'.tr(), // TRANSLATED
+                'choose_package_heading'.tr(),
                 style: GoogleFonts.poppins(
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
@@ -140,10 +146,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
 
               Expanded(
                 child: StreamBuilder<QuerySnapshot>(
-                  stream: _db
-                      .collection('packages')
-                      .orderBy('order')
-                      .snapshots(),
+                  stream: _packagesStream, // OPTIMIZED STREAM
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -155,7 +158,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                       return Text(
                         'err_load_packages'.tr(
                           namedArgs: {'error': snapshot.error.toString()},
-                        ), // TRANSLATED
+                        ),
                         style: GoogleFonts.poppins(color: Colors.red),
                       );
                     }
@@ -165,7 +168,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                     if (docs.isEmpty) {
                       return Center(
                         child: Text(
-                          'no_packages_available'.tr(), // TRANSLATED
+                          'no_packages_available'.tr(),
                           textAlign: TextAlign.center,
                           style: GoogleFonts.poppins(color: Colors.grey),
                         ),
@@ -181,7 +184,6 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                         final data = doc.data() as Map<String, dynamic>;
                         final isSelected = _selectedPackageId == id;
 
-                        // --- SKIPPED TRANSLATING INSIDE THE BOX AS REQUESTED ---
                         final name = data['name'] ?? 'Package';
                         final order = data['order'] ?? 0;
                         final price = data['price'] ?? 0;
@@ -193,16 +195,14 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                           features = List<String>.from(data['features']);
                         }
 
-                        // --- BADGE LOGIC ---
+                        // Badge Logic
                         String displayBadge = '';
                         Color badgeColor = cyan;
 
                         if (badge != null && badge.isNotEmpty) {
                           if (badge == 'bestValue') {
                             displayBadge = 'BEST VALUE';
-                            badgeColor = const Color(
-                              0xFFF39C12,
-                            ); // Premium Orange
+                            badgeColor = const Color(0xFFF39C12); // Orange
                           } else if (badge == 'mostPopular') {
                             displayBadge = 'MOST POPULAR';
                             badgeColor = cyan;
@@ -211,11 +211,15 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                           }
                         }
 
-                        return GestureDetector(
-                          onTap: () => setState(() => _selectedPackageId = id),
-                          // MODERN ANIMATED CONTAINER FOR SELECTION
+                        // OPTIMIZATION: Bouncing wrapper for smoothness
+                        return _BouncingButton(
+                          scaleFactor: 0.96,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _selectedPackageId = id);
+                          },
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
+                            duration: const Duration(milliseconds: 250),
                             curve: Curves.easeOutCubic,
                             margin: const EdgeInsets.only(bottom: 18),
                             padding: const EdgeInsets.all(20),
@@ -229,7 +233,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                               boxShadow: [
                                 BoxShadow(
                                   color: isSelected
-                                      ? cyan.withValues(alpha: 0.15)
+                                      ? cyan.withValues(alpha: 0.2)
                                       : Colors.black.withValues(alpha: 0.05),
                                   blurRadius: isSelected ? 15 : 10,
                                   offset: const Offset(0, 5),
@@ -269,12 +273,14 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                                         ),
                                       )
                                     else
-                                      const SizedBox(), // Empty space if no badge
+                                      const SizedBox(),
+
                                     // Modern Radio Check Circle
                                     AnimatedContainer(
                                       duration: const Duration(
-                                        milliseconds: 300,
+                                        milliseconds: 250,
                                       ),
+                                      curve: Curves.easeOutBack,
                                       height: 24,
                                       width: 24,
                                       decoration: BoxDecoration(
@@ -423,7 +429,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                   activeColor: navy,
                   checkColor: Colors.white,
                   title: Text(
-                    'auto_renew_monthly'.tr(), // TRANSLATED
+                    'auto_renew_monthly'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       color: Colors.black87,
@@ -431,13 +437,16 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    'cancel_anytime'.tr(), // TRANSLATED
+                    'cancel_anytime'.tr(),
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: Colors.grey.shade600,
                     ),
                   ),
-                  onChanged: (v) => setState(() => _autoRenew = v ?? true),
+                  onChanged: (v) {
+                    HapticFeedback.lightImpact();
+                    setState(() => _autoRenew = v ?? true);
+                  },
                   controlAffinity: ListTileControlAffinity.leading,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
@@ -446,49 +455,101 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
               const SizedBox(height: 10),
 
               // --- CONTINUE BUTTON ---
-              SizedBox(
-                width: double.infinity,
-                height: 56, // Slightly taller for modern feel
-                child: ElevatedButton(
-                  // Button is ALWAYS active so the user can tap it and trigger the alert
-                  onPressed: _isContinuing ? null : _onContinueTap,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: red,
-                    elevation: _selectedPackageId != null
-                        ? 4
-                        : 0, // Flat if not selected
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+              _BouncingButton(
+                onTap: _isContinuing ? null : _onContinueTap,
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isContinuing ? null : _onContinueTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: red,
+                      elevation: _selectedPackageId != null ? 4 : 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                  ),
-                  child: _isContinuing
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'continue_btn'.tr(), // TRANSLATED
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.arrow_forward,
+                    child: _isContinuing
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
                               color: Colors.white,
-                              size: 20,
+                              strokeWidth: 2.5,
                             ),
-                          ],
-                        ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'continue_btn'.tr(),
+                                style: GoogleFonts.poppins(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 16,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(
+                                Icons.arrow_forward,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ==========================================
+// DEDICATED WIDGET FOR PERFORMANCE: ANIMATED BOUNCING BUTTON
+// ==========================================
+class _BouncingButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scaleFactor;
+
+  const _BouncingButton({
+    required this.child,
+    required this.onTap,
+    this.scaleFactor = 0.96,
+  });
+
+  @override
+  State<_BouncingButton> createState() => _BouncingButtonState();
+}
+
+class _BouncingButtonState extends State<_BouncingButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = true),
+      onTapUp: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = false),
+      onTapCancel: widget.onTap == null
+          ? null
+          : () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? widget.scaleFactor : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }

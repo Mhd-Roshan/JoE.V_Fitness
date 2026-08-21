@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+import 'package:easy_localization/easy_localization.dart';
 
 import 'login_screen.dart';
 
@@ -31,27 +31,26 @@ class _SignUpScreenState extends State<SignUpScreen>
   late final Animation<double> _fadeAnim;
   late final Animation<Offset> _slideAnim;
 
-  // Button press scale
-  double _signUpScale = 1.0;
-
   @override
   void initState() {
     super.initState();
+    // OPTIMIZATION: Slightly faster duration for a snappier feel
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
     );
 
+    // OPTIMIZATION: Snappier curves
     _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
 
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
         .animate(
-          CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+          CurvedAnimation(parent: _animController, curve: Curves.easeOutQuart),
         );
 
     // Start entrance animation after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _animController.forward();
+      if (mounted) _animController.forward();
     });
   }
 
@@ -105,9 +104,9 @@ class _SignUpScreenState extends State<SignUpScreen>
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      barrierLabel: 'dismiss'.tr(), // TRANSLATED
+      barrierLabel: 'dismiss'.tr(),
       barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 350),
+      transitionDuration: const Duration(milliseconds: 300),
       pageBuilder: (_, _, _) => const SizedBox.shrink(),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(
@@ -115,18 +114,18 @@ class _SignUpScreenState extends State<SignUpScreen>
           curve: Curves.easeOutBack,
         );
         return ScaleTransition(
-          scale: Tween<double>(begin: 0.85, end: 1.0).animate(curved),
+          scale: Tween<double>(begin: 0.9, end: 1.0).animate(curved),
           child: FadeTransition(
             opacity: animation,
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
               child: Dialog(
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6), // Dark glass
+                    color: Colors.black.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: Colors.white.withValues(alpha: 0.15),
@@ -143,7 +142,6 @@ class _SignUpScreenState extends State<SignUpScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Success Icon
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -157,10 +155,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Title
                       Text(
-                        'registration_successful'.tr(), // TRANSLATED
+                        'registration_successful'.tr(),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           color: Colors.white,
@@ -170,10 +166,8 @@ class _SignUpScreenState extends State<SignUpScreen>
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // Subtitle
                       Text(
-                        'registration_success_desc'.tr(), // TRANSLATED
+                        'registration_success_desc'.tr(),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           color: Colors.white70,
@@ -183,8 +177,6 @@ class _SignUpScreenState extends State<SignUpScreen>
                         ),
                       ),
                       const SizedBox(height: 32),
-
-                      // Action Button (Red to match your theme)
                       SizedBox(
                         width: double.infinity,
                         height: 50,
@@ -199,15 +191,15 @@ class _SignUpScreenState extends State<SignUpScreen>
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFBB0013), // Red
-                            foregroundColor: Colors.white, // White text
+                            backgroundColor: const Color(0xFFBB0013),
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
                             elevation: 0,
                           ),
                           child: Text(
-                            'sign_in_now_btn'.tr(), // TRANSLATED
+                            'sign_in_now_btn'.tr(),
                             style: GoogleFonts.poppins(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -232,15 +224,11 @@ class _SignUpScreenState extends State<SignUpScreen>
     final phone = _phoneController.text.trim();
 
     setState(() {
-      _nameError = name.isEmpty ? 'err_enter_name'.tr() : null; // TRANSLATED
+      _nameError = name.isEmpty ? 'err_enter_name'.tr() : null;
       _emailError = (email.isEmpty || !email.contains('@'))
-          ? 'err_valid_email'
-                .tr() // TRANSLATED
+          ? 'err_valid_email'.tr()
           : null;
-      _phoneError = phone.length < 10
-          ? 'err_valid_phone'
-                .tr() // TRANSLATED
-          : null;
+      _phoneError = phone.length < 10 ? 'err_valid_phone'.tr() : null;
     });
 
     if (_nameError != null || _emailError != null || _phoneError != null) {
@@ -263,10 +251,7 @@ class _SignUpScreenState extends State<SignUpScreen>
 
       if (existingUserQuery.docs.isNotEmpty) {
         setState(() => _isLoading = false);
-        _showModernSnackBar(
-          'err_phone_registered'.tr(), // TRANSLATED
-          isError: false,
-        );
+        _showModernSnackBar('err_phone_registered'.tr(), isError: false);
         return;
       }
 
@@ -287,29 +272,38 @@ class _SignUpScreenState extends State<SignUpScreen>
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      _showModernSnackBar(
-        'err_connection'.tr(), // TRANSLATED
-        isError: true,
-      );
+      _showModernSnackBar('err_connection'.tr(), isError: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      },
+      child: Scaffold(
       body: Stack(
         children: [
-          // --- NEW: VIBRANT BLUE TO DARK LINEAR GRADIENT ---
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF1E4EF4), // Requested Specific Blue
-                  Color(0xFF04081C), // Deep dark color at the bottom
-                ],
-                stops: [0.0, 0.85], // Controls how smoothly it transitions down
+          // OPTIMIZATION: RepaintBoundary prevents this background from repainting during animations
+          RepaintBoundary(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF003DD0), // Deep blue at the top
+                    Color(0xFF1C75F9), // Lighter medium blue in the middle
+                    Color(0xFFE6EFFF), // Icy light white-blue at the bottom
+                  ],
+                  stops: [0.0, 0.45, 1.0], // Controls the smooth fade
+                ),
               ),
             ),
           ),
@@ -320,296 +314,337 @@ class _SignUpScreenState extends State<SignUpScreen>
             child: SlideTransition(
               position: _slideAnim,
               child: SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: IntrinsicHeight(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              const SizedBox(height: 10),
+                // OPTIMIZATION: Replaced IntrinsicHeight + LayoutBuilder with CustomScrollView + SliverFillRemaining
+                // This is vastly faster and smoother for rendering screen-filling forms.
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const SizedBox(height: 10),
 
-                              // --- GLASSMORPHIC BACK BUTTON ---
-                              Align(
-                                alignment: Alignment.topLeft,
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(30),
-                                  child: BackdropFilter(
-                                    filter: ImageFilter.blur(
-                                      sigmaX: 10,
-                                      sigmaY: 10,
-                                    ),
-                                    child: Container(
-                                      decoration: BoxDecoration(
+                            // --- GLASSMORPHIC BACK BUTTON ---
+                            Align(
+                              alignment: Alignment.topLeft,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(30),
+                                child: BackdropFilter(
+                                  filter: ImageFilter.blur(
+                                    sigmaX: 10,
+                                    sigmaY: 10,
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
                                         color: Colors.white.withValues(
-                                          alpha: 0.1,
+                                          alpha: 0.2,
                                         ),
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.2,
+                                      ),
+                                    ),
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.arrow_back,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const LoginScreen(),
                                           ),
-                                        ),
-                                      ),
-                                      child: IconButton(
-                                        icon: const Icon(
-                                          Icons.arrow_back,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                        onPressed: () => Navigator.pop(context),
-                                      ),
+                                        );
+                                      },
                                     ),
                                   ),
                                 ),
                               ),
+                            ),
 
-                              const SizedBox(height: 20),
+                            const SizedBox(height: 20),
 
-                              // --- ORIGINAL LOGO (No Color Filter) ---
-                              Image.asset(
-                                'assets/images/landing_photo.png',
-                                height: 80,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.fitness_center,
-                                    size: 80,
+                            // --- ORIGINAL LOGO ---
+                            Image.asset(
+                              'assets/images/landing_photo.png',
+                              height: 80,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(
+                                  Icons.fitness_center,
+                                  size: 80,
+                                  color: Colors.white,
+                                );
+                              },
+                            ),
+
+                            const SizedBox(height: 30),
+
+                            // --- TITLE & SUBTITLE ---
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'sign_up_to_joe'.tr(),
+                                  style: GoogleFonts.workSans(
+                                    fontSize: 28,
+                                    fontWeight:
+                                        FontWeight.w700, // Reduced from w900
                                     color: Colors.white,
-                                  );
-                                },
+                                    height: 1.0,
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 4.0,
+                                    right: 6.0,
+                                    bottom: 0.0,
+                                  ),
+                                  child: SvgPicture.asset(
+                                    'assets/images/kettlebell-icon.svg',
+                                    height: 15,
+                                    colorFilter: const ColorFilter.mode(
+                                      Color(0xFFBB0013),
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  'V',
+                                  style: GoogleFonts.workSans(
+                                    fontSize: 28,
+                                    fontWeight:
+                                        FontWeight.w700, // Reduced from w900
+                                    color: Colors.white,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'register_subtitle'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white70,
                               ),
+                            ),
 
-                              const SizedBox(height: 30),
+                            const SizedBox(height: 40),
 
-                              // --- TITLE & SUBTITLE ---
-                              Row(
+                            // --- Smooth Input Fields (Glassmorphic) ---
+                            _AnimatedInputField(
+                              label: 'name_label'.tr(),
+                              hint: 'name_hint'.tr(),
+                              icon: Icons.person_outline,
+                              controller: _nameController,
+                              error: _nameError,
+                            ),
+                            const SizedBox(height: 20),
+
+                            _AnimatedInputField(
+                              label: 'email_label'.tr(),
+                              hint: 'email_hint'.tr(),
+                              icon: Icons.email_outlined,
+                              controller: _emailController,
+                              error: _emailError,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                            const SizedBox(height: 20),
+
+                            _AnimatedInputField(
+                              label: 'phone_label'.tr(),
+                              hint: 'phone_hint'.tr(),
+                              icon: Icons.phone_outlined,
+                              controller: _phoneController,
+                              error: _phoneError,
+                              keyboardType: TextInputType.phone,
+                              isPhone: true,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(10),
+                              ],
+                            ),
+                            const SizedBox(height: 32),
+
+                            // OPTIMIZATION: Using isolated _BouncingButton
+                            // Prevents full page rebuilds when user just taps the button
+                            _BouncingButton(
+                              onTap: _isLoading ? null : _handleSignUp,
+                              child: SizedBox(
+                                width: double.infinity,
+                                height: 56,
+                                child: ElevatedButton(
+                                  onPressed: _isLoading ? null : _handleSignUp,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFBB0013),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(22),
+                                    ),
+                                    elevation: 0,
+                                  ),
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 200),
+                                    child: _isLoading
+                                        ? const SizedBox(
+                                            key: ValueKey('loader'),
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2.5,
+                                            ),
+                                          )
+                                        : Row(
+                                            key: const ValueKey('label'),
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                'sign_up_btn'.tr(),
+                                                style: GoogleFonts.workSans(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              const Icon(
+                                                Icons.arrow_forward,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            const Spacer(),
+
+                            // --- Footer ---
+                            // CHANGED: Dark colors because bottom background is very light
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: 40.0,
+                                top: 20.0,
+                              ),
+                              child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    'sign_up_to_joe'.tr(), // TRANSLATED
+                                    'already_have_account'.tr(),
                                     style: GoogleFonts.workSans(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.white,
-                                      height: 1.0,
+                                      color: const Color(
+                                        0xFF333333,
+                                      ), // Dark grey
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 4.0,
-                                      right: 6.0,
-                                      bottom: 0.0,
-                                    ),
-                                    child: SvgPicture.asset(
-                                      'assets/images/kettlebell-icon.svg',
-                                      height: 15,
-                                      colorFilter: const ColorFilter.mode(
-                                        Color(0xFFBB0013), // Red kettlebell
-                                        BlendMode.srcIn,
+                                  const SizedBox(width: 4),
+                                  GestureDetector(
+                                    onTap: () => Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const LoginScreen(),
                                       ),
                                     ),
-                                  ),
-                                  Text(
-                                    'V', // Brand element
-                                    style: GoogleFonts.workSans(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.w900,
-                                      color: Colors.white,
-                                      height: 1.0,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'register_subtitle'.tr(), // TRANSLATED
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white70,
-                                ),
-                              ),
-
-                              const SizedBox(height: 40),
-
-                              // --- Smooth Input Fields (Glassmorphic) ---
-                              _AnimatedInputField(
-                                label: 'name_label'.tr(), // TRANSLATED
-                                hint: 'name_hint'.tr(), // TRANSLATED
-                                icon: Icons.person_outline,
-                                controller: _nameController,
-                                error: _nameError,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _AnimatedInputField(
-                                label: 'email_label'.tr(), // TRANSLATED
-                                hint: 'email_hint'.tr(), // TRANSLATED
-                                icon: Icons.email_outlined,
-                                controller: _emailController,
-                                error: _emailError,
-                                keyboardType: TextInputType.emailAddress,
-                              ),
-                              const SizedBox(height: 20),
-
-                              _AnimatedInputField(
-                                label: 'phone_label'.tr(), // TRANSLATED
-                                hint: 'phone_hint'.tr(), // TRANSLATED
-                                icon: Icons.phone_outlined,
-                                controller: _phoneController,
-                                error: _phoneError,
-                                keyboardType: TextInputType.phone,
-                                isPhone: true,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                  LengthLimitingTextInputFormatter(10),
-                                ],
-                              ),
-                              const SizedBox(height: 32),
-
-                              // --- SIGN UP BUTTON (Animated RED Button) ---
-                              GestureDetector(
-                                onTapDown: (_) =>
-                                    setState(() => _signUpScale = 0.96),
-                                onTapUp: (_) =>
-                                    setState(() => _signUpScale = 1.0),
-                                onTapCancel: () =>
-                                    setState(() => _signUpScale = 1.0),
-                                onTap: _isLoading ? null : _handleSignUp,
-                                child: AnimatedScale(
-                                  scale: _signUpScale,
-                                  duration: const Duration(milliseconds: 120),
-                                  curve: Curves.easeOut,
-                                  child: SizedBox(
-                                    width: double.infinity,
-                                    height: 56,
-                                    child: ElevatedButton(
-                                      onPressed: _isLoading
-                                          ? null
-                                          : _handleSignUp,
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFFBB0013, // Red button same as Login
-                                        ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            22,
-                                          ),
-                                        ),
-                                        elevation: 0,
-                                      ),
-                                      child: AnimatedSwitcher(
-                                        duration: const Duration(
-                                          milliseconds: 200,
-                                        ),
-                                        child: _isLoading
-                                            ? const SizedBox(
-                                                key: ValueKey('loader'),
-                                                width: 24,
-                                                height: 24,
-                                                child: CircularProgressIndicator(
-                                                  color: Colors
-                                                      .white, // White loader
-                                                  strokeWidth: 2.5,
-                                                ),
-                                              )
-                                            : Row(
-                                                key: const ValueKey('label'),
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    'sign_up_btn'
-                                                        .tr(), // TRANSLATED
-                                                    style: GoogleFonts.workSans(
-                                                      fontSize: 16,
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      color: Colors
-                                                          .white, // White text
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 8),
-                                                  const Icon(
-                                                    Icons.arrow_forward,
-                                                    color: Colors
-                                                        .white, // White icon
-                                                    size: 20,
-                                                  ),
-                                                ],
-                                              ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              const Spacer(),
-
-                              // --- Footer ---
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: 50.0,
-                                  top: 20.0,
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      'already_have_account'.tr(), // TRANSLATED
+                                    child: Text(
+                                      'sign_in_link_dot'.tr(),
                                       style: GoogleFonts.workSans(
-                                        color: Colors.white60,
+                                        color: const Color(
+                                          0xFF003DD0,
+                                        ), // Deep blue
+                                        fontWeight: FontWeight.w800,
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: const Color(
+                                          0xFF003DD0,
+                                        ),
                                         fontSize: 14,
-                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    GestureDetector(
-                                      onTap: () => Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const LoginScreen(),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'sign_in_link_dot'.tr(), // TRANSLATED
-                                        style: GoogleFonts.workSans(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          decoration: TextDecoration.underline,
-                                          decorationColor: Colors.white,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
         ],
       ),
+    ),
     );
   }
 }
 
 // ===================================================================
-// DEDICATED WIDGET FOR BUTTERY SMOOTH INPUT FIELD TRANSITIONS (GLASSMORPHIC)
+// DEDICATED WIDGET FOR PERFORMANCE: ANIMATED BOUNCING BUTTON
+// By isolating this, tapping buttons no longer rebuilds the entire screen!
+// ===================================================================
+class _BouncingButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _BouncingButton({
+    required this.child,
+    required this.onTap,
+  });
+
+  @override
+  State<_BouncingButton> createState() => _BouncingButtonState();
+}
+
+class _BouncingButtonState extends State<_BouncingButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = true),
+      onTapUp: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = false),
+      onTapCancel: widget.onTap == null
+          ? null
+          : () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.96 : 1.0,
+        duration: const Duration(milliseconds: 100), // Very fast response
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+// ===================================================================
+// DEDICATED WIDGET FOR BUTTERY SMOOTH INPUT FIELD TRANSITIONS
 // ===================================================================
 class _AnimatedInputField extends StatefulWidget {
   final String label;
@@ -644,9 +679,11 @@ class _AnimatedInputFieldState extends State<_AnimatedInputField> {
   void initState() {
     super.initState();
     _focusNode.addListener(() {
-      setState(() {
-        _isFocused = _focusNode.hasFocus;
-      });
+      if (mounted) {
+        setState(() {
+          _isFocused = _focusNode.hasFocus;
+        });
+      }
     });
   }
 
@@ -658,7 +695,6 @@ class _AnimatedInputFieldState extends State<_AnimatedInputField> {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamic colors for Glassmorphic dark overlay
     final borderColor = widget.error != null
         ? Colors.redAccent
         : _isFocused
@@ -674,10 +710,9 @@ class _AnimatedInputFieldState extends State<_AnimatedInputField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Label Text
         AnimatedDefaultTextStyle(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           style: GoogleFonts.poppins(
             color: _isFocused ? Colors.white : Colors.white70,
             fontSize: 13,
@@ -686,24 +721,18 @@ class _AnimatedInputFieldState extends State<_AnimatedInputField> {
           child: Text(widget.label),
         ),
         const SizedBox(height: 8),
-
-        // Animated Input Box
         AnimatedScale(
           scale: _isFocused ? 1.01 : 1.0,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutQuart,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
             child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: 8,
-                sigmaY: 8,
-              ), // Blur for glass effect
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOut,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
                 decoration: BoxDecoration(
-                  // Semi-transparent black over the blue gradient creates depth
                   color: _isFocused
                       ? Colors.black.withValues(alpha: 0.4)
                       : Colors.black.withValues(alpha: 0.25),
@@ -765,9 +794,8 @@ class _AnimatedInputFieldState extends State<_AnimatedInputField> {
                             ),
                           ],
                           const SizedBox(width: 12),
-                          // Vertical divider
                           AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
+                            duration: const Duration(milliseconds: 200),
                             width: 1,
                             height: 20,
                             color: _isFocused ? Colors.white54 : Colors.white24,
@@ -782,11 +810,9 @@ class _AnimatedInputFieldState extends State<_AnimatedInputField> {
             ),
           ),
         ),
-
-        // Smooth Error Text Expand/Collapse
         AnimatedSize(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           alignment: Alignment.topCenter,
           child: widget.error != null
               ? Padding(
@@ -794,9 +820,7 @@ class _AnimatedInputFieldState extends State<_AnimatedInputField> {
                   child: Text(
                     widget.error!,
                     style: GoogleFonts.poppins(
-                      color: const Color(
-                        0xFFFF5252,
-                      ), // Bright red for dark mode
+                      color: const Color(0xFFFF5252),
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),

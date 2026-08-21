@@ -1,10 +1,11 @@
-import 'dart:ui'; // Required for the blur effect
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Required for MethodChannel
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+import 'package:easy_localization/easy_localization.dart';
 
-import 'booking_screen.dart'; // Make sure this import is here!
+import 'booking_screen.dart';
 
 // ==========================================
 // DATA MODEL
@@ -37,19 +38,16 @@ class Trainer {
   factory Trainer.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
-    String formattedExperience = "0 ${'years_lowercase'.tr()}"; // TRANSLATED
+    String formattedExperience = "0 ${'years_lowercase'.tr()}";
     if (data['yearsExperience'] != null) {
       formattedExperience =
-          "${data['yearsExperience']}+ ${'years_lowercase'.tr()}"; // TRANSLATED
+          "${data['yearsExperience']}+ ${'years_lowercase'.tr()}";
     }
 
     return Trainer(
       id: data['trainerId'] ?? doc.id,
-      name:
-          data['name'] ??
-          data['fullName'] ??
-          'expert_trainer'.tr(), // TRANSLATED
-      designation: data['designation'] ?? 'personal_trainer'.tr(), // TRANSLATED
+      name: data['name'] ?? data['fullName'] ?? 'expert_trainer'.tr(),
+      designation: data['designation'] ?? 'personal_trainer'.tr(),
       imageUrl:
           data['imageUrl'] ??
           data['profilePic'] ??
@@ -75,8 +73,49 @@ class SelectTrainerScreen extends StatefulWidget {
 }
 
 class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
+  // --- NATIVE SCREENSHOT CHANNEL ---
+  static const platform = MethodChannel('com.example.jove_client/screenshot');
+
   Trainer? _selectedTrainer;
   bool _isLoading = false;
+
+  late final Stream<QuerySnapshot> _trainersStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _disableScreenshots(); // Block screenshots natively when screen opens
+
+    _trainersStream = FirebaseFirestore.instance
+        .collection('trainers')
+        .where('status', isEqualTo: 'active')
+        .snapshots();
+  }
+
+  @override
+  void dispose() {
+    _enableScreenshots(); // Allow screenshots again when leaving this screen
+    super.dispose();
+  }
+
+  // ==========================================
+  // NATIVE SCREENSHOT CONTROLS
+  // ==========================================
+  Future<void> _disableScreenshots() async {
+    try {
+      await platform.invokeMethod('disableScreenshots');
+    } catch (e) {
+      debugPrint("Error disabling screenshots: $e");
+    }
+  }
+
+  Future<void> _enableScreenshots() async {
+    try {
+      await platform.invokeMethod('enableScreenshots');
+    } catch (e) {
+      debugPrint("Error enabling screenshots: $e");
+    }
+  }
 
   Future<void> _confirmSelection() async {
     if (_selectedTrainer == null) return;
@@ -86,32 +125,69 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        await FirebaseFirestore.instance
+        final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .update({
-              'assignedTrainerId': _selectedTrainer!.id,
-              'assignedTrainerName': _selectedTrainer!.name,
-              'trainerAssignedAt': FieldValue.serverTimestamp(),
-            });
+            .get();
+        final clientName = userDoc.data()?['fullName'] ?? 'A new client';
+
+        final batch = FirebaseFirestore.instance.batch();
+
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
+        batch.update(userRef, {
+          'assignedTrainerId': _selectedTrainer!.id,
+          'assignedTrainerName': _selectedTrainer!.name,
+          'trainerAssignedAt': FieldValue.serverTimestamp(),
+        });
+
+        final adminNotifRef = FirebaseFirestore.instance
+            .collection('notifications')
+            .doc();
+        batch.set(adminNotifRef, {
+          'targetRole': 'admin',
+          'type': 'trainer_assigned',
+          'title': 'Trainer Selected',
+          'message':
+              '$clientName has selected ${_selectedTrainer!.name} as their trainer.',
+          'clientId': user.uid,
+          'trainerId': _selectedTrainer!.id,
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        final trainerNotifRef = FirebaseFirestore.instance
+            .collection('notifications')
+            .doc();
+        batch.set(trainerNotifRef, {
+          'targetId': _selectedTrainer!.id,
+          'targetRole': 'trainer',
+          'type': 'new_client',
+          'title': 'New Client Assigned',
+          'message': '$clientName has selected you as their personal trainer.',
+          'clientId': user.uid,
+          'isRead': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        await batch.commit();
       }
 
       if (!mounted) return;
 
-      // ==========================================
-      // ✅ SLIDE FROM BOTTOM DIALOG WITH BLUR
-      // ==========================================
+      HapticFeedback.mediumImpact();
+
       showGeneralDialog(
         context: context,
         barrierDismissible: false,
-        barrierColor: Colors.black.withValues(alpha: 0.2), // Light shadow
-        transitionDuration: const Duration(milliseconds: 400),
+        barrierColor: Colors.black.withValues(alpha: 0.2),
+        transitionDuration: const Duration(milliseconds: 350),
         pageBuilder: (context, animation, secondaryAnimation) {
           return BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), // Blurs background
+            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
             child: Align(
-              alignment:
-                  Alignment.bottomCenter, // Locks the popup to the bottom
+              alignment: Alignment.bottomCenter,
               child: Container(
                 margin: const EdgeInsets.only(bottom: 40, left: 24, right: 24),
                 child: Material(
@@ -123,16 +199,12 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
           );
         },
         transitionBuilder: (context, animation, secondaryAnimation, child) {
-          // Slide Animation
           return SlideTransition(
-            position:
-                Tween<Offset>(
-                  begin: const Offset(0, 1), // Starts below the screen
-                  end: Offset.zero, // Ends at its original position
-                ).animate(
+            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                .animate(
                   CurvedAnimation(
                     parent: animation,
-                    curve: Curves.easeOutCubic, // Smooth deceleration
+                    curve: Curves.easeOutCubic,
                   ),
                 ),
             child: child,
@@ -143,7 +215,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('error_saving_trainer'.tr()), // TRANSLATED
+            content: Text('error_saving_trainer'.tr()),
             backgroundColor: Colors.red,
           ),
         );
@@ -162,18 +234,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person_outline, color: Colors.black),
-          ),
-        ),
+        automaticallyImplyLeading: false,
         title: Text(
-          'select_trainers_title'.tr(), // TRANSLATED
+          'select_trainers_title'.tr(),
           style: const TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.bold,
@@ -187,7 +250,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
             child: Column(
               children: [
                 Text(
-                  "select_trainer_subtitle".tr(), // TRANSLATED
+                  "select_trainer_subtitle".tr(),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 26,
@@ -221,14 +284,12 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                             ),
                             children: [
                               TextSpan(
-                                text: 'note_label'.tr(), // TRANSLATED
+                                text: 'note_label'.tr(),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              TextSpan(
-                                text: 'select_trainer_note'.tr(), // TRANSLATED
-                              ),
+                              TextSpan(text: 'select_trainer_note'.tr()),
                             ],
                           ),
                         ),
@@ -242,10 +303,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
 
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('trainers')
-                  .where('status', isEqualTo: 'active')
-                  .snapshots(),
+              stream: _trainersStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -254,9 +312,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                 }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Text("no_trainers_available".tr()), // TRANSLATED
-                  );
+                  return Center(child: Text("no_trainers_available".tr()));
                 }
 
                 final trainers = snapshot.data!.docs
@@ -264,20 +320,28 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                     .toList();
 
                 return ListView.builder(
+                  physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   itemCount: trainers.length,
                   itemBuilder: (context, index) {
                     final trainer = trainers[index];
                     final isSelected = _selectedTrainer?.id == trainer.id;
 
-                    return Container(
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
                       margin: const EdgeInsets.only(bottom: 16),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade300),
+                        // Removed the red borderline logic here!
+                        border: Border.all(
+                          color: Colors.grey.shade300,
+                          width: 1,
+                        ),
                         boxShadow: [
+                          // Removed the red shadow glow here!
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 10,
@@ -391,8 +455,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                           Row(
                             children: [
                               Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () async {
+                                child: _BouncingButton(
+                                  onTap: () async {
+                                    HapticFeedback.selectionClick();
                                     final selected = await Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -407,27 +472,21 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                       );
                                     }
                                   },
-                                  style: OutlinedButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    foregroundColor: const Color(0xFF00225D),
-                                    side: BorderSide(
-                                      color: Colors.grey.shade300,
-                                    ),
-                                    shape: RoundedRectangleBorder(
+                                  child: Container(
+                                    height: 40,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Colors.grey.shade300,
+                                      ),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                  ),
-                                  child: FittedBox(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8.0,
-                                      ),
-                                      child: Text(
-                                        'view_details'.tr(), // TRANSLATED
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    child: Text(
+                                      'view_details'.tr(),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF00225D),
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
@@ -435,38 +494,31 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () => setState(
-                                    () => _selectedTrainer = trainer,
-                                  ),
-                                  style: ElevatedButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    backgroundColor: isSelected
-                                        ? const Color(0xFFFFD6D9)
-                                        : const Color(0xFFBA0C19),
-                                    foregroundColor: isSelected
-                                        ? const Color(0xFFBA0C19)
-                                        : Colors.white,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
+                                child: _BouncingButton(
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _selectedTrainer = trainer);
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 250),
+                                    height: 40,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFFFFD6D9)
+                                          : const Color(0xFFBA0C19),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
-                                  ),
-                                  child: FittedBox(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8.0,
-                                      ),
-                                      child: Text(
-                                        isSelected
-                                            ? 'selected'
-                                                  .tr() // TRANSLATED
-                                            : 'select_trainer_btn'
-                                                  .tr(), // TRANSLATED
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                        ),
+                                    child: Text(
+                                      isSelected
+                                          ? 'selected'.tr()
+                                          : 'select_trainer_btn'.tr(),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: isSelected
+                                            ? const Color(0xFFBA0C19)
+                                            : Colors.white,
                                       ),
                                     ),
                                   ),
@@ -488,36 +540,40 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
           ? SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
-                child: SizedBox(
-                  height: 55,
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _confirmSelection,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFBA0C19),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                child: _BouncingButton(
+                  onTap: _isLoading ? null : _confirmSelection,
+                  child: SizedBox(
+                    height: 55,
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _confirmSelection,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFBA0C19),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
                       ),
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                '${'continue_btn'.tr()} ', // TRANSLATED
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '${'continue_btn'.tr()} ',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                              const Icon(
-                                Icons.arrow_forward,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ),
+                                const Icon(
+                                  Icons.arrow_forward,
+                                  color: Colors.white,
+                                ),
+                              ],
+                            ),
+                    ),
                   ),
                 ),
               ),
@@ -528,7 +584,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
 }
 
 // ==========================================
-// SCREEN 2: TRAINER PROFILE
+// SCREEN 2: TRAINER PROFILE (REDESIGNED MATCHING SCREENSHOT)
 // ==========================================
 class TrainerProfileScreen extends StatelessWidget {
   final Trainer trainer;
@@ -537,226 +593,272 @@ class TrainerProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Design Colors based on Screenshot
+    const Color badgeRed = Color(0xFFC8102E);
+    const Color darkNavy = Color(0xFF0F172A);
+    const Color lightPill = Color(0xFFF1F5F9);
+    const Color textGrey = Color(0xFF475569);
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'trainer_profile_title'.tr(), // TRANSLATED
-          style: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                height: 300,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFF0044FF), width: 4),
-                  image: DecorationImage(
-                    image: NetworkImage(trainer.imageUrl),
-                    fit: BoxFit.cover,
-                    onError: (error, stackTrace) {},
-                  ),
-                ),
-                child: Stack(
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. HERO IMAGE WITH OVERLAY
+                Stack(
                   children: [
+                    SizedBox(
+                      width: double.infinity,
+                      height: 480, // Tall header like the design
+                      child: Image.network(
+                        trainer.imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            Container(color: Colors.grey.shade800),
+                      ),
+                    ),
+                    // Gradient overlay at bottom of image
                     Positioned(
                       bottom: 0,
                       left: 0,
                       right: 0,
+                      height: 250,
                       child: Container(
-                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          borderRadius: const BorderRadius.vertical(
-                            bottom: Radius.circular(20),
-                          ),
                           gradient: LinearGradient(
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
                             colors: [
-                              Colors.black.withValues(alpha: 0.8),
+                              darkNavy.withValues(alpha: 0.95),
                               Colors.transparent,
                             ],
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFBA0C19),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                trainer.designation,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                      ),
+                    ),
+                    // Trainer Name and Badge
+                    Positioned(
+                      bottom: 55, // Leaves space for the overlapping stats
+                      left: 24,
+                      right: 24,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Red Designation Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              trainer.name,
+                            decoration: BoxDecoration(
+                              color: badgeRed,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              trainer.designation.toUpperCase(),
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Trainer Name
+                          Text(
+                            trainer.name.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: _statBox(
-                      'experience_label'.tr(),
-                      trainer.yearsExperience,
-                    ), // TRANSLATED
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _statBox('rating_label'.tr(), '${trainer.rating} ⭐'),
-                  ), // TRANSLATED
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _statBox(
-                      'reviews_label'.tr(),
-                      '${trainer.ratingCount}',
-                    ), // TRANSLATED
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
-
-              _sectionTitle('about_label'.tr()), // TRANSLATED
-              const SizedBox(height: 10),
-              Text(
-                trainer.bio.isEmpty
-                    ? "no_bio_provided".tr()
-                    : trainer.bio, // TRANSLATED
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 15,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              if (trainer.specializations.isNotEmpty) ...[
-                _sectionTitle('specialties_label'.tr()), // TRANSLATED
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: trainer.specializations
-                      .map(
-                        (s) => Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            s,
-                            style: const TextStyle(
-                              color: Color(0xFF00225D),
-                              fontWeight: FontWeight.bold,
-                            ),
+                // 2. OVERLAPPING STATS ROW
+                Transform.translate(
+                  offset: const Offset(
+                    0,
+                    -25,
+                  ), // Pulls the row up over the image
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _statBox(
+                            darkNavy,
+                            'EXPERIENCE',
+                            trainer.yearsExperience,
                           ),
                         ),
-                      )
-                      .toList(),
-                ),
-                const SizedBox(height: 24),
-              ],
-
-              if (trainer.certifications.isNotEmpty) ...[
-                _sectionTitle('certifications_label'.tr()), // TRANSLATED
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: trainer.certifications
-                      .map(
-                        (c) => Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFF01BCE3)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            c,
-                            style: const TextStyle(
-                              color: Color(0xFF01BCE3),
-                              fontWeight: FontWeight.bold,
-                            ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _statBox(
+                            darkNavy,
+                            'REVIEWS',
+                            '${trainer.ratingCount}+',
                           ),
                         ),
-                      )
-                      .toList(),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _statBox(
+                            darkNavy,
+                            'RATING',
+                            '${trainer.rating} ⭐',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 24),
-              ],
 
-              const SizedBox(height: 100),
-            ],
+                // 3. BODY CONTENT
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ABOUT SECTION
+                      _sectionTitle(badgeRed, darkNavy, 'ABOUT'),
+                      const SizedBox(height: 12),
+                      Text(
+                        trainer.bio.isEmpty
+                            ? "no_bio_provided".tr()
+                            : trainer.bio,
+                        style: TextStyle(
+                          color: textGrey,
+                          fontSize: 14,
+                          height: 1.6,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      // SPECIALTIES SECTION
+                      if (trainer.specializations.isNotEmpty) ...[
+                        _sectionTitle(badgeRed, darkNavy, 'SPECIALTIES'),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: trainer.specializations
+                              .map((s) => _pillBadge(lightPill, darkNavy, s))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+
+                      // CERTIFICATIONS SECTION
+                      if (trainer.certifications.isNotEmpty) ...[
+                        _sectionTitle(badgeRed, darkNavy, 'CERTIFICATIONS'),
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: trainer.certifications
+                              .map((c) => _pillBadge(lightPill, darkNavy, c))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+
+                      // Padding for bottom button
+                      const SizedBox(height: 80),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-      bottomSheet: Container(
-        padding: const EdgeInsets.all(24),
-        color: Colors.white,
-        child: SizedBox(
-          height: 55,
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFBA0C19),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+
+          // FLOATING BACK BUTTON
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 20,
+            child: _BouncingButton(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                Navigator.pop(context);
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(30),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
               ),
             ),
-            icon: const Icon(Icons.person_outline, color: Colors.white),
-            label: Text(
-              'select_trainer_btn'.tr(), // TRANSLATED
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+          ),
+        ],
+      ),
+
+      // BOTTOM SELECTION BUTTON
+      bottomSheet: Container(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: _BouncingButton(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            Navigator.pop(context, true);
+          },
+          child: SizedBox(
+            height: 56,
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                HapticFeedback.mediumImpact();
+                Navigator.pop(context, true);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: badgeRed,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text(
+                'select_trainer_btn'.tr(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
             ),
           ),
@@ -765,32 +867,38 @@ class TrainerProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _statBox(String title, String value) {
+  // WIDGET: Overlapping Stat Box
+  Widget _statBox(Color bgColor, String title, String value) {
     return Container(
       height: 80,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF00225D),
-        borderRadius: BorderRadius.circular(16),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             title,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               value,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
               ),
             ),
           ),
@@ -799,20 +907,50 @@ class TrainerProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _sectionTitle(String title) {
+  // WIDGET: Section Title with Red Line
+  Widget _sectionTitle(Color lineColor, Color textColor, String title) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(width: 4, height: 20, color: const Color(0xFF01BCE3)),
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: lineColor,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF00225D),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: textColor,
+            letterSpacing: 0.5,
           ),
         ),
       ],
+    );
+  }
+
+  // WIDGET: Light Grey Pill Badges
+  Widget _pillBadge(Color bgColor, Color textColor, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          color: textColor,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 }
@@ -831,24 +969,19 @@ class SuccessDialog extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(
-          40,
-        ), // Heavily rounded like the image
+        borderRadius: BorderRadius.circular(40),
       ),
       padding: const EdgeInsets.fromLTRB(24, 48, 24, 32),
       child: Column(
-        mainAxisSize: MainAxisSize.min, // Wraps content perfectly
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // ==========================================
           // WAVY GREEN CHECKMARK BADGE
-          // ==========================================
           SizedBox(
             width: 90,
             height: 90,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Base Square (Rounded)
                 Container(
                   width: 75,
                   height: 75,
@@ -857,9 +990,8 @@ class SuccessDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(22),
                   ),
                 ),
-                // Rotated Square (Rounded) to create the wavy rosette
                 Transform.rotate(
-                  angle: 3.14159 / 4, // 45 degrees
+                  angle: 3.14159 / 4,
                   child: Container(
                     width: 75,
                     height: 75,
@@ -869,7 +1001,6 @@ class SuccessDialog extends StatelessWidget {
                     ),
                   ),
                 ),
-                // Dark Green Checkmark
                 const Icon(Icons.check, color: Color(0xFF0C5618), size: 45),
               ],
             ),
@@ -878,7 +1009,7 @@ class SuccessDialog extends StatelessWidget {
           const SizedBox(height: 32),
 
           Text(
-            'successful_title'.tr(), // TRANSLATED
+            'successful_title'.tr(),
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w600,
@@ -888,7 +1019,7 @@ class SuccessDialog extends StatelessWidget {
           const SizedBox(height: 12),
 
           Text(
-            'trainer_selected_success_msg'.tr(), // TRANSLATED
+            'trainer_selected_success_msg'.tr(),
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 14,
@@ -900,42 +1031,88 @@ class SuccessDialog extends StatelessWidget {
 
           const SizedBox(height: 48),
 
-          // ==========================================
-          // RED DONE BUTTON (#BB0013)
-          // ==========================================
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: () {
-                // Replaces the Select page & Dialog with the BookingScreen
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (context) => BookingScreen(trainer: trainer),
-                  ),
-                  (Route<dynamic> route) => route.isFirst,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(
-                  0xFFBB0013,
-                ), // Requested Red Color!
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+          _BouncingButton(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => BookingScreen(trainer: trainer),
                 ),
-              ),
-              child: Text(
-                'done_btn'.tr(), // TRANSLATED
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                (Route<dynamic> route) => route.isFirst,
+              );
+            },
+            child: SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (context) => BookingScreen(trainer: trainer),
+                    ),
+                    (Route<dynamic> route) => route.isFirst,
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFBB0013),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: Text(
+                  'done_btn'.tr(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// DEDICATED WIDGET FOR PERFORMANCE: ANIMATED BOUNCING BUTTON
+// ==========================================
+class _BouncingButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+
+  const _BouncingButton({required this.child, required this.onTap});
+
+  @override
+  State<_BouncingButton> createState() => _BouncingButtonState();
+}
+
+class _BouncingButtonState extends State<_BouncingButton> {
+  bool _isPressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = true),
+      onTapUp: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = false),
+      onTapCancel: widget.onTap == null
+          ? null
+          : () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }
