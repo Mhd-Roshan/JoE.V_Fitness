@@ -11,7 +11,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'change_trainer_screen.dart';
 import 'trainer_selection_screen.dart';
-import 'notification_settings_screen.dart';
+import 'notification_screen.dart';
 
 class AppLanguageScreen extends StatefulWidget {
   const AppLanguageScreen({super.key});
@@ -35,8 +35,8 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
   bool _isLoading = true;
   bool _isNavigating = false;
 
-  // REMOVED ENGLISH AS REQUESTED. Only other required languages are here.
   final List<Map<String, dynamic>> _languages = [
+    {'title': 'English (US)', 'code': 'en', 'icon': Icons.translate_rounded},
     {
       'title': 'Malayalam (മലയാളം)',
       'code': 'ml',
@@ -82,7 +82,6 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
 
       _selectedLanguage.value = lang;
 
-      // Ensures the app's current locale matches the database on load
       if (mounted) {
         await context.setLocale(Locale(lang));
       }
@@ -104,13 +103,9 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
     final String oldLang = _selectedLanguage.value;
     _selectedLanguage.value = langCode;
 
-    // =========================================================
-    // THIS CHANGES THE APP LANGUAGE GLOBALLY INSTANTLY
-    // =========================================================
     if (mounted) {
       await context.setLocale(Locale(langCode));
     }
-    // =========================================================
 
     try {
       await FirebaseFirestore.instance
@@ -118,7 +113,6 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
           .doc(currentUser!.uid)
           .set({'appLanguage': langCode}, SetOptions(merge: true));
     } catch (e) {
-      // Revert if network fails
       _selectedLanguage.value = oldLang;
       if (mounted) {
         await context.setLocale(Locale(oldLang));
@@ -134,7 +128,6 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
     }
   }
 
-  // OPTIMIZED Navigation (Micro-delay allows the tap ripple effect to finish smoothly)
   void _navigate(Widget screen) {
     if (_isNavigating) return;
     _isNavigating = true;
@@ -201,7 +194,7 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
             : const ChangeTrainerScreen();
       }
 
-      navigator.pop(); // Close dialog
+      navigator.pop();
 
       await navigator.pushReplacement(
         PageRouteBuilder(
@@ -237,7 +230,6 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                     child: CircularProgressIndicator(color: _navBgColor),
                   )
                 : RepaintBoundary(
-                    // Stops entire screen rebuilds when scrolling
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.only(bottom: 120),
@@ -249,7 +241,6 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
 
                           _buildSectionTitle('select_language'.tr()),
 
-                          // OPTIMIZED CARD: Wrapped in Material for buttery smooth native inkwells
                           Container(
                             margin: const EdgeInsets.symmetric(horizontal: 24),
                             decoration: BoxDecoration(
@@ -374,7 +365,6 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Wrapped in Expanded to prevent translation overflows
           Expanded(
             child: Row(
               children: [
@@ -420,13 +410,25 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                 size: 24,
               ),
               onPressed: () {
-                HapticFeedback.lightImpact();
+                HapticFeedback.selectionClick();
                 Future.delayed(const Duration(milliseconds: 50), () {
                   if (mounted) {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationSettingsScreen(),
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const NotificationScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                                child: child,
+                              );
+                            },
+                        transitionDuration: const Duration(milliseconds: 150),
                       ),
                     );
                   }
@@ -455,8 +457,8 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
 
   Widget _buildBottomNavBar() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: _navBgColor,
         borderRadius: BorderRadius.circular(40),
@@ -517,6 +519,7 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
   }
 }
 
+// --- BULLETPROOF OVERFLOW FIX ---
 class _NavItem extends StatelessWidget {
   final int index, selectedIndex;
   final IconData icon;
@@ -534,47 +537,51 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    // Flexible applied here to prevent overflow in localized text
-    return Flexible(
-      flex: isSelected ? 3 : 1,
-      fit: FlexFit.loose,
+    // Uses strict Expanded to guarantee items divide space perfectly
+    return Expanded(
+      flex: isSelected ? 4 : 2,
       child: GestureDetector(
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          padding: isSelected
-              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-              : const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.black : Colors.white70,
-                size: 20,
-              ),
-              if (isSelected) ...[
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        child: Container(
+          color: Colors.transparent, // Expands touch area safely
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    // Allows text to shrink and apply '...' ellipsis
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

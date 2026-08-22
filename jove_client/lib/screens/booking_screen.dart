@@ -1,16 +1,22 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+// --- NEW GOOGLE MAPS & LOCATION IMPORTS ---
+import 'package:flutter_google_places/flutter_google_places.dart';
+import 'package:google_maps_webservice/places.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+
 import 'trainer_selection_screen.dart';
 import 'progress_screen.dart';
 import 'home_dashboard_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
+import 'notification_screen.dart';
 
 class _Formatters {
   static final Map<String, DateFormat> _time = {};
@@ -39,6 +45,7 @@ class BookingScreen extends StatefulWidget {
   final String? trainerId;
 
   const BookingScreen({super.key, this.trainer, this.trainerId});
+
   @override
   State<BookingScreen> createState() => _BookingScreenState();
 }
@@ -50,6 +57,13 @@ class _BookingScreenState extends State<BookingScreen> {
   DateTime? _selectedDate;
   String? _selectedSession;
   TimeOfDay? _selectedTime;
+
+  // --- LOCATION VARIABLES ---
+  String _locationTitle = 'Locating...';
+  String _locationAddress = 'Fetching current location...';
+  double _locationLat = 0.0;
+  double _locationLng = 0.0;
+  bool _isFetchingLocation = false;
 
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(1);
   final ScrollController _dateScrollController = ScrollController();
@@ -76,6 +90,90 @@ class _BookingScreenState extends State<BookingScreen> {
     } else if (widget.trainerId != null) {
       _isLoadingTrainer = true;
       _fetchTrainerAndInitialize(widget.trainerId!);
+    }
+
+    // Fetch REAL GPS location on init
+    _fetchCurrentLocation();
+  }
+
+  // --- FASTER REAL GPS FETCH LOGIC ---
+  Future<void> _fetchCurrentLocation() async {
+    setState(() => _isFetchingLocation = true);
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled.');
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions are denied');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permissions are permanently denied.');
+      }
+
+      // 1. FAST PATH: Get last known position instantly so UI loads fast
+      Position? lastPosition = await Geolocator.getLastKnownPosition();
+      if (lastPosition != null && mounted) {
+        await _updateAddressFromPosition(lastPosition);
+      }
+
+      // 2. ACCURATE PATH: Get fresh position with a 5-second timeout so it doesn't spin forever
+      Position freshPosition = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium, // Medium is much faster than High
+          timeLimit: Duration(seconds: 5),
+        ),
+      );
+
+      if (mounted) {
+        await _updateAddressFromPosition(freshPosition);
+      }
+    } catch (e) {
+      debugPrint("Location fallback/timeout: $e");
+      // If everything fails and we have no data, show a fallback message
+      if (mounted && _locationLat == 0.0) {
+        setState(() {
+          _locationTitle = 'Location Unavailable';
+          _locationAddress = 'Tap change to manually search';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFetchingLocation = false);
+      }
+    }
+  }
+
+  // Helper function to decode GPS coordinates to readable address
+  Future<void> _updateAddressFromPosition(Position position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (placemarks.isNotEmpty && mounted) {
+        Placemark place = placemarks.first;
+        setState(() {
+          _locationTitle =
+              place.locality ?? place.subLocality ?? 'Current Location';
+          _locationAddress =
+              '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.administrativeArea ?? ''}'
+                  .trim()
+                  .replaceAll(RegExp(r'^,\s*|,\s*$|,(?=\s*,)'), '');
+          _locationLat = position.latitude;
+          _locationLng = position.longitude;
+        });
+      }
+    } catch (e) {
+      debugPrint("Geocoding error: $e");
     }
   }
 
@@ -162,8 +260,8 @@ class _BookingScreenState extends State<BookingScreen> {
 
     _dateScrollController.animateTo(
       targetOffset,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutQuad,
     );
   }
 
@@ -174,7 +272,6 @@ class _BookingScreenState extends State<BookingScreen> {
 
     HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
-
     _selectedIndexNotifier.value = index;
 
     if (!mounted) {
@@ -323,6 +420,207 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
+  Future<void> _openLocationSearch() async {
+    HapticFeedback.lightImpact();
+
+    Prediction? p = await PlacesAutocomplete.show(
+      context: context,
+      apiKey: "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA", // Your exact API Key
+      mode: Mode.overlay,
+      language: "en",
+      components: [Component(Component.country, "in")], // Restricts to India
+    );
+
+    if (p != null) {
+      final places = GoogleMapsPlaces(
+        apiKey: "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA",
+      );
+      PlacesDetailsResponse detail = await places.getDetailsByPlaceId(
+        p.placeId!,
+      );
+
+      if (detail.result.geometry != null) {
+        final lat = detail.result.geometry!.location.lat;
+        final lng = detail.result.geometry!.location.lng;
+
+        setState(() {
+          _locationTitle =
+              p.structuredFormatting?.mainText ?? 'Selected Location';
+          _locationAddress = p.description ?? '';
+          _locationLat = lat;
+          _locationLng = lng;
+        });
+      }
+    }
+  }
+
+  // --- UPDATED LOCATION PICKER BOTTOM SHEET ---
+  void _showLocationPicker() {
+    HapticFeedback.lightImpact();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 48,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Text(
+                      'select_location'.tr(),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: _textMain,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 1. Current Location Option
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  _fetchCurrentLocation();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _bgColor,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.my_location_rounded,
+                          color: _activeBlue,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Use Current Location',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _textMain,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Fetch location using device GPS',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 2. Search Maps Option
+              InkWell(
+                onTap: () {
+                  Navigator.pop(context);
+                  _openLocationSearch();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _bgColor,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          Icons.search_rounded,
+                          color: Colors.grey.shade700,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Search on Maps',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: _textMain,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Manually find a location',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 24 + MediaQuery.of(context).padding.bottom),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showConfirmationBottomSheet(String locale) {
     HapticFeedback.selectionClick();
 
@@ -339,58 +637,55 @@ class _BookingScreenState extends State<BookingScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       useSafeArea: true,
+      elevation: 0,
       builder: (BuildContext context) {
         bool localIsBooking = false;
         bool isSuccess = false;
 
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.95),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(36),
-                  ),
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 12),
-                      Container(
-                        width: 48,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
+            return Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(36)),
+              ),
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      const SizedBox(height: 32),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        switchInCurve: Curves.easeOutBack,
-                        child: isSuccess
-                            ? _buildSuccessView(context)
-                            : _buildConfirmView(
-                                context,
-                                activeSessionData,
-                                formattedDate,
-                                formattedTime,
-                                localIsBooking,
-                                locale,
-                                (bool state) =>
-                                    setModalState(() => localIsBooking = state),
-                                () {
-                                  HapticFeedback.heavyImpact();
-                                  setModalState(() => isSuccess = true);
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 32),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      switchInCurve: Curves.easeOutBack,
+                      child: isSuccess
+                          ? _buildSuccessView(context)
+                          : _buildConfirmView(
+                              context,
+                              activeSessionData,
+                              formattedDate,
+                              formattedTime,
+                              localIsBooking,
+                              locale,
+                              (bool state) =>
+                                  setModalState(() => localIsBooking = state),
+                              () {
+                                HapticFeedback.heavyImpact();
+                                setModalState(() => isSuccess = true);
+                              },
+                            ),
+                    ),
+                  ],
                 ),
               ),
             );
@@ -486,6 +781,7 @@ class _BookingScreenState extends State<BookingScreen> {
           const SizedBox(height: 24),
           Divider(color: Colors.grey.shade200, height: 1),
           const SizedBox(height: 24),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -555,6 +851,40 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 24),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.location_on, color: Colors.grey.shade500, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'location'.tr(),
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$_locationTitle - $_locationAddress',
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 36),
           _BouncingButton(
             onTap: isBooking
@@ -575,18 +905,20 @@ class _BookingScreenState extends State<BookingScreen> {
                               ).format(_selectedDate!),
                               'time': _formatTimeStrict(_selectedTime!, locale),
                               'sessionType': _selectedSession,
+                              'location': {
+                                'title': _locationTitle,
+                                'address': _locationAddress,
+                                'lat': _locationLat,
+                                'lng': _locationLng,
+                              },
                               'status': 'confirmed',
                               'createdAt': FieldValue.serverTimestamp(),
                             });
                       }
-                      if (!context.mounted) {
-                        return;
-                      }
+                      if (!context.mounted) return;
                       onSuccess();
                     } catch (e) {
-                      if (!context.mounted) {
-                        return;
-                      }
+                      if (!context.mounted) return;
                       setBookingState(false);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('failed_to_book'.tr())),
@@ -669,9 +1001,9 @@ class _BookingScreenState extends State<BookingScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
       child: Column(
         children: [
-          Stack(
+          const Stack(
             alignment: Alignment.center,
-            children: const [
+            children: [
               Icon(
                 Icons.verified,
                 color: Color.fromARGB(255, 78, 255, 131),
@@ -776,19 +1108,165 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
             ],
           ),
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(
+                Icons.notifications_none_rounded,
+                color: _textMain,
+                size: 24,
+              ),
+              onPressed: () async {
+                HapticFeedback.selectionClick();
+                await Future.delayed(const Duration(milliseconds: 50));
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, a, b) => const NotificationScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                          return FadeTransition(
+                            opacity: CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOut,
+                            ),
+                            child: child,
+                          );
+                        },
+                    transitionDuration: const Duration(milliseconds: 150),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  // --- SLIMMER LOCATION CARD UI ---
+  Widget _buildLocationCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Text(
+            'session_location'.tr(),
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: _textMain,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12), // Reduced spacing
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ), // Reduced padding
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16), // Slightly tighter radius
+            border: Border.all(color: Colors.grey.shade200, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10), // Smaller icon box
+                decoration: BoxDecoration(
+                  color: _bgColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _isFetchingLocation
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: _activeBlue,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.my_location_rounded,
+                        color: _textMain,
+                        size: 20, // Smaller icon
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _locationTitle,
+                      style: const TextStyle(
+                        fontSize: 15, // Slightly smaller text
+                        fontWeight: FontWeight.w800,
+                        color: _activeBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _locationAddress,
+                      style: TextStyle(
+                        fontSize: 12, // Slightly smaller text
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              TextButton(
+                onPressed: _showLocationPicker,
+                style: TextButton.styleFrom(
+                  foregroundColor: _activeBlue,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  'change_btn'.tr(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoadingTrainer || _trainer == null) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: _bgColor,
-        body: const Center(
-          child: CircularProgressIndicator(color: _activeBlue),
-        ),
+        body: Center(child: CircularProgressIndicator(color: _activeBlue)),
       );
     }
 
@@ -809,8 +1287,7 @@ class _BookingScreenState extends State<BookingScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTopAppBar(),
-
+                  RepaintBoundary(child: _buildTopAppBar()),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Row(
@@ -839,102 +1316,106 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  SizedBox(
-                    height: 88,
-                    width: double.infinity,
-                    child: SingleChildScrollView(
-                      controller: _dateScrollController,
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: _cachedVisibleDates.map((date) {
-                          final bool isSelected =
-                              _selectedDate!.year == date.year &&
-                              _selectedDate!.month == date.month &&
-                              _selectedDate!.day == date.day;
-                          final String dayName = _Formatters.dayName(
-                            locale,
-                          ).format(date);
-                          final String dayNumber = _Formatters.dayNum(
-                            locale,
-                          ).format(date);
+                  RepaintBoundary(
+                    child: SizedBox(
+                      height: 88,
+                      width: double.infinity,
+                      child: SingleChildScrollView(
+                        controller: _dateScrollController,
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          children: _cachedVisibleDates.map((date) {
+                            final bool isSelected =
+                                _selectedDate!.year == date.year &&
+                                _selectedDate!.month == date.month &&
+                                _selectedDate!.day == date.day;
+                            final String dayName = _Formatters.dayName(
+                              locale,
+                            ).format(date);
+                            final String dayNumber = _Formatters.dayNum(
+                              locale,
+                            ).format(date);
 
-                          return _BouncingButton(
-                            onTap: () {
-                              setState(() {
-                                _selectedDate = date;
-                                _availabilityStatus = 'none';
-                              });
-                              _scrollToSelectedDate();
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 150),
-                              curve: Curves.easeOutCubic,
-                              margin: const EdgeInsets.only(right: 12),
-                              width: 58,
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: isSelected ? _activeBlue : Colors.white,
-                                borderRadius: BorderRadius.circular(35),
-                                border: Border.all(
+                            return _BouncingButton(
+                              onTap: () {
+                                setState(() {
+                                  _selectedDate = date;
+                                  _availabilityStatus = 'none';
+                                });
+                                _scrollToSelectedDate();
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                curve: Curves.easeOutCubic,
+                                margin: const EdgeInsets.only(right: 12),
+                                width: 58,
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
                                   color: isSelected
-                                      ? Colors.transparent
-                                      : Colors.grey.shade300,
-                                  width: 1,
-                                ),
-                                boxShadow: isSelected
-                                    ? [
-                                        BoxShadow(
-                                          color: _activeBlue.withValues(
-                                            alpha: 0.3,
-                                          ),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ]
-                                    : [],
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    dayName,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.grey.shade500,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                      ? _activeBlue
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(35),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.transparent
+                                        : Colors.grey.shade300,
+                                    width: 1,
                                   ),
-                                  const SizedBox(height: 6),
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.grey.shade100,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      dayNumber,
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: _activeBlue.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ]
+                                      : [],
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      dayName,
                                       style: TextStyle(
                                         color: isSelected
-                                            ? _activeBlue
-                                            : _textMain,
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w900,
+                                            ? Colors.white
+                                            : Colors.grey.shade500,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.grey.shade100,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        dayNumber,
+                                        style: TextStyle(
+                                          color: isSelected
+                                              ? _activeBlue
+                                              : _textMain,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        }).toList(),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
                   ),
@@ -953,17 +1434,18 @@ class _BookingScreenState extends State<BookingScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  _SessionSelectionList(
-                    trainerSessions: _trainerSessions,
-                    onSessionSelected: (sessionName) {
-                      setState(() {
-                        _selectedSession = sessionName;
-                      });
-                    },
+                  RepaintBoundary(
+                    child: _SessionSelectionList(
+                      trainerSessions: _trainerSessions,
+                      onSessionSelected: (sessionName) {
+                        setState(() => _selectedSession = sessionName);
+                      },
+                    ),
                   ),
 
                   const SizedBox(height: 32),
 
+                  // ---> SELECT TIME MOVED ABOVE LOCATION <---
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 24),
                     padding: const EdgeInsets.all(20),
@@ -1151,6 +1633,11 @@ class _BookingScreenState extends State<BookingScreen> {
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 32),
+
+                  // ---> LOCATION CARD MOVED BELOW TIME CONTAINER <---
+                  _buildLocationCard(),
 
                   if (_availabilityStatus == 'available') ...[
                     const SizedBox(height: 32),
@@ -1393,7 +1880,7 @@ class _BouncingButtonState extends State<_BouncingButton> {
       onTap: widget.onTap,
       child: AnimatedScale(
         scale: _isPressed ? 0.94 : 1.0,
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 100),
         curve: Curves.easeOutCubic,
         child: widget.child,
       ),

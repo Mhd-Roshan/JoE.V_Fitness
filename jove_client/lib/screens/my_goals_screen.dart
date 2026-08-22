@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
@@ -10,6 +10,7 @@ import 'progress_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
+import 'notification_screen.dart';
 
 class MyGoalsScreen extends StatefulWidget {
   const MyGoalsScreen({super.key});
@@ -19,14 +20,12 @@ class MyGoalsScreen extends StatefulWidget {
 }
 
 class _MyGoalsScreenState extends State<MyGoalsScreen> {
-  // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _primaryBlue = Color(0xFF00215F);
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
 
-  // Stream only for the global goals list to prevent full-screen rebuilds
   static const List<String> _defaultGoals = [
     'Muscle Building & Strength',
     'Weight & Fat Loss',
@@ -46,7 +45,6 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   @override
   void initState() {
     super.initState();
-    // Cache the stream so it doesn't recreate on rebuilds
     _availableGoalsStream = FirebaseFirestore.instance
         .collection('fitness_goals')
         .snapshots();
@@ -59,8 +57,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
     super.dispose();
   }
 
-  // Fetch the user's data ONLY ONCE.
-  // We handle updates locally for a smoother, instant UI response.
+  // --- IMPROVED DATA FETCHING ---
   Future<void> _fetchUserSelectedGoals() async {
     if (currentUser == null) {
       if (mounted) {
@@ -77,8 +74,17 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
 
       if (doc.exists && doc.data() != null) {
         var data = doc.data() as Map<String, dynamic>;
-        if (data['fitnessGoals'] != null) {
-          _selectedGoals = List<String>.from(data['fitnessGoals']);
+
+        // Safely check multiple possible keys used during assessment
+        var rawGoals =
+            data['fitnessGoals'] ??
+            data['goals'] ??
+            data['selectedGoals'] ??
+            [];
+
+        if (rawGoals is List) {
+          // Parse safely and trim trailing spaces
+          _selectedGoals = rawGoals.map((e) => e.toString().trim()).toList();
         }
       }
     } catch (e) {
@@ -90,18 +96,26 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
     }
   }
 
+  // --- ROBUST SELECTION CHECK ---
+  bool _isGoalSelected(String goal) {
+    String normalizedTarget = goal.trim().toLowerCase();
+    return _selectedGoals.any((g) => g.toLowerCase() == normalizedTarget);
+  }
+
   // --- OPTIMISTIC AUTO-SAVE LOGIC ---
   Future<void> _toggleGoal(String goal) async {
     HapticFeedback.lightImpact();
 
-    final bool isAdding = !_selectedGoals.contains(goal);
+    final bool isAdding = !_isGoalSelected(goal);
+    final String cleanGoal = goal.trim();
 
-    // 1. Instantly update UI (Optimistic Update)
     setState(() {
       if (isAdding) {
-        _selectedGoals.add(goal);
+        _selectedGoals.add(cleanGoal);
       } else {
-        _selectedGoals.remove(goal);
+        _selectedGoals.removeWhere(
+          (g) => g.toLowerCase() == cleanGoal.toLowerCase(),
+        );
       }
     });
 
@@ -109,25 +123,28 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       return;
     }
 
-    // 2. Sync with Firebase in the background
     try {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUser!.uid)
-          .set({'fitnessGoals': _selectedGoals}, SetOptions(merge: true));
+          .set({
+            'fitnessGoals': _selectedGoals,
+            'goals': _selectedGoals, // Sync to 'goals' as well for redundancy
+          }, SetOptions(merge: true));
     } catch (e) {
-      // 3. Revert UI if the network request fails
       if (mounted) {
         setState(() {
           if (isAdding) {
-            _selectedGoals.remove(goal);
+            _selectedGoals.removeWhere(
+              (g) => g.toLowerCase() == cleanGoal.toLowerCase(),
+            );
           } else {
-            _selectedGoals.add(goal);
+            _selectedGoals.add(cleanGoal);
           }
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('error_saving_goal'.tr()), // TRANSLATED
+            content: Text('error_saving_goal'.tr()),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 2),
           ),
@@ -222,7 +239,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       if (mounted) {
         navigator.pop();
         scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('error_loading_booking'.tr())), // TRANSLATED
+          SnackBar(content: Text('error_loading_booking'.tr())),
         );
       }
     } finally {
@@ -253,21 +270,18 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
                     builder: (context, goalsSnapshot) {
                       return SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.only(
-                          bottom: 120,
-                        ), // Space for Nav Bar
+                        padding: const EdgeInsets.only(bottom: 120),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             RepaintBoundary(child: _buildTopAppBar()),
                             const SizedBox(height: 16),
-
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 40,
                               ),
                               child: Text(
-                                'whats_your_fitness_goal'.tr(), // TRANSLATED
+                                'whats_your_fitness_goal'.tr(),
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
                                   fontSize: 26,
@@ -279,8 +293,6 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
                               ),
                             ),
                             const SizedBox(height: 32),
-
-                            // GOALS LIST RENDERED FROM FIREBASE
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 24,
@@ -294,17 +306,11 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
                     },
                   ),
           ),
-
-          // --- BOTTOM NAV BAR ---
           Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
         ],
       ),
     );
   }
-
-  // ===========================================================================
-  // UI COMPONENTS
-  // ===========================================================================
 
   Widget _buildGoalsList(AsyncSnapshot<QuerySnapshot> snapshot) {
     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -316,10 +322,13 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
 
     List<String> goalTitles = [];
     if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-      goalTitles = snapshot.data!.docs.map((doc) {
-        var data = doc.data() as Map<String, dynamic>;
-        return data['title']?.toString() ?? '';
-      }).where((t) => t.isNotEmpty).toList();
+      goalTitles = snapshot.data!.docs
+          .map((doc) {
+            var data = doc.data() as Map<String, dynamic>;
+            return data['title']?.toString() ?? '';
+          })
+          .where((t) => t.isNotEmpty)
+          .toList();
     }
 
     if (goalTitles.isEmpty) {
@@ -330,7 +339,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       children: goalTitles.map((title) {
         return GoalCard(
           title: title,
-          isSelected: _selectedGoals.contains(title),
+          isSelected: _isGoalSelected(title),
           onTap: () => _toggleGoal(title),
         );
       }).toList(),
@@ -362,7 +371,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'my_goals'.tr(), // TRANSLATED
+                'my_goals'.tr(),
                 style: const TextStyle(
                   color: _textMain,
                   fontSize: 24,
@@ -384,7 +393,33 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () => HapticFeedback.lightImpact(),
+              onPressed: () async {
+                HapticFeedback.selectionClick();
+                await Future.delayed(const Duration(milliseconds: 50));
+
+                // CORRECT MOUNTED CHECK
+                if (!mounted) {
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, a, b) => const NotificationScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                          return FadeTransition(
+                            opacity: CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOut,
+                            ),
+                            child: child,
+                          );
+                        },
+                    transitionDuration: const Duration(milliseconds: 150),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -416,35 +451,35 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
               _NavItem(
                 index: 0,
                 icon: Icons.home_filled,
-                label: 'home_nav'.tr(), // TRANSLATED
+                label: 'home_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const HomeDashboardScreen()),
               ),
               _NavItem(
                 index: 1,
                 icon: Icons.calendar_today_rounded,
-                label: 'booking_nav'.tr(), // TRANSLATED
+                label: 'booking_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: _navigateToBooking,
               ),
               _NavItem(
                 index: 2,
                 icon: Icons.bar_chart_rounded,
-                label: 'stats_nav'.tr(), // TRANSLATED
+                label: 'stats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ProgressScreen()),
               ),
               _NavItem(
                 index: 3,
                 icon: Icons.chat_bubble_outline_rounded,
-                label: 'chats_nav'.tr(), // TRANSLATED
+                label: 'chats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ChatScreen()),
               ),
               _NavItem(
                 index: 4,
                 icon: Icons.person_outline_rounded,
-                label: 'profile_nav'.tr(), // TRANSLATED
+                label: 'profile_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ProfileScreen()),
               ),
@@ -456,7 +491,6 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   }
 }
 
-// Extracted into a Stateless Widget for Maximum Performance
 class GoalCard extends StatelessWidget {
   final String title;
   final bool isSelected;
@@ -540,7 +574,7 @@ class GoalCard extends StatelessWidget {
             const SizedBox(width: 16),
             Expanded(
               child: Text(
-                title, // This string comes directly from the Firebase document 'title' field
+                title,
                 style: TextStyle(
                   color: isSelected ? Colors.white : textMain,
                   fontSize: 16,

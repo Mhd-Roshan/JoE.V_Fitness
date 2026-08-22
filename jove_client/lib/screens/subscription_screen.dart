@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANSLATIONS
+import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
 import 'booking_screen.dart';
@@ -11,6 +11,7 @@ import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'trainer_selection_screen.dart';
+import 'notification_screen.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -20,14 +21,13 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  // Theme Colors (Matching your Profile App Theme EXACTLY)
+  // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _navBgColor = Color(0xFF00215F);
   static const Color _redButton = Color(0xFFBB0013);
   static const Color _iconBg = Color(0xFFF0F2F5);
 
-  // Custom Mesh Gradient mimicking the uploaded image
   static const LinearGradient _meshGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -42,13 +42,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   );
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
-
-  // Navigation State - 4 is Profile (since Subscription is a sub-page of Profile)
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
   bool _isLoading = true;
   bool _isNavigating = false;
 
-  // Firebase Data Variables
   Map<String, dynamic>? _subscriptionData;
   List<Map<String, dynamic>> _paymentHistory = [];
   bool _autoRenew = false;
@@ -85,23 +82,119 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       if (doc.exists && doc.data() != null) {
         var data = doc.data() as Map<String, dynamic>;
 
-        setState(() {
-          if (data['subscription'] is Map) {
-            _subscriptionData = Map<String, dynamic>.from(data['subscription']);
-            _autoRenew = _subscriptionData?['autoRenew'] ?? false;
-          }
+        // --- HIGHLY ROBUST DATA EXTRACTION ---
+        Map<String, dynamic> extractedSubData = {};
 
-          if (data['paymentHistory'] is List) {
-            _paymentHistory = (data['paymentHistory'] as List)
-                .map(
-                  (e) => e is Map
-                      ? Map<String, dynamic>.from(e)
-                      : <String, dynamic>{},
-                )
-                .where((e) => e.isNotEmpty)
-                .toList();
+        // 1. Check if stored inside a 'subscription' map
+        if (data['subscription'] is Map) {
+          extractedSubData = Map<String, dynamic>.from(data['subscription']);
+        }
+
+        // 2. Scan through all common Map/String keys used for packages during assessment
+        List<String> packageKeys = [
+          'selectedPackage',
+          'package',
+          'currentPackage',
+          'plan',
+          'subscriptionPlan',
+          'selectedPlan',
+          'membership',
+        ];
+
+        for (String key in packageKeys) {
+          if (data[key] is Map) {
+            var pData = data[key] as Map;
+            extractedSubData['planName'] ??=
+                pData['name'] ??
+                pData['title'] ??
+                pData['planName'] ??
+                pData['type'];
+            extractedSubData['packageName'] ??=
+                pData['duration'] ??
+                pData['subtitle'] ??
+                pData['description'] ??
+                pData['packageName'] ??
+                pData['name'];
+            extractedSubData['price'] ??=
+                pData['price'] ?? pData['amount'] ?? pData['cost'];
+            extractedSubData['status'] ??= pData['status'] ?? 'Active';
+          } else if (data[key] is String && data[key].toString().isNotEmpty) {
+            extractedSubData['planName'] ??= data[key];
+            extractedSubData['status'] ??= 'Active';
           }
-        });
+        }
+
+        // 3. Fallbacks for root level flat variables
+        extractedSubData['planName'] ??=
+            data['planName'] ??
+            data['subscriptionPlan'] ??
+            data['selectedPlan'] ??
+            data['packageName'];
+        extractedSubData['packageName'] ??=
+            data['packageDuration'] ?? data['duration'];
+        extractedSubData['price'] ??=
+            data['price'] ??
+            data['subscriptionPrice'] ??
+            data['amount'] ??
+            data['packagePrice'];
+        extractedSubData['status'] ??=
+            data['status'] ?? data['subscriptionStatus'];
+
+        // 4. If we found a planName, FORCE status to Active (so it doesn't say "Inactive" or "No active plan")
+        if (extractedSubData['planName'] != null &&
+            extractedSubData['planName'].toString().trim().isNotEmpty) {
+          if (extractedSubData['status'] == null ||
+              extractedSubData['status'].toString().toLowerCase() ==
+                  'inactive') {
+            extractedSubData['status'] = 'Active';
+          }
+        }
+
+        // 5. Last resort: Check if role/userType dictates a premium membership
+        if (extractedSubData['planName'] == null) {
+          String role = data['role']?.toString().toLowerCase() ?? '';
+          String type = data['userType']?.toString().toLowerCase() ?? '';
+          if (role == 'premium' ||
+              type == 'premium' ||
+              role == 'pro' ||
+              type == 'pro') {
+            extractedSubData['planName'] = (data['role'] ?? data['userType'])
+                .toString()
+                .toUpperCase();
+            extractedSubData['status'] = 'Active';
+          }
+        }
+
+        // Apply defaults
+        extractedSubData['paymentMethod'] ??=
+            data['paymentMethod'] ?? data['subscriptionPaymentMethod'];
+        extractedSubData['autoRenew'] ??= data['autoRenew'] ?? false;
+        extractedSubData['nextBillingDate'] ??=
+            data['nextBillingDate'] ?? data['expiryDate'];
+        extractedSubData['promptedRenewal'] ??=
+            data['promptedRenewal'] ?? false;
+
+        // Extract Payment History
+        List<Map<String, dynamic>> extractedHistory = [];
+        var rawHistory = data['paymentHistory'] ?? data['payments'];
+        if (rawHistory is List) {
+          extractedHistory = rawHistory
+              .map(
+                (e) => e is Map
+                    ? Map<String, dynamic>.from(e)
+                    : <String, dynamic>{},
+              )
+              .where((e) => e.isNotEmpty)
+              .toList();
+        }
+
+        if (mounted) {
+          setState(() {
+            _subscriptionData = extractedSubData;
+            _autoRenew = extractedSubData['autoRenew'] == true;
+            _paymentHistory = extractedHistory;
+          });
+        }
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _checkAndShowRenewalPrompt();
@@ -119,7 +212,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Future<void> _toggleAutoRenew(bool value) async {
     HapticFeedback.lightImpact();
 
-    // Optimistic UI update for immediate response
     setState(() => _autoRenew = value);
 
     if (currentUser == null) {
@@ -132,14 +224,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           .doc(currentUser!.uid)
           .set({
             'subscription': {'autoRenew': value},
+            'autoRenew': value, // Sync to root just in case
           }, SetOptions(merge: true));
     } catch (e) {
       if (mounted) {
-        // Revert on failure
         setState(() => _autoRenew = !value);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('fail_update_auto_renew'.tr()), // TRANSLATED
+            content: Text('fail_update_auto_renew'.tr()),
             backgroundColor: Colors.red,
           ),
         );
@@ -165,12 +257,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           .doc(currentUser!.uid)
           .set({
             'subscription': {'paymentMethod': newMethod},
+            'paymentMethod': newMethod, // Sync to root just in case
           }, SetOptions(merge: true));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('payment_method_updated'.tr()), // TRANSLATED
+            content: Text('payment_method_updated'.tr()),
             backgroundColor: const Color(0xFF34C759),
             duration: const Duration(seconds: 2),
           ),
@@ -180,7 +273,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('fail_update_payment_method'.tr()), // TRANSLATED
+            content: Text('fail_update_payment_method'.tr()),
             backgroundColor: Colors.red,
           ),
         );
@@ -199,20 +292,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             title: Text(
-              "cancel_subscription".tr(), // TRANSLATED
+              "cancel_subscription".tr(),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: _redButton,
               ),
             ),
-            content: Text(
-              "cancel_sub_confirm_msg".tr(), // TRANSLATED
-            ),
+            content: Text("cancel_sub_confirm_msg".tr()),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: Text(
-                  "keep_plan".tr(), // TRANSLATED
+                  "keep_plan".tr(),
                   style: const TextStyle(
                     color: Colors.grey,
                     fontWeight: FontWeight.bold,
@@ -229,7 +320,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 onPressed: () => Navigator.pop(context, true),
                 child: Text(
-                  "cancel_plan".tr(), // TRANSLATED
+                  "cancel_plan".tr(),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
@@ -241,7 +332,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ) ??
         false;
 
-    if (!confirm || currentUser == null || !mounted) {
+    if (!confirm || currentUser == null) {
+      return;
+    }
+
+    if (!mounted) {
       return;
     }
 
@@ -259,6 +354,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           .doc(currentUser!.uid)
           .set({
             'subscription': {'status': 'Cancelled', 'autoRenew': false},
+            'status': 'Cancelled',
+            'autoRenew': false,
           }, SetOptions(merge: true));
 
       setState(() {
@@ -270,7 +367,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         Navigator.pop(context); // Pop loader
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('subscription_cancelled'.tr()), // TRANSLATED
+            content: Text('subscription_cancelled'.tr()),
             backgroundColor: Colors.orange,
           ),
         );
@@ -280,7 +377,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         Navigator.pop(context); // Pop loader
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('error_cancelling_plan'.tr()), // TRANSLATED
+            content: Text('error_cancelling_plan'.tr()),
             backgroundColor: Colors.red,
           ),
         );
@@ -337,7 +434,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
               const SizedBox(height: 16),
               Text(
-                'sub_expiring_soon'.tr(), // TRANSLATED
+                'sub_expiring_soon'.tr(),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 20,
@@ -349,7 +446,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Text(
                 'sub_expires_in_days'.tr(
                   namedArgs: {'days': daysRemaining.toString()},
-                ), // TRANSLATED
+                ),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
               ),
@@ -369,7 +466,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     ),
                   ),
                   child: Text(
-                    'renew_now'.tr(), // TRANSLATED
+                    'renew_now'.tr(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -387,6 +484,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     if (currentUser != null) {
       FirebaseFirestore.instance.collection('users').doc(currentUser!.uid).set({
         'subscription': {'promptedRenewal': true},
+        'promptedRenewal': true,
       }, SetOptions(merge: true));
     }
   }
@@ -424,7 +522,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'select_payment_method'.tr(), // TRANSLATED
+                  'select_payment_method'.tr(),
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -547,9 +645,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     } catch (e) {
       if (mounted) {
         navigator.pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('error_loading_booking'.tr())),
-        ); // TRANSLATED
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('error_loading_booking'.tr())));
       }
     } finally {
       if (mounted) {
@@ -598,7 +696,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'billing_and_plans'.tr(), // TRANSLATED
+                                'billing_and_plans'.tr(),
                                 style: const TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
@@ -607,7 +705,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'manage_elite_membership'.tr(), // TRANSLATED
+                                'manage_elite_membership'.tr(),
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Colors.grey.shade600,
@@ -616,12 +714,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               ),
                               const SizedBox(height: 24),
 
-                              // Isolated complex gradient card
                               RepaintBoundary(child: _buildCurrentPlanCard()),
                               const SizedBox(height: 28),
 
                               Text(
-                                'payment_method'.tr(), // TRANSLATED
+                                'payment_method'.tr(),
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -629,12 +726,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              // Isolated payment method component
+
                               RepaintBoundary(child: _buildPaymentMethodCard()),
                               const SizedBox(height: 28),
 
                               Text(
-                                'payment_history'.tr(), // TRANSLATED
+                                'payment_history'.tr(),
                                 style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -642,7 +739,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              // Isolated payment list to prevent scroll lag
+
                               RepaintBoundary(
                                 child: _buildPaymentHistoryList(),
                               ),
@@ -657,7 +754,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
           ),
 
-          // Synced Bottom Nav Bar
           if (!isKeyboardOpen)
             Align(
               alignment: Alignment.bottomCenter,
@@ -674,7 +770,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Expanded to constrain the title naturally
           Expanded(
             child: Row(
               children: [
@@ -692,7 +787,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'subscription_title'.tr(), // TRANSLATED
+                    'subscription_title'.tr(),
                     style: const TextStyle(
                       color: _textMain,
                       fontSize: 24,
@@ -719,7 +814,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () => HapticFeedback.lightImpact(),
+              onPressed: () async {
+                HapticFeedback.selectionClick();
+                await Future.delayed(const Duration(milliseconds: 50));
+
+                if (!mounted) {
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, a, b) => const NotificationScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                          return FadeTransition(
+                            opacity: CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOut,
+                            ),
+                            child: child,
+                          );
+                        },
+                    transitionDuration: const Duration(milliseconds: 150),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -729,17 +849,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Widget _buildCurrentPlanCard() {
     String planName =
-        _subscriptionData?['planName'] ?? 'no_active_plan'.tr(); // TRANSLATED
-    String packageName = _subscriptionData?['packageName'] ?? '';
+        _subscriptionData?['planName']?.toString() ?? 'no_active_plan'.tr();
+    String packageName = _subscriptionData?['packageName']?.toString() ?? '';
     String price = _subscriptionData?['price']?.toString() ?? '0';
 
-    // Translating status logic
-    String rawStatus = _subscriptionData?['status'] ?? 'Inactive';
+    // Prevent displaying duplicate names like "Premium - Premium"
+    if (planName.toLowerCase() == packageName.toLowerCase()) {
+      packageName = '';
+    }
+
+    String rawStatus = _subscriptionData?['status']?.toString() ?? 'Inactive';
     String translatedStatus = rawStatus.toLowerCase() == 'inactive'
         ? 'status_inactive'.tr()
         : rawStatus;
 
-    String formattedDate = 'not_applicable_short'.tr(); // TRANSLATED
+    String formattedDate = 'not_applicable_short'.tr();
     if (_subscriptionData?['nextBillingDate'] != null) {
       DateTime dt = (_subscriptionData!['nextBillingDate'] as Timestamp)
           .toDate();
@@ -767,7 +891,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             children: [
               Expanded(
                 child: Text(
-                  'current_plan'.tr(), // TRANSLATED
+                  'current_plan'.tr(),
                   style: const TextStyle(
                     color: _navBgColor,
                     fontWeight: FontWeight.w800,
@@ -837,7 +961,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
               Flexible(
                 child: Text(
-                  'per_month'.tr(), // TRANSLATED
+                  'per_month'.tr(),
                   style: const TextStyle(
                     color: _navBgColor,
                     fontSize: 14,
@@ -859,7 +983,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'next_billing_date'.tr(), // TRANSLATED
+                      'next_billing_date'.tr(),
                       style: const TextStyle(
                         color: _navBgColor,
                         fontSize: 13,
@@ -890,7 +1014,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'auto_renew'.tr(), // TRANSLATED
+                        'auto_renew'.tr(),
                         style: const TextStyle(
                           color: _navBgColor,
                           fontSize: 14,
@@ -898,7 +1022,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         ),
                       ),
                       Text(
-                        'renew_monthly'.tr(), // TRANSLATED
+                        'renew_monthly'.tr(),
                         style: TextStyle(
                           color: _navBgColor.withValues(alpha: 0.7),
                           fontSize: 11,
@@ -929,8 +1053,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Widget _buildPaymentMethodCard() {
     String methodInfo =
-        _subscriptionData?['paymentMethod'] ??
-        'no_payment_method_linked'.tr(); // TRANSLATED
+        _subscriptionData?['paymentMethod']?.toString() ??
+        'no_payment_method_linked'.tr();
 
     IconData getMethodIcon() {
       String lower = methodInfo.toLowerCase();
@@ -990,13 +1114,13 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           GestureDetector(
             onTap: _showChangePaymentMethodDialog,
             child: Text(
-              'change_btn'.tr(), // TRANSLATED
+              'change_btn'.tr(),
               style: const TextStyle(
-                color: _redButton, // RED COLOR
+                color: _redButton,
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
-                decoration: TextDecoration.underline, // UNDERLINED
-                decorationColor: _redButton, // Underline color matches text
+                decoration: TextDecoration.underline,
+                decorationColor: _redButton,
               ),
             ),
           ),
@@ -1015,7 +1139,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
-          'no_recent_payments'.tr(), // TRANSLATED
+          'no_recent_payments'.tr(),
           textAlign: TextAlign.center,
           style: const TextStyle(
             color: Colors.grey,
@@ -1085,8 +1209,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  item['packageName'] ??
-                                      'default_package'.tr(), // TRANSLATED
+                                  item['packageName']?.toString() ??
+                                      'default_package'.tr(),
                                   style: const TextStyle(
                                     color: _textMain,
                                     fontWeight: FontWeight.bold,
@@ -1097,7 +1221,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '$fullDate • ${item['method'] ?? 'UPI'}',
+                                  '$fullDate • ${item['method']?.toString() ?? 'UPI'}',
                                   style: TextStyle(
                                     color: Colors.grey.shade500,
                                     fontSize: 13,
@@ -1126,7 +1250,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          item['status'] ?? 'status_paid'.tr(), // TRANSLATED
+                          item['status']?.toString() ?? 'status_paid'.tr(),
                           style: const TextStyle(
                             color: Color(0xFF34C759),
                             fontSize: 11,
@@ -1169,7 +1293,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
         icon: const Icon(Icons.cancel_outlined, color: Colors.white, size: 22),
         label: Text(
-          'cancel_subscription'.tr(), // TRANSLATED
+          'cancel_subscription'.tr(),
           style: const TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -1183,7 +1307,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  // --- EXACT BOTTOM NAV BAR FROM PROFILE ---
   Widget _buildBottomNavBar() {
     return Container(
       margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
@@ -1208,35 +1331,35 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               _NavItem(
                 index: 0,
                 icon: Icons.home_filled,
-                label: 'home_nav'.tr(), // TRANSLATED
+                label: 'home_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const HomeDashboardScreen()),
               ),
               _NavItem(
                 index: 1,
                 icon: Icons.calendar_today_rounded,
-                label: 'booking_nav'.tr(), // TRANSLATED
+                label: 'booking_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: _navigateToBooking,
               ),
               _NavItem(
                 index: 2,
                 icon: Icons.bar_chart_rounded,
-                label: 'stats_nav'.tr(), // TRANSLATED
+                label: 'stats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ProgressScreen()),
               ),
               _NavItem(
                 index: 3,
                 icon: Icons.chat_bubble_outline_rounded,
-                label: 'chats_nav'.tr(), // TRANSLATED
+                label: 'chats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ChatScreen()),
               ),
               _NavItem(
                 index: 4,
                 icon: Icons.person_outline_rounded,
-                label: 'profile_nav'.tr(), // TRANSLATED
+                label: 'profile_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () => _navigate(const ProfileScreen()),
               ),
@@ -1265,7 +1388,6 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    // Uses Flexible to grant the selected item extra room and enforce a max-width, effectively stopping horizontal overflows
     return Flexible(
       flex: isSelected ? 3 : 1,
       fit: FlexFit.loose,

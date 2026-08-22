@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
     
-  # --- LOCALIZATION PACKAGES ADDED HERE ---
+  # --- LOCALIZATION PACKAGES ---
   flutter_localizations:
     sdk: flutter
   easy_localization: ^3.0.7
@@ -25,24 +25,33 @@ dependencies:
   flutter_svg: ^2.0.10 
   google_fonts: ^8.2.1
   google_sign_in: ^6.2.1
-  intl: ^0.20.2                 # <-- CHANGED TO 0.20.2
+  intl: ^0.20.2
   lottie: ^3.1.0 
 
   slide_to_act: ^2.0.2
   fl_chart: ^1.2.0
   url_launcher: ^6.3.2
   image_picker: ^1.2.3
-  file_picker: ^12.0.0
+  
+  # --- NEW: MAPS & GPS LOCATION PACKAGES ---
+  flutter_google_places: ^0.3.0
+  google_maps_webservice: ^0.0.20-nullsafety.5
+  geolocator: ^13.0.1    
+  geocoding: ^3.0.0      
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1 
 
-# --- FORCES FLUTTER TO ACCEPT THE CORRECT INTL VERSION ---
+# --- FORCES FLUTTER TO ACCEPT THE CORRECT VERSIONS ---
 dependency_overrides:
   intl: 0.20.2
-
+  http: ^1.2.0
+  google_api_headers: ^5.3.7    # <-- MOVED HERE
+  package_info_plus: ^10.2.1    # <-- MOVED HERE
+  
 flutter:
   uses-material-design: true
   assets:
@@ -56,7 +65,6 @@ flutter:
     - assets/images/sc5.jpg
     - assets/images/kettlebell-icon.svg 
     - assets/images/apps.png
-    # It's good practice to declare your new icon assets here too
     - assets/images/rr.png
     - assets/images/appicon.png
     - assets/images/male.png
@@ -66,11 +74,7 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  # Used for iOS (Needs a solid white background, with a smaller, padded logo)
   image_path: "assets/images/rr.png" 
-  
-  # Used for Android
   min_sdk_android: 21
   adaptive_icon_background: "#FFFFFF"
-  # Needs a transparent background, with a smaller, padded logo
   adaptive_icon_foreground: "assets/images/appicon.png"

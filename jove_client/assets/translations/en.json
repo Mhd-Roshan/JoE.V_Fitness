@@ -402,5 +402,10 @@
     "hours_unit": "Hours",
     "new_badge": "New",
     "health_profile": "Health Profile",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "All": "All",
+    "Unread": "Unread",
+    "mark_read": "Mark all read",
+    "empty_notifications_title": "No Notifications Yet",
+    "empty_notifications_subtitle": "When you get notifications about your workouts, messages, or updates, they'll show up here."
 }

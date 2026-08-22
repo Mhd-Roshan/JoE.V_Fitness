@@ -371,5 +371,10 @@
     "err_load_packages": "पैकेज लोड नहीं किए जा सके: {error}",
     "no_packages_available": "अभी तक कोई पैकेज उपलब्ध नहीं है।\nकृपया कुछ समय बाद पुनः जाँच करें।",
     "auto_renew_monthly": "मासिक ऑटो-रिन्यू",
-    "cancel_anytime": "किसी भी समय रद्द करें"
+    "cancel_anytime": "किसी भी समय रद्द करें",
+    "All": "सभी",
+    "Unread": "अपठित",
+    "mark_read": "सभी को पढ़ा हुआ मानें",
+    "empty_notifications_title": "अभी तक कोई सूचना नहीं",
+    "empty_notifications_subtitle": "जब आपको अपने वर्कआउट, संदेश या अपडेट के बारे में सूचनाएं मिलेंगी, तो वे यहाँ दिखाई देंगी।"
 }

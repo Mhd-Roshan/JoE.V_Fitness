@@ -13,12 +13,46 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'health_profile_screen.dart';
 
-// --- CACHED FORMATTERS FOR PERFORMANCE ---
 class _Formatters {
   static final DateFormat date = DateFormat('yyyy-MM-dd');
-  static final DateFormat dateTime = DateFormat('yyyy-MM-dd h:mm a');
   static final DateFormat displayDate = DateFormat('MMM d');
   static final DateFormat fullDate = DateFormat('dd MMM yyyy');
+
+  // Safely parses tricky strings like "10:30PM", " 09:00 AM ", or "14:30"
+  static DateTime? safeParseDateTime(String? dateStr, String? timeStr) {
+    if (dateStr == null ||
+        dateStr.isEmpty ||
+        timeStr == null ||
+        timeStr.isEmpty) {
+      return null;
+    }
+
+    try {
+      DateTime date = DateFormat('yyyy-MM-dd').parse(dateStr);
+
+      String t = timeStr.trim().toUpperCase();
+      bool isPM = t.contains('PM');
+      bool isAM = t.contains('AM');
+
+      // Strip all letters and spaces, leaving only "10:30"
+      t = t.replaceAll(RegExp(r'[A-Z\s]'), '');
+
+      List<String> timeParts = t.split(':');
+      int hour = int.parse(timeParts[0]);
+      int minute = int.parse(timeParts[1]);
+
+      if (isPM && hour < 12) {
+        hour += 12;
+      }
+      if (isAM && hour == 12) {
+        hour = 0;
+      }
+
+      return DateTime(date.year, date.month, date.day, hour, minute);
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
 class HomeDashboardScreen extends StatefulWidget {
@@ -36,7 +70,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   late final Stream<QuerySnapshot> _bookingStream;
   late final Stream<QuerySnapshot> _dietStream;
 
-  // We only track navigation state now. No loading overlays!
   bool _isNavigating = false;
 
   @override
@@ -67,13 +100,17 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
   }
 
   Future<void> _handleStandardNavigation(Widget screen, int index) async {
-    if (_isNavigating) return;
+    if (_isNavigating) {
+      return;
+    }
 
     HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = index;
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     await Navigator.pushReplacement(
       context,
@@ -85,18 +122,21 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
             child: child,
           );
         },
-        // 150ms feels instantly native and snappy
         transitionDuration: const Duration(milliseconds: 150),
       ),
     );
 
-    if (mounted) setState(() => _isNavigating = false);
+    if (mounted) {
+      setState(() => _isNavigating = false);
+    }
   }
 
   Future<void> _handleBookingNavigation([
     Map<String, dynamic>? userData,
   ]) async {
-    if (_isNavigating) return;
+    if (_isNavigating) {
+      return;
+    }
 
     HapticFeedback.selectionClick();
     setState(() => _isNavigating = true);
@@ -113,17 +153,13 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       }
 
       String? trainerId = userData['assignedTrainerId'];
-      Widget nextScreen;
+      Widget nextScreen = (trainerId == null || trainerId.isEmpty)
+          ? const SelectTrainerScreen()
+          : BookingScreen(trainerId: trainerId);
 
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const SelectTrainerScreen();
-      } else {
-        // ZERO LAG: We DO NOT await the network here anymore.
-        // We instantly pass the ID to the BookingScreen and let it route immediately!
-        nextScreen = BookingScreen(trainerId: trainerId);
+      if (!mounted) {
+        return;
       }
-
-      if (!mounted) return;
 
       await Navigator.pushReplacement(
         context,
@@ -164,13 +200,33 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       String dateStr = bookingData['date'] ?? '';
       String timeStr = bookingData['time'] ?? '';
 
-      DateTime sessionDateTime = _Formatters.dateTime.parse(
-        '$dateStr $timeStr',
+      DateTime? sessionDateTime = _Formatters.safeParseDateTime(
+        dateStr,
+        timeStr,
       );
+
+      if (sessionDateTime == null) {
+        throw Exception('Invalid date/time format');
+      }
+
       DateTime now = DateTime.now();
 
-      if (sessionDateTime.difference(now).inMinutes < 120 &&
-          sessionDateTime.isAfter(now)) {
+      // Ensure that sessions that have already started/passed CANNOT be rescheduled
+      if (!sessionDateTime.isAfter(now)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Cannot reschedule a session that has already started.'.tr(),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        return;
+      }
+
+      // Check if trying to reschedule strictly within the 2-hour window
+      if (sessionDateTime.difference(now).inMinutes < 120) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('error_reschedule_2hrs'.tr()),
@@ -202,6 +258,35 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('error_processing_datetime'.tr())));
+    }
+  }
+
+  Future<void> _handleCompleteSession(String bookingId) async {
+    try {
+      HapticFeedback.mediumImpact();
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
+            'status': 'completed',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Session completed successfully!'.tr()),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('error_updating_session'.tr())));
     }
   }
 
@@ -240,6 +325,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                     _UpcomingSessionSection(
                       bookingStream: _bookingStream,
                       onReschedule: _handleRescheduleClick,
+                      onComplete: _handleCompleteSession,
                     ),
                     _QuickActionsSection(
                       onBookingTap: () => _handleBookingNavigation(userData),
@@ -266,7 +352,6 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
                 ),
               ),
 
-              // Floating Nav Bar
               RepaintBoundary(
                 child: Align(
                   alignment: Alignment.bottomCenter,
@@ -380,189 +465,15 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-class _DietPlansSection extends StatelessWidget {
-  final Stream<QuerySnapshot> dietStream;
-
-  const _DietPlansSection({required this.dietStream});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'diet_plans'.tr(),
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.black87,
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 90,
-          child: StreamBuilder<QuerySnapshot>(
-            stream: dietStream,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F7FA),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.restaurant_menu_rounded,
-                        color: Colors.grey.shade400,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'no_diet_plans'.tr(),
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: snapshot.data!.docs.length,
-                itemBuilder: (context, index) {
-                  final data =
-                      snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                  final String title = data['title'] ?? 'Diet Plan';
-                  final String date = data['createdAt'] != null
-                      ? _Formatters.fullDate.format(
-                          (data['createdAt'] as Timestamp).toDate(),
-                        )
-                      : 'Recent';
-
-                  return _BouncingButton(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Opening PDF...')),
-                      );
-                    },
-                    child: Container(
-                      width: 260,
-                      margin: const EdgeInsets.only(right: 16),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.grey.shade200,
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF0F1),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.picture_as_pdf_rounded,
-                              color: Color(0xFFE53935),
-                              size: 26,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                    fontSize: 15,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  date,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _UpcomingSessionSection extends StatelessWidget {
   final Stream<QuerySnapshot> bookingStream;
   final Function(String, Map<String, dynamic>) onReschedule;
+  final Function(String) onComplete;
 
   const _UpcomingSessionSection({
     required this.bookingStream,
     required this.onReschedule,
+    required this.onComplete,
   });
 
   @override
@@ -576,35 +487,36 @@ class _UpcomingSessionSection extends StatelessWidget {
           Map<String, dynamic>? bookingData;
           String? bookingId;
           String displayDate = 'tbd'.tr();
+          DateTime? closestSessionDate;
 
           final DateTime now = DateTime.now();
           final String todayFormatted = _Formatters.date.format(now);
 
           if (bookingSnapshot.hasData &&
               bookingSnapshot.data!.docs.isNotEmpty) {
-            DateTime? closestFutureDate;
-
-            // Highly Optimized O(N) linear scan to find next booking
             for (var doc in bookingSnapshot.data!.docs) {
               final data = doc.data() as Map<String, dynamic>;
-              if (data['status'] == 'cancelled') continue;
+              if (data['status'] == 'cancelled' ||
+                  data['status'] == 'completed') {
+                continue;
+              }
 
-              try {
-                final sessionDateTime = _Formatters.dateTime.parse(
-                  '${data['date']} ${data['time']}',
-                );
+              // Use robust parsing mechanism
+              final sessionDateTime = _Formatters.safeParseDateTime(
+                data['date'],
+                data['time'],
+              );
 
-                if (sessionDateTime.isAfter(now)) {
-                  if (closestFutureDate == null ||
-                      sessionDateTime.isBefore(closestFutureDate)) {
-                    closestFutureDate = sessionDateTime;
-                    bookingId = doc.id;
-                    bookingData = data;
-                    hasBooking = true;
-                  }
+              if (sessionDateTime != null) {
+                if (closestSessionDate == null ||
+                    sessionDateTime.isBefore(closestSessionDate)) {
+                  closestSessionDate = sessionDateTime;
+                  bookingId = doc.id;
+                  bookingData = data;
+                  hasBooking = true;
                 }
-              } catch (e) {
-                // Quick fallback for poorly formatted data
+              } else {
+                // Fallback for corrupted date/time
                 if ((data['date'] ?? '').compareTo(todayFormatted) >= 0) {
                   if (!hasBooking) {
                     bookingId = doc.id;
@@ -637,6 +549,11 @@ class _UpcomingSessionSection extends StatelessWidget {
               (isTodaySunday || isNextBookingNotToday || !hasBooking)
               ? '${'rest_day'.tr()} 🌴 • ${'upcoming_session'.tr()}'
               : 'upcoming_session'.tr();
+
+          bool isSessionReached = false;
+          if (hasBooking && closestSessionDate != null) {
+            isSessionReached = !closestSessionDate.isAfter(now);
+          }
 
           return Container(
             width: double.infinity,
@@ -744,60 +661,96 @@ class _UpcomingSessionSection extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 18),
+
                   Row(
                     children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.access_time,
-                                size: 16,
-                                color: Colors.black87,
+                      if (isSessionReached) ...[
+                        Expanded(
+                          child: _BouncingButton(
+                            onTap: () => onComplete(bookingId!),
+                            child: Container(
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF34C759),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                bookingData['status'] == 'pending'
-                                    ? 'pending'.tr()
-                                    : 'arriving'.tr(),
-                                style: const TextStyle(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Complete Session'.tr(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ] else ...[
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.access_time,
+                                  size: 16,
                                   color: Colors.black87,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  bookingData['status'] == 'pending'
+                                      ? 'pending'.tr()
+                                      : 'arriving'.tr(),
+                                  style: const TextStyle(
+                                    color: Colors.black87,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _BouncingButton(
+                            onTap: () => onReschedule(bookingId!, bookingData!),
+                            child: Container(
+                              alignment: Alignment.center,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFBB0013),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'reschedule_btn'.tr(),
+                                style: const TextStyle(
+                                  color: Colors.white,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 13,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _BouncingButton(
-                          onTap: () => onReschedule(bookingId!, bookingData!),
-                          child: Container(
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFBB0013),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'reschedule_btn'.tr(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 13,
-                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ] else ...[
@@ -829,11 +782,182 @@ class _UpcomingSessionSection extends StatelessWidget {
   }
 }
 
+class _DietPlansSection extends StatelessWidget {
+  final Stream<QuerySnapshot> dietStream;
+  const _DietPlansSection({required this.dietStream});
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'diet_plans'.tr(),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 90,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: dietStream,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F7FA),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.restaurant_menu_rounded,
+                        color: Colors.grey.shade400,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'no_diet_plans'.tr(),
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, index) {
+                  final data =
+                      snapshot.data!.docs[index].data() as Map<String, dynamic>;
+                  final String title = data['title'] ?? 'Diet Plan';
+                  final String date = data['createdAt'] != null
+                      ? _Formatters.fullDate.format(
+                          (data['createdAt'] as Timestamp).toDate(),
+                        )
+                      : 'Recent';
+                  return _BouncingButton(
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Opening PDF...')),
+                      );
+                    },
+                    child: Container(
+                      width: 260,
+                      margin: const EdgeInsets.only(right: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.grey.shade200,
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF0F1),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.picture_as_pdf_rounded,
+                              color: Color(0xFFE53935),
+                              size: 26,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                    fontSize: 15,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  date,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.arrow_forward_ios_rounded,
+                              size: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _QuickActionsSection extends StatelessWidget {
   final VoidCallback onBookingTap;
   final VoidCallback onHealthTap;
   final VoidCallback onDietTap;
-
   const _QuickActionsSection({
     required this.onBookingTap,
     required this.onHealthTap,
@@ -897,7 +1021,6 @@ class _QuickActionsSection extends StatelessWidget {
 class _TodayProgressSection extends StatelessWidget {
   final Map<String, dynamic> userData;
   final VoidCallback onProgressTap;
-
   const _TodayProgressSection({
     required this.userData,
     required this.onProgressTap,
@@ -909,7 +1032,6 @@ class _TodayProgressSection extends StatelessWidget {
         (MediaQuery.of(context).size.width - 48 - 16) / 2;
     final String today = _Formatters.date.format(DateTime.now());
 
-    // Safe Map Casting (Avoids expensive Map.from clones)
     final dailyWeightMap = userData['dailyWeight'] as Map<String, dynamic>?;
     final String weight =
         dailyWeightMap?[today]?.toString() ??
@@ -933,8 +1055,6 @@ class _TodayProgressSection extends StatelessWidget {
     final double hydNum =
         (dailyHydrationMap?[today] as num?)?.toDouble() ?? 0.0;
     final double hydVal = hydNum / 1000;
-
-    // Optimized string formatting logic avoiding heavy RegEx execution
     final String hydration = (hydVal % 1 == 0)
         ? hydVal.toInt().toString()
         : hydVal.toStringAsFixed(1);
@@ -1023,7 +1143,6 @@ class _ProgressCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final VoidCallback onTap;
-
   const _ProgressCard({
     required this.exactWidth,
     required this.title,
@@ -1238,7 +1357,9 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'booking_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 1 && !isNavigating) onBookingTap();
+                  if (selectedIndex != 1 && !isNavigating) {
+                    onBookingTap();
+                  }
                 },
               ),
               _NavItem(
@@ -1247,7 +1368,9 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'stats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 2 && !isNavigating) onStatsTap();
+                  if (selectedIndex != 2 && !isNavigating) {
+                    onStatsTap();
+                  }
                 },
               ),
               _NavItem(
@@ -1256,7 +1379,9 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'chats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 3 && !isNavigating) onChatsTap();
+                  if (selectedIndex != 3 && !isNavigating) {
+                    onChatsTap();
+                  }
                 },
               ),
               _NavItem(
@@ -1265,7 +1390,9 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'profile_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 4 && !isNavigating) onProfileTap();
+                  if (selectedIndex != 4 && !isNavigating) {
+                    onProfileTap();
+                  }
                 },
               ),
             ],

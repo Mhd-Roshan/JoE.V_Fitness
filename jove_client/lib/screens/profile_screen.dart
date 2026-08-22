@@ -17,7 +17,9 @@ import 'health_profile_screen.dart';
 import 'subscription_screen.dart';
 import 'notification_settings_screen.dart';
 import 'app_language_screen.dart';
-import 'support_screen.dart'; // <-- ADDED SUPPORT SCREEN IMPORT
+import 'support_screen.dart';
+import 'notification_screen.dart';
+import 'welcome_screen.dart'; // <-- ADDED WELCOME SCREEN IMPORT
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -31,8 +33,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _navBgColor = Color(0xFF00215F);
-  static const Color _redButton = Color(0xFFBB0013);
   static const Color _iconBg = Color(0xFFF0F2F5);
+  // _redButton was removed since it is no longer needed
 
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
   final ValueNotifier<Map<String, dynamic>> _userDataNotifier = ValueNotifier(
@@ -257,7 +259,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _isNavigating = true;
     HapticFeedback.selectionClick();
 
-    // OPTIMIZATION: 50ms delay lets the button ripple effect finish before freezing the UI for navigation
     Future.delayed(const Duration(milliseconds: 50), () {
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -344,6 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // --- UPDATED SIGN OUT LOGIC ---
   Future<void> _handleSignOut() async {
     HapticFeedback.mediumImpact();
 
@@ -369,7 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _redButton,
+                  backgroundColor: Colors.red.shade400, // Light red for dialog
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -385,12 +387,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ) ??
         false;
 
-    if (confirm) {
-      // ignore: use_build_context_synchronously
-      final navigator = Navigator.of(context);
-      await FirebaseAuth.instance.signOut();
-      navigator.popUntil((route) => route.isFirst);
-    }
+    // Safety check: Don't continue if the dialog was dismissed or context is dead
+    if (!confirm || !mounted) return;
+
+    // Clear session securely
+    await FirebaseAuth.instance.signOut();
+
+    // Second safety check after async operation
+    if (!mounted) return;
+
+    // Push WelcomeScreen and remove all previous routes
+    Navigator.pushAndRemoveUntil(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (c, a, b) => const WelcomeScreen(),
+        transitionsBuilder: (c, a, b, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+      (route) => false,
+    );
   }
 
   @override
@@ -402,7 +418,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SafeArea(
             bottom: false,
             child: RepaintBoundary(
-              // Decouples scroll updates from background repaints
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.only(bottom: 120),
@@ -415,7 +430,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ValueListenableBuilder<Map<String, dynamic>>(
                       valueListenable: _userDataNotifier,
                       builder: (context, userData, _) {
-                        // Profile Info
                         String fullName =
                             userData['fullName'] ??
                             currentUser?.displayName ??
@@ -499,9 +513,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               _MenuItemData(
                                 icon: Icons.help_outline_rounded,
                                 title: 'support'.tr(),
-                                onTap: () => _pushScreen(
-                                  const SupportScreen(),
-                                ), // <-- NAVIGATES TO SUPPORT NOW
+                                onTap: () => _pushScreen(const SupportScreen()),
                               ),
                             ]),
                           ],
@@ -576,7 +588,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () => _pushScreen(const NotificationSettingsScreen()),
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const NotificationScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                                child: child,
+                              );
+                            },
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  }
+                });
+              },
             ),
           ),
         ],
@@ -687,7 +723,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ],
       ),
-      // OPTIMIZATION: Native Material + Clip.antiAlias eliminates staggered repaints and guarantees perfect ripples
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -777,24 +812,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildSignOutButton() {
+    final Color lightRed = Colors.red.shade400;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: SizedBox(
         width: double.infinity,
         height: 54,
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _redButton,
-            elevation: 0,
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: lightRed, // Makes ripple effect and text red
+            side: BorderSide(color: lightRed, width: 1.5), // Light red outline
+            backgroundColor: Colors.transparent,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
           ),
-          icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
+          icon: Icon(Icons.logout_rounded, color: lightRed, size: 22),
           label: Text(
             'sign_out'.tr(),
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: lightRed,
               fontSize: 16,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -810,8 +848,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildBottomNavBar() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: _navBgColor,
         borderRadius: BorderRadius.circular(40),
@@ -902,46 +940,49 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return Flexible(
-      flex: isSelected ? 3 : 1,
-      fit: FlexFit.loose,
+    return Expanded(
+      flex: isSelected ? 4 : 2,
       child: GestureDetector(
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          padding: isSelected
-              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-              : const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.black : Colors.white70,
-                size: 20,
-              ),
-              if (isSelected) ...[
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        child: Container(
+          color: Colors.transparent, // Expands touch area safely
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

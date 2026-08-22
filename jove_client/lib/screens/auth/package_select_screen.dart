@@ -23,8 +23,10 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
   bool _isContinuing = false;
 
   // Cached stream so it doesn't restart on every setState or Hot Reload
-  late final Stream<QuerySnapshot> _packagesStream =
-      _db.collection('packages').orderBy('order').snapshots();
+  late final Stream<QuerySnapshot> _packagesStream = _db
+      .collection('packages')
+      .orderBy('order')
+      .snapshots();
 
   @override
   void initState() {
@@ -82,9 +84,29 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
     setState(() => _isContinuing = true);
 
     try {
+      // 1. Build a standardized subscription object for Firestore
+      // This perfectly matches the robust logic we put in SubscriptionScreen
+      Map<String, dynamic> pendingSubscriptionData = {
+        'packageId': _selectedPackageId,
+        'planName': selectedPackageData['name'] ?? 'Premium Plan',
+        'packageName':
+            selectedPackageData['billingCycle']?.toString().toUpperCase() ??
+            'MONTHLY',
+        'price': selectedPackageData['price'] ?? 0,
+        'autoRenew': _autoRenew,
+        'status':
+            'Pending', // Pending until payment is complete on the next screen
+        'paymentMethod': 'None',
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // 2. Save it to Firestore
       await _db.collection('users').doc(uid).set({
-        'pendingPackageId': _selectedPackageId,
-        'pendingAutoRenew': _autoRenew,
+        'pendingPackageId':
+            _selectedPackageId, // Kept for backward compatibility with checkout screen
+        'pendingAutoRenew': _autoRenew, // Kept for backward compatibility
+        'subscription':
+            pendingSubscriptionData, // <-- THE NEW STANDARDIZED DATA
       }, SetOptions(merge: true));
 
       if (!mounted) return;
@@ -108,7 +130,12 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
         ),
       );
 
+      //navigationof checkordersummary
       // Navigator.push(context, MaterialPageRoute(builder: (_) => OrderSummaryScreen(...)));
+    } catch (e) {
+      if (mounted) {
+        _showModernSnackBar('Error selecting package: $e');
+      }
     } finally {
       if (mounted) setState(() => _isContinuing = false);
     }
@@ -123,7 +150,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: navy),
         title: Text(
-          'Packages', // CHANGED: Renamed as requested
+          'Packages',
           style: GoogleFonts.poppins(color: navy, fontWeight: FontWeight.w600),
         ),
       ),

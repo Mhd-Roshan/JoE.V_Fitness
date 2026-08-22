@@ -10,6 +10,7 @@ import 'progress_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart'; // <-- IMPORTED PROFILE SCREEN
+import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
 
 class HealthProfileScreen extends StatefulWidget {
   const HealthProfileScreen({super.key});
@@ -376,6 +377,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
     );
   }
 
+  // --- UPDATED APP BAR WITH NOTIFICATION ICON ---
   Widget _buildTopAppBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -427,7 +429,31 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () => HapticFeedback.lightImpact(),
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const NotificationScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                                child: child,
+                              );
+                            },
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  }
+                });
+              },
             ),
           ),
         ],

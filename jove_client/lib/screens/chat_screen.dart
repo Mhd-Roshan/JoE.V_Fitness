@@ -10,6 +10,7 @@ import 'booking_screen.dart';
 import 'progress_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'profile_screen.dart';
+import 'notification_screen.dart'; // ADDED IMPORT
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -513,6 +514,7 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  // --- UPDATED APP BAR WITH NOTIFICATION ICON ---
   Widget _buildTopAppBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -557,20 +559,29 @@ class _ChatScreenState extends State<ChatScreen> {
                 size: 24,
               ),
               onPressed: () {
-                HapticFeedback.lightImpact();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'no_new_notifications'.tr(),
-                      style: const TextStyle(color: Colors.white),
-                    ), // TRANSLATED
-                    backgroundColor: _navBgColor,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
+                HapticFeedback.selectionClick();
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const NotificationScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                                child: child,
+                              );
+                            },
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  }
+                });
               },
             ),
           ),

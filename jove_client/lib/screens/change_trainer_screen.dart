@@ -10,6 +10,7 @@ import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'trainer_selection_screen.dart';
+import 'notification_screen.dart'; // ADDED IMPORT
 
 class ChangeTrainerScreen extends StatefulWidget {
   const ChangeTrainerScreen({super.key});
@@ -633,7 +634,31 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () => HapticFeedback.lightImpact(),
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const NotificationScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                                child: child,
+                              );
+                            },
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  }
+                });
+              },
             ),
           ),
         ],

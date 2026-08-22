@@ -1,13 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:file_picker/file_picker.dart'; // Ensure this is present
 
 // Import your existing screens for navigation
 import 'home_dashboard_screen.dart';
@@ -16,6 +13,7 @@ import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'trainer_selection_screen.dart';
+import 'notification_screen.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
@@ -44,10 +42,6 @@ class _SupportScreenState extends State<SupportScreen> {
   final ValueNotifier<String> _subjectNotifier = ValueNotifier<String>(
     'Technical Issues',
   );
-
-  // Real File Upload State
-  File? _attachedFile;
-  String? _attachedFileName;
 
   final List<String> _subjects = [
     'Technical Issues',
@@ -129,30 +123,8 @@ class _SupportScreenState extends State<SupportScreen> {
   }
 
   // ==========================================
-  // REAL FILE PICKER & FIREBASE UPLOAD
+  // FIREBASE UPLOAD
   // ==========================================
-  Future<void> _pickFile() async {
-    HapticFeedback.lightImpact();
-    try {
-      PlatformFile? file = await FilePicker.pickFile(
-        type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-      );
-
-      if (file != null && file.path != null) {
-        setState(() {
-          _attachedFile = File(file.path!);
-          _attachedFileName = file.name;
-        });
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error picking file. Please try again.")),
-      );
-    }
-  }
-
   Future<void> _submitTicket() async {
     if (_messageController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,25 +140,11 @@ class _SupportScreenState extends State<SupportScreen> {
     _isSubmitting.value = true;
 
     try {
-      String? uploadedFileUrl;
-
-      // 1. Upload File to Firebase Storage (if selected)
-      if (_attachedFile != null && currentUser != null) {
-        final storageRef = FirebaseStorage.instance.ref().child(
-          'support_attachments/${currentUser!.uid}_${DateTime.now().millisecondsSinceEpoch}_$_attachedFileName',
-        );
-
-        await storageRef.putFile(_attachedFile!);
-        uploadedFileUrl = await storageRef.getDownloadURL();
-      }
-
-      // 2. Save Ticket to Firestore
+      // Save Ticket to Firestore
       await FirebaseFirestore.instance.collection('support_tickets').add({
         'userId': currentUser?.uid ?? 'unknown',
         'subject': _subjectNotifier.value,
         'message': _messageController.text.trim(),
-        'attachmentUrl': uploadedFileUrl,
-        'attachmentName': _attachedFileName,
         'status': 'Pending',
         'adminReply': null,
         'createdAt': FieldValue.serverTimestamp(),
@@ -197,10 +155,6 @@ class _SupportScreenState extends State<SupportScreen> {
       // Reset Form
       _messageController.clear();
       _subjectNotifier.value = _subjects.first;
-      setState(() {
-        _attachedFile = null;
-        _attachedFileName = null;
-      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -411,7 +365,32 @@ class _SupportScreenState extends State<SupportScreen> {
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () {},
+              onPressed: () {
+                // --- UPDATED NOTIFICATION ROUTING ---
+                HapticFeedback.selectionClick();
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const NotificationScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                                child: child,
+                              );
+                            },
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  }
+                });
+              },
             ),
           ),
         ],
@@ -641,77 +620,6 @@ class _SupportScreenState extends State<SupportScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
-
-          // Attachment (REAL FILE PICKER)
-          const Text(
-            'Attachment (Optional)',
-            style: TextStyle(fontWeight: FontWeight.bold, color: _navBgColor),
-          ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: _pickFile,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-              decoration: BoxDecoration(
-                color: _attachedFile != null
-                    ? const Color(0xFFE3F2FD)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _attachedFile != null
-                      ? Colors.blue
-                      : Colors.grey.shade300,
-                  style: BorderStyle.solid,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    _attachedFile != null
-                        ? Icons.check_circle_outline_rounded
-                        : Icons.cloud_upload_rounded,
-                    color: _attachedFile != null
-                        ? Colors.blue
-                        : Colors.grey.shade600,
-                    size: 32,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _attachedFileName ??
-                        'Drop screenshots here or tap to select',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: _attachedFile != null
-                          ? Colors.blue.shade800
-                          : Colors.grey.shade500,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  if (_attachedFile != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: GestureDetector(
-                        onTap: () => setState(() {
-                          _attachedFile = null;
-                          _attachedFileName = null;
-                        }),
-                        child: const Text(
-                          "Remove",
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-
           const SizedBox(height: 24),
 
           // Submit Button
@@ -933,7 +841,7 @@ class _SupportScreenState extends State<SupportScreen> {
                     style: const TextStyle(color: Colors.black87, fontSize: 14),
                   ),
 
-                  // SHOW ATTACHMENT IF IT EXISTS
+                  // SHOW ATTACHMENT IF IT EXISTS (For historical tickets)
                   if (attachmentUrl != null && attachmentUrl.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     ActionChip(
@@ -1120,40 +1028,50 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-            : const EdgeInsets.all(10.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white,
-              size: 20,
-            ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
+    // --- ADDED FLEXIBLE UI FIX ---
+    return Flexible(
+      flex: isSelected ? 3 : 1,
+      fit: FlexFit.loose,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          padding: isSelected
+              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
+              : const EdgeInsets.all(10.0),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.white
+                : Colors.white.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.black : Colors.white,
+                size: 20,
               ),
+              if (isSelected) ...[
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

@@ -12,6 +12,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'change_trainer_screen.dart';
 import 'trainer_selection_screen.dart';
+import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -318,8 +319,7 @@ class _NotificationSettingsScreenState
     );
   }
 
-  // --- UI COMPONENTS (MATCHING PROFILE PAGE UI) ---
-
+  // --- UPDATED APP BAR WITH NOTIFICATION ICON LOGIC ---
   Widget _buildTopAppBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -363,7 +363,31 @@ class _NotificationSettingsScreenState
                 color: _textMain,
                 size: 24,
               ),
-              onPressed: () => HapticFeedback.lightImpact(),
+              onPressed: () {
+                HapticFeedback.selectionClick();
+                Future.delayed(const Duration(milliseconds: 50), () {
+                  if (mounted) {
+                    Navigator.push(
+                      context,
+                      PageRouteBuilder(
+                        pageBuilder: (context, a, b) =>
+                            const NotificationScreen(),
+                        transitionsBuilder:
+                            (context, animation, secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: CurvedAnimation(
+                                  parent: animation,
+                                  curve: Curves.easeOut,
+                                ),
+                                child: child,
+                              );
+                            },
+                        transitionDuration: const Duration(milliseconds: 150),
+                      ),
+                    );
+                  }
+                });
+              },
             ),
           ),
         ],

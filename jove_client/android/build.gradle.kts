@@ -1,3 +1,7 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import com.android.build.api.variant.LibraryAndroidComponentsExtension
+
 allprojects {
     repositories {
         google()
@@ -5,10 +9,7 @@ allprojects {
     }
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
+val newBuildDir: Directory = rootProject.layout.buildDirectory.dir("../../build").get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
@@ -16,14 +17,26 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
-// ---> THIS IS THE FIX <---
-// It forces SDK 36 the moment the plugin is applied, BEFORE the project locks.
+// -------------------------------------------------------------
+// ULTIMATE FIX: 
+// Bypasses KTS generic strictness by explicitly grabbing the Library class
+// -------------------------------------------------------------
 subprojects {
-    project.plugins.withId("com.android.library") {
-        val android = project.extensions.getByName("android")
-        try {
-            android.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType).invoke(android, 36)
-        } catch (e: Exception) { }
+    pluginManager.withPlugin("com.android.library") {
+        // Explicitly type the components to satisfy Kotlin DSL
+        val components = extensions.getByType(LibraryAndroidComponentsExtension::class.java)
+        
+        components.finalizeDsl { ext ->
+            ext.compileSdk = 36
+            ext.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
+            ext.compileOptions.targetCompatibility = JavaVersion.VERSION_17
+        }
+    }
+    
+    tasks.withType<KotlinCompile>().configureEach {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
 }
 
