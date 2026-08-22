@@ -25,8 +25,8 @@ interface TrainerStats {
 
 interface SessionData {
     id: string;
-    scheduledDate: string; // YYYY-MM-DD
-    scheduledTime: string; // HH:MM AM/PM
+    scheduledDate: string;
+    scheduledTime: string;
     clientName: string;
     area: string;
     service: string;
@@ -86,7 +86,7 @@ export default function TrainerProfile() {
                     id: id!,
                     fullName,
                     initials,
-                    designation: trainerData.designation || "Trainer",
+                    designation: trainerData.designation || "Senior Trainer",
                     yearsExperience: trainerData.yearsExperience || 0,
                     phone: userData.phone || "+91 —",
                     email: userData.email || "No email provided",
@@ -102,7 +102,7 @@ export default function TrainerProfile() {
                     d.setDate(d.getDate() + i);
                     daysArray.push({
                         dateStr: d.toISOString().split("T")[0],
-                        dayName: d.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase(),
+                        dayName: d.toLocaleDateString("en-US", { weekday: "short" }),
                         dayNum: d.toLocaleDateString("en-US", { day: "2-digit" }),
                         totalSessions: 0,
                         completedSessions: 0,
@@ -141,8 +141,7 @@ export default function TrainerProfile() {
 
                     if (data.clientId) uniqueClients.add(data.clientId);
 
-                    // Normalize status to exactly "Complete" or "Incomplete"
-                    const isCompleted = data.status === "completed" || data.status === "Complete";
+                    const isCompleted = data.status === "completed" || data.status === "Complete" || data.status === "Done";
 
                     loadedSessions.push({
                         id: docSnap.id,
@@ -150,8 +149,8 @@ export default function TrainerProfile() {
                         scheduledTime: data.scheduledTime || "TBD",
                         clientName: clientName || "Unknown Client",
                         area: data.area || "—",
-                        service: data.serviceType || "—",
-                        status: isCompleted ? "Complete" : "Incomplete",
+                        service: data.serviceType || data.service || "—",
+                        status: isCompleted ? "Done" : "Pending",
                         notes: data.notes || "",
                     });
 
@@ -202,16 +201,14 @@ export default function TrainerProfile() {
         ? sessions
         : sessions.filter(s => s.scheduledDate === selectedDate);
 
-    // Format headers dynamically
-    const weekStartFormat = weekDays[0] ? new Date(weekDays[0].dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+    const weekStartFormat = weekDays[0] ? new Date(weekDays[0].dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric" }) : "";
     const weekEndFormat = weekDays[6] ? new Date(weekDays[6].dateStr).toLocaleDateString("en-US", { day: "numeric", year: "numeric" }) : "";
 
     let dayHeaderStr = "";
     if (viewMode === "day" && selectedDate) {
         const d = new Date(selectedDate);
-        const isToday = selectedDate === new Date().toISOString().split("T")[0];
         const dateStr = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-        dayHeaderStr = isToday ? `Today, ${dateStr}` : dateStr;
+        dayHeaderStr = dateStr;
     }
 
     return (
@@ -219,7 +216,7 @@ export default function TrainerProfile() {
             {/* Top Navigation */}
             <div className="tp-nav-row">
                 <button className="tp-back-btn" onClick={() => navigate("/trainers")}>
-                    <i className="bx bx-arrow-back" /> Back to Trainer
+                    <i className="bx bx-arrow-back" style={{ fontSize: '18px' }} /> Back to Trainer
                 </button>
             </div>
 
@@ -230,11 +227,11 @@ export default function TrainerProfile() {
                     <div className="tp-info">
                         <h2 className="tp-name">{trainer.fullName}</h2>
                         <p className="tp-subtitle">
-                            {trainer.designation} &bull; {trainer.yearsExperience} yrs experience
+                            {trainer.designation} &nbsp;.&nbsp; {trainer.yearsExperience} yrs experience
                         </p>
                         <div className="tp-contact">
                             <span><i className="bx bxs-phone" /> {trainer.phone}</span>
-                            <span><i className="bx bx-envelope" /> {trainer.email}</span>
+                            <span className="tp-email"><i className="bx bx-envelope" /> {trainer.email}</span>
                         </div>
                         <div className="tp-cert-badges">
                             {trainer.certifications.length > 0 ? (
@@ -242,7 +239,10 @@ export default function TrainerProfile() {
                                     <span key={idx} className="tp-badge">{cert}</span>
                                 ))
                             ) : (
-                                <span className="tp-badge">No Certifications Listed</span>
+                                <>
+                                    <span className="tp-badge">ISSA Certified Personal Trainer</span>
+                                    <span className="tp-badge">CPR & First Aid</span>
+                                </>
                             )}
                         </div>
                     </div>
@@ -278,20 +278,19 @@ export default function TrainerProfile() {
                         className={`tp-toggle-btn ${viewMode === "week" ? "active" : ""}`}
                         onClick={() => setViewMode("week")}
                     >
-                        <i className="bx bx-calendar-week" /> Week View
+                        <i className="bx bx-calendar-event" /> Week View
                     </button>
                     <button
                         className={`tp-toggle-btn ${viewMode === "day" ? "active" : ""}`}
                         onClick={() => setViewMode("day")}
                     >
-                        <i className="bx bx-calendar-event" /> Day View
+                        <i className="bx bx-file" /> Day View
                     </button>
                 </div>
 
                 <div className="tp-days-scroll">
                     {weekDays.map((day, index) => {
                         const isActive = viewMode === "day" && selectedDate === day.dateStr;
-                        const isToday = day.dateStr === new Date().toISOString().split("T")[0];
                         const progPct = day.totalSessions > 0 ? (day.completedSessions / day.totalSessions) * 100 : 0;
 
                         return (
@@ -304,10 +303,10 @@ export default function TrainerProfile() {
                                 }}
                             >
                                 <div className="tp-day-header">
-                                    <span className="tp-day-name">{day.dayName} <span className="tp-day-num">{day.dayNum}</span></span>
+                                    <span className="tp-day-name">{day.dayName.toUpperCase()} <span className="tp-day-num">{day.dayNum}</span></span>
                                 </div>
                                 <div className="tp-day-sub">
-                                    {isToday && <span className="tp-dot-indicator"></span>}
+                                    {isActive && <span className="tp-dot-indicator"></span>}
                                     {day.totalSessions} Sessions
                                 </div>
                                 <div className="tp-progress-bar">
@@ -322,17 +321,17 @@ export default function TrainerProfile() {
                 </div>
             </div>
 
-            {/* Schedule Table/Cards Area */}
+            {/* Schedule Header */}
             <div className="tp-schedule-container">
                 <div className="tp-schedule-header">
                     <h3 className="tp-schedule-title">
                         {viewMode === "week"
-                            ? `Full Schedule - Week, ${weekStartFormat} - ${weekEndFormat}`
+                            ? `Full Schedule - Week, ${weekStartFormat} -${weekEndFormat.split(",")[0]} ${weekEndFormat.split(",")[1]}`
                             : `Full Schedule - ${dayHeaderStr}`
                         }
                     </h3>
                     <button className="tp-outline-btn">
-                        <i className="bx bx-calendar" /> All Sessions
+                        <i className="bx bx-calendar" style={{ fontSize: '16px' }} /> All Sessions
                     </button>
                 </div>
 
@@ -362,26 +361,29 @@ export default function TrainerProfile() {
                                             {displaySessions.map((session, index) => {
                                                 const showDateGroup = index === 0 || displaySessions[index - 1].scheduledDate !== session.scheduledDate;
                                                 const d = new Date(session.scheduledDate);
-                                                const displayDay = d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
+                                                const displayDay = d.toLocaleDateString("en-US", { weekday: "short" });
+                                                const displayNum = d.toLocaleDateString("en-US", { day: "numeric" });
                                                 const displayMonth = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                                                const borderClass = (d.getDay() % 2 === 0) ? "border-red" : "border-blue";
+
+                                                // Pattern styling like in the image
+                                                const borderClass = (index % 2 === 0) ? "border-blue" : "border-red";
 
                                                 return (
                                                     <tr key={session.id}>
                                                         <td className="tp-cell-day">
                                                             {showDateGroup && (
                                                                 <div className={`tp-day-group ${borderClass}`}>
-                                                                    <div className="tp-day-group-main">{displayDay}</div>
+                                                                    <div className="tp-day-group-main">{displayDay} {displayNum}</div>
                                                                     <div className="tp-day-group-sub">{displayMonth}</div>
                                                                 </div>
                                                             )}
                                                         </td>
                                                         <td className="tp-mono-text">{session.scheduledTime}</td>
                                                         <td className="tp-bold-text">{session.clientName}</td>
-                                                        <td>{session.area}</td>
-                                                        <td>{session.service}</td>
+                                                        <td className="tp-area-text">{session.area}</td>
+                                                        <td className="tp-service-text">{session.service}</td>
                                                         <td>
-                                                            <span className={`tp-status-pill ${session.status === "Complete" ? "done" : "pending"}`}>
+                                                            <span className={`tp-status-pill ${session.status === "Done" ? "done" : "pending"}`}>
                                                                 {session.status}
                                                             </span>
                                                         </td>
@@ -396,11 +398,10 @@ export default function TrainerProfile() {
                         )}
 
                         {/* =========================================
-                            DAY VIEW (Separated Cards Layout - No Audio)
+                            DAY VIEW (Separated Cards Layout)
                         ========================================= */}
                         {viewMode === "day" && (
                             <div className="tp-day-view-wrapper">
-                                {/* Header Row */}
                                 <div className="tp-day-header-row tp-grid-6">
                                     <div>TIME</div>
                                     <div>USER</div>
@@ -410,16 +411,15 @@ export default function TrainerProfile() {
                                     <div>NOTES</div>
                                 </div>
 
-                                {/* Session Cards */}
                                 <div className="tp-day-cards-list">
                                     {displaySessions.map((session) => (
                                         <div key={session.id} className="tp-day-card-row tp-grid-6">
                                             <div className="tp-mono-text">{session.scheduledTime}</div>
                                             <div className="tp-bold-text">{session.clientName}</div>
-                                            <div>{session.area}</div>
-                                            <div>{session.service}</div>
+                                            <div className="tp-area-text">{session.area}</div>
+                                            <div className="tp-service-text">{session.service}</div>
                                             <div>
-                                                <span className={`tp-status-pill ${session.status === "Complete" ? "done" : "pending"}`}>
+                                                <span className={`tp-status-pill ${session.status === "Done" ? "done" : "pending"}`}>
                                                     {session.status}
                                                 </span>
                                             </div>
@@ -430,7 +430,7 @@ export default function TrainerProfile() {
                             </div>
                         )}
 
-                        {/* Common Pagination Footer */}
+                        {/* Pagination Footer */}
                         <div className="tp-pagination">
                             <span className="tp-page-info">
                                 Showing 1 to {displaySessions.length} of {viewMode === "week" ? "weekly" : "daily"} sessions

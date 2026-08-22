@@ -33,34 +33,45 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<RequireAuth> <Dashboard /> </RequireAuth>} />
+
+        {/* User Routes */}
         <Route path="/users" element={<RequireAuth> <Users /> </RequireAuth>} />
         <Route path="/users/:id" element={<RequireAuth> <UserProfile /> </RequireAuth>} />
         <Route path="/users/:id/diet-plan" element={<RequireAuth> <AssignDietPlan /> </RequireAuth>} />
+        <Route path="/users/:id/sessions" element={<RequireAuth> <Sessions /> </RequireAuth>} /> {/* Added missing sessions route */}
+
+        {/* Trainer Routes */}
         <Route path="/trainers" element={<RequireAuth> <Trainers /> </RequireAuth>} />
         <Route path="/trainers/add" element={<RequireAuth> <AddTrainer /> </RequireAuth>} />
+        <Route path="/trainers/:id" element={<RequireAuth> <TrainerProfile /> </RequireAuth>} />
+        <Route path="/trainers/assign" element={<RequireAuth> <AssignDuties /> </RequireAuth>} />
+
         <Route path="/chats" element={<RequireAuth> <Chats /> </RequireAuth>} />
         <Route path="/sessions" element={<RequireAuth> <Sessions /> </RequireAuth>} />
         <Route path="/sessions/media" element={<RequireAuth> <MediaLibrary /> </RequireAuth>} />
+
+        {/* Packages & Subscriptions */}
         <Route path="/packages" element={<RequireAuth> <Packages /> </RequireAuth>} />
         <Route path="/packages/add" element={<RequireAuth> <AddPackage /> </RequireAuth>} />
         <Route path="/packages/edit/:id" element={<RequireAuth> <EditPackage /> </RequireAuth>} />
         <Route path="/packages/addons" element={<RequireAuth> <ManageAddons /> </RequireAuth>} />
         <Route path="/subscriptions" element={<RequireAuth> <Subscriptions /> </RequireAuth>} />
+
+        {/* Diet Plans */}
         <Route path="/diet-plans" element={<RequireAuth> <DietPlans /> </RequireAuth>} />
         <Route path="/diet-plans/library" element={<RequireAuth> <BrowseLibrary /> </RequireAuth>} />
         <Route path="/diet-plans/activity" element={<RequireAuth> <DietActivityLog /> </RequireAuth>} />
         <Route path="/diet-plans/add" element={<RequireAuth> <CreateDietTemplate /> </RequireAuth>} />
         <Route path="/diet-plans/edit/:id" element={<RequireAuth> <CreateDietTemplate /> </RequireAuth>} />
         <Route path="/diet-plans/view/:id" element={<RequireAuth> <TemplateDetails /> </RequireAuth>} />
+
+        {/* Misc Routes */}
         <Route path="/reports" element={<RequireAuth> <Reports /> </RequireAuth>} />
         <Route path="/settings" element={<RequireAuth> <Settings /> </RequireAuth>} />
         <Route path="/payments" element={<RequireAuth> <Payments /> </RequireAuth>} />
         <Route path="/notifications" element={<RequireAuth> <Notifications /> </RequireAuth>} />
-        <Route path="/trainers/:id" element={<RequireAuth> <TrainerProfile /> </RequireAuth>} />
-        <Route path="/trainers/assign" element={<RequireAuth> <AssignDuties /> </RequireAuth>} />
 
-
-
+        {/* Fallback Route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter >

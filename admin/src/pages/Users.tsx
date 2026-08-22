@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-    collection,
-    query,
-    where,
-    getDocs,
-    doc,
-    getDoc,
-    limit,
-} from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/users.css";
@@ -23,6 +15,15 @@ interface UserRow {
     status: "Active" | "Due" | "Expired" | "No Subscription";
 }
 
+// Define strict type for Subscription Data to satisfy ESLint
+interface SubData {
+    clientId?: string;
+    trainerId?: string;
+    packageId?: string;
+    packageName?: string;
+    status?: string;
+}
+
 export default function Users() {
     const navigate = useNavigate();
     const [users, setUsers] = useState<UserRow[]>([]);
@@ -32,99 +33,112 @@ export default function Users() {
     useEffect(() => {
         let isMounted = true;
 
-        async function loadUsers() {
+        async function loadDataFast() {
             try {
-                // Fetch all clients
-                const clientsQuery = query(
-                    collection(db, "users"),
-                    where("role", "==", "client")
-                );
-                const clientsSnap = await getDocs(clientsQuery);
+                // 1. Fetch EVERYTHING at the exact same time (Lightning Fast)
+                const [clientsSnap, trainersSnap, usersSnap, packagesSnap, subsSnap] = await Promise.all([
+                    getDocs(query(collection(db, "users"), where("role", "==", "client"))),
+                    getDocs(collection(db, "trainers")),
+                    getDocs(query(collection(db, "users"), where("role", "==", "trainer"))), // Just in case trainers are in users
+                    getDocs(collection(db, "packages")),
+                    getDocs(collection(db, "subscriptions"))
+                ]);
 
-                console.log(`Found ${clientsSnap.docs.length} clients in database.`);
+                // 2. Build Memory Maps for Instant O(1) Lookups (Removes the lag!)
+                const trainersMap: Record<string, string> = {};
+                trainersSnap.forEach(doc => { trainersMap[doc.id] = doc.data().fullName || doc.data().name; });
+                usersSnap.forEach(doc => { trainersMap[doc.id] = doc.data().fullName || doc.data().name; });
 
-                const rows: UserRow[] = await Promise.all(
-                    clientsSnap.docs.map(async (clientDoc) => {
-                        const clientData = clientDoc.data();
+                const packagesMap: Record<string, string> = {};
+                packagesSnap.forEach(doc => { packagesMap[doc.id] = doc.data().name || doc.data().title; });
 
-                        let packageName = "—";
-                        let trainerName = "—";
-                        let status: UserRow["status"] = "No Subscription";
+                // Use the strict SubData interface here instead of "any"
+                const subsMap: Record<string, SubData> = {};
+                subsSnap.forEach(doc => {
+                    const data = doc.data() as SubData;
+                    if (data.clientId) subsMap[data.clientId] = data; // Link sub to client
+                });
 
-                        // Wrap subscription fetch in try-catch so a missing index doesn't break the whole table
-                        try {
-                            const subQuery = query(
-                                collection(db, "subscriptions"),
-                                where("clientId", "==", clientDoc.id),
-                                where("status", "==", "active"),
-                                limit(1)
-                            );
-                            const subSnap = await getDocs(subQuery);
+                // 3. Process clients instantly in memory without waiting for network again
+                const rows: UserRow[] = clientsSnap.docs.map(clientDoc => {
+                    const clientData = clientDoc.data();
+                    const subData = subsMap[clientDoc.id]; // Instant lookup
 
-                            if (!subSnap.empty) {
-                                const sub = subSnap.docs[0].data();
-                                status = sub.status === "active" ? "Active" : sub.status;
+                    // --- TRAINER LOGIC ---
+                    const targetTrainerId = clientData.assignedTrainerId || clientData.trainerId || subData?.trainerId;
+                    let finalTrainerName = "—";
+                    if (targetTrainerId && trainersMap[targetTrainerId]) {
+                        finalTrainerName = trainersMap[targetTrainerId];
+                    } else if (clientData.trainerName) {
+                        finalTrainerName = clientData.trainerName;
+                    }
 
-                                // Join against packages collection
-                                if (sub.packageId) {
-                                    const packageSnap = await getDoc(doc(db, "packages", sub.packageId));
-                                    if (packageSnap.exists()) {
-                                        packageName = packageSnap.data().name || "—";
-                                    }
-                                }
+                    // --- PACKAGE LOGIC (Aggressive Fallbacks) ---
+                    const targetPackageId = clientData.packageId || clientData.planId || subData?.packageId;
+                    let finalPackageName = "—";
+                    if (targetPackageId && packagesMap[targetPackageId]) {
+                        finalPackageName = packagesMap[targetPackageId];
+                    } else if (clientData.packageName || clientData.selectedPackage || clientData.plan) {
+                        finalPackageName = clientData.packageName || clientData.selectedPackage || clientData.plan;
+                    } else if (subData?.packageName) {
+                        finalPackageName = subData.packageName;
+                    }
 
-                                // Join against trainers collection
-                                if (sub.trainerId) {
-                                    const trainerSnap = await getDoc(doc(db, "users", sub.trainerId));
-                                    if (trainerSnap.exists()) {
-                                        trainerName = trainerSnap.data().fullName || trainerSnap.data().name || "—";
-                                    }
-                                }
-                            }
-                        } catch (subError) {
-                            console.warn(`Error fetching sub for client ${clientDoc.id}. You might need to create a Firestore Index.`, subError);
-                        }
+                    // --- STATUS LOGIC (Aggressive Fallbacks) ---
+                    let finalStatus: UserRow["status"] = "No Subscription";
 
-                        // Safely parse the joined date (handles Firestore Timestamps & ISO strings)
-                        let joinedDate = "—";
-                        if (clientData.createdAt) {
-                            if (typeof clientData.createdAt.toDate === "function") {
-                                joinedDate = clientData.createdAt.toDate().toLocaleDateString("en-GB", {
-                                    day: "2-digit", month: "short", year: "numeric",
-                                });
-                            } else {
-                                joinedDate = new Date(clientData.createdAt).toLocaleDateString("en-GB", {
-                                    day: "2-digit", month: "short", year: "numeric",
-                                });
-                            }
-                        }
+                    // Check subscription doc first
+                    if (subData?.status) {
+                        const s = subData.status.toLowerCase();
+                        finalStatus = s === "active" ? "Active" : s === "due" ? "Due" : "Expired";
+                    }
+                    // Fallback to user doc directly
+                    else if (clientData.subscriptionStatus || clientData.status) {
+                        const s = (clientData.subscriptionStatus || clientData.status).toLowerCase();
+                        finalStatus = s === "active" ? "Active" : s === "due" ? "Due" : "Expired";
+                    }
+                    // Boolean fallback
+                    else if (clientData.isActive === true) {
+                        finalStatus = "Active";
+                    } else if (finalPackageName !== "—") {
+                        // If they have a package but no clear status, assume Active
+                        finalStatus = "Active";
+                    }
 
-                        return {
-                            id: clientDoc.id,
-                            // Fallback to check both fullName and name just in case
-                            name: clientData.fullName || clientData.name || "Unnamed",
-                            phone: clientData.phone || "—",
-                            packageName,
-                            trainerName,
-                            joined: joinedDate,
-                            status,
-                        };
-                    })
-                );
+                    // --- DATE LOGIC ---
+                    let joinedDate = "—";
+                    if (clientData.createdAt) {
+                        const dateObj = typeof clientData.createdAt.toDate === "function"
+                            ? clientData.createdAt.toDate()
+                            : new Date(clientData.createdAt);
+
+                        joinedDate = dateObj.toLocaleDateString("en-GB", {
+                            day: "2-digit", month: "short", year: "numeric",
+                        });
+                    }
+
+                    return {
+                        id: clientDoc.id,
+                        name: clientData.fullName || clientData.name || "Unnamed",
+                        phone: clientData.phone || "—",
+                        packageName: finalPackageName,
+                        trainerName: finalTrainerName,
+                        joined: joinedDate,
+                        status: finalStatus,
+                    };
+                });
 
                 if (isMounted) setUsers(rows);
             } catch (err) {
-                console.error("Users load error:", err);
+                console.error("Fast load error:", err);
             } finally {
                 if (isMounted) setLoading(false);
             }
         }
 
-        loadUsers();
+        loadDataFast();
 
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, []);
 
     const filteredRows = users.filter((u) =>
@@ -177,7 +191,10 @@ export default function Users() {
                         {loading && (
                             <tr>
                                 <td colSpan={7} className="users-empty-state">
-                                    Loading real client data from Firestore...
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+                                        <i className='bx bx-loader-alt bx-spin' style={{ fontSize: "20px", color: "#003AA3" }}></i>
+                                        Loading clients...
+                                    </div>
                                 </td>
                             </tr>
                         )}
@@ -185,7 +202,7 @@ export default function Users() {
                         {!loading && filteredRows.length === 0 && (
                             <tr>
                                 <td colSpan={7} className="users-empty-state">
-                                    No clients registered yet or found. Please ensure users have role="client" in the database.
+                                    No clients found.
                                 </td>
                             </tr>
                         )}
@@ -196,17 +213,19 @@ export default function Users() {
                                     <td className="users-name-cell">{user.name}</td>
                                     <td>{user.phone}</td>
                                     <td>
-                                        <span className="users-package-pill">{user.packageName}</span>
+                                        <span className="users-package-pill" style={{ opacity: user.packageName === "—" ? 0.5 : 1 }}>
+                                            {user.packageName}
+                                        </span>
                                     </td>
                                     <td>{user.trainerName}</td>
                                     <td>{user.joined}</td>
                                     <td>
                                         <span
                                             className={`users-status-pill ${user.status === "Active"
-                                                    ? "active"
-                                                    : user.status === "No Subscription"
-                                                        ? "expired"
-                                                        : "due"
+                                                ? "active"
+                                                : user.status === "No Subscription"
+                                                    ? "expired"
+                                                    : "due"
                                                 }`}
                                         >
                                             {user.status}

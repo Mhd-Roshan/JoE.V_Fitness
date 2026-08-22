@@ -1,19 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-    collection,
-    query,
-    where,
-    getDocs,
-    getCountFromServer,
-    doc,
-    getDoc,
-    deleteDoc,
-} from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/trainers.css";
 
+// ----------------------------------------------------
+// TypeScript Interfaces
+// ----------------------------------------------------
 interface TrainerCard {
     id: string;
     fullName: string;
@@ -37,165 +31,198 @@ interface ScheduleRow {
     status: string;
 }
 
-function todayDateStr() {
-    return new Date().toISOString().slice(0, 10);
+// Interfaces for Firebase Documents
+interface UserData {
+    id: string;
+    role?: string;
+    fullName?: string;
+    trainerId?: string;
+    assignedTrainer?: string;
+    assignedTrainerId?: string;
 }
 
+interface TrainerProfileData {
+    trainerId?: string;
+    designation?: string;
+    yearsExperience?: number;
+    status?: string;
+}
+
+interface SessionData {
+    id: string;
+    trainerId?: string;
+    trainerName?: string;
+    scheduledDate?: string;
+    date?: string;
+    status?: string;
+    clientId?: string;
+    clientName?: string;
+    area?: string;
+    service?: string;
+    serviceType?: string;
+    time?: string;
+    scheduledTime?: string;
+    notes?: string;
+}
+
+interface SubscriptionData {
+    id: string;
+    trainerId?: string;
+    assignedTrainer?: string;
+    trainerName?: string;
+    status?: string;
+}
+
+// ----------------------------------------------------
+// Helper Functions
+// ----------------------------------------------------
+function isToday(dateInput?: string) {
+    if (!dateInput) return false;
+
+    const today = new Date();
+    const iso = today.toISOString().slice(0, 10);
+
+    const d = String(today.getDate()).padStart(2, '0');
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const y = today.getFullYear();
+
+    const formats = [
+        iso,
+        `${y}/${m}/${d}`,
+        `${d}-${m}-${y}`,
+        `${d}/${m}/${y}`,
+        `${m}-${d}-${y}`,
+        `${m}/${d}/${y}`
+    ];
+
+    return formats.includes(dateInput);
+}
+
+// ----------------------------------------------------
+// Component
+// ----------------------------------------------------
 export default function Trainers() {
     const navigate = useNavigate();
     const [trainers, setTrainers] = useState<TrainerCard[]>([]);
     const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
     const [loading, setLoading] = useState(true);
-    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-    const [deleting, setDeleting] = useState(false);
-    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     useEffect(() => {
-        let isMounted = true; // Prevents memory leaks if component unmounts early
+        let isMounted = true;
 
-        async function load() {
+        async function loadData() {
             try {
-                const today = todayDateStr();
+                // 1. Fetch EVERYTHING we need first (Users, Trainers, Sessions, AND Subscriptions)
+                const [usersSnap, trainersSnap, sessionsSnap, subsSnap] = await Promise.all([
+                    getDocs(collection(db, "users")),
+                    getDocs(collection(db, "trainers")),
+                    getDocs(collection(db, "sessions")),
+                    getDocs(collection(db, "subscriptions")) // Fetching subscriptions for accurate client count!
+                ]);
 
-                // 1. Fetch Trainer profiles
-                const usersSnap = await getDocs(
-                    query(collection(db, "users"), where("role", "==", "trainer"))
-                );
+                // Map docs cleanly using the strict TypeScript interfaces
+                const allUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserData));
+                const allTrainerProfiles = trainersSnap.docs.map(doc => doc.data() as TrainerProfileData);
+                const allSessions = sessionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SessionData));
+                const allSubs = subsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubscriptionData));
 
-                const trainerRows = await Promise.all(
-                    usersSnap.docs.map(async (u) => {
-                        const userData = u.data();
-                        const trainerId = u.id;
+                // 2. Separate users into Trainers and Clients
+                const trainersList = allUsers.filter(u => u.role?.toLowerCase() === "trainer");
+                const clientsList = allUsers.filter(u => u.role?.toLowerCase() !== "trainer");
 
-                        const trainerDoc = await getDocs(
-                            query(collection(db, "trainers"), where("trainerId", "==", trainerId))
-                        );
-                        const trainerData = trainerDoc.docs[0]?.data() ?? {};
+                // 3. Build Trainer Cards
+                const trainerRows = trainersList.map((trainer) => {
+                    const tProfile = allTrainerProfiles.find(tp => tp.trainerId === trainer.id) || {};
 
-                        const clientCountSnap = await getCountFromServer(
-                            query(
-                                collection(db, "subscriptions"),
-                                where("trainerId", "==", trainerId),
-                                where("status", "==", "active")
-                            )
-                        );
+                    // COUNT CLIENTS (Check both Subscriptions and Users collection to be 100% sure)
+                    const clientSubs = allSubs.filter(sub =>
+                        (sub.trainerId === trainer.id || sub.assignedTrainer === trainer.id || sub.trainerName === trainer.fullName) &&
+                        (!sub.status || sub.status.toLowerCase() === 'active') // Only count active subscriptions
+                    );
 
-                        const todaySessionsSnap = await getDocs(
-                            query(
-                                collection(db, "sessions"),
-                                where("trainerId", "==", trainerId),
-                                where("scheduledDate", "==", today)
-                            )
-                        );
-                        const todayCount = todaySessionsSnap.size;
-                        const completedCount = todaySessionsSnap.docs.filter(
-                            (d) => d.data().status === "completed"
-                        ).length;
+                    const clientUsers = clientsList.filter(c =>
+                        c.trainerId === trainer.id ||
+                        c.assignedTrainer === trainer.id ||
+                        c.assignedTrainerId === trainer.id
+                    );
 
-                        const name: string = userData.fullName ?? "Unknown Trainer";
+                    // Use whichever number is higher to ensure we don't show 0 if data is stored in the other collection
+                    const totalClients = Math.max(clientSubs.length, clientUsers.length);
 
-                        return {
-                            id: trainerId,
-                            fullName: name,
-                            initials: name.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase(),
-                            designation: trainerData.designation ?? "Senior Trainer",
-                            yearsExperience: trainerData.yearsExperience ?? 4,
-                            status: trainerData.status ?? "Active",
-                            clientCount: clientCountSnap.data().count,
-                            todaySessions: todayCount,
-                            completionPct: todayCount === 0 ? 0 : Math.round((completedCount / todayCount) * 100),
-                        };
-                    })
-                );
+                    // TODAY'S SESSIONS
+                    const trainerSessionsToday = allSessions.filter(s =>
+                        (s.trainerId === trainer.id || s.trainerName === trainer.fullName) &&
+                        isToday(s.scheduledDate || s.date)
+                    );
 
-                // 2. Fetch Today's full schedule across all trainers
-                const sessionsSnap = await getDocs(
-                    query(collection(db, "sessions"), where("scheduledDate", "==", today))
-                );
+                    const todayCount = trainerSessionsToday.length;
 
-                const scheduleRows = await Promise.all(
-                    sessionsSnap.docs.map(async (d) => {
-                        const data = d.data();
-                        let clientName = data.clientName;
-                        if (!clientName && data.clientId) {
-                            const clientMatch = usersSnap.docs.find((u) => u.id === data.clientId);
-                            if (clientMatch) {
-                                clientName = clientMatch.data().fullName;
-                            } else {
-                                const clientSnap = await getDoc(doc(db, "users", data.clientId));
-                                clientName = clientSnap.exists() ? clientSnap.data().fullName : undefined;
-                            }
-                        }
+                    // COUNT COMPLETION %
+                    const completedCount = trainerSessionsToday.filter(s => {
+                        const status = (s.status || "").toLowerCase();
+                        return status === "completed" || status === "done";
+                    }).length;
 
-                        let trainerName = data.trainerName;
-                        if (!trainerName && data.trainerId) {
-                            const trainerMatch = usersSnap.docs.find((u) => u.id === data.trainerId);
-                            if (trainerMatch) {
-                                trainerName = trainerMatch.data().fullName;
-                            } else {
-                                const trainerSnap = await getDoc(doc(db, "users", data.trainerId));
-                                trainerName = trainerSnap.exists() ? trainerSnap.data().fullName : undefined;
-                            }
-                        }
+                    const name = trainer.fullName || "Unnamed Trainer";
+                    const initials = name.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
 
-                        return {
-                            id: d.id,
-                            time: data.scheduledTime ?? "—",
-                            clientName: clientName ?? "—",
-                            area: data.area ?? "—",
-                            service: data.serviceType ?? "—",
-                            notes: data.notes ?? "",
-                            trainerName: trainerName ?? "—",
-                            status: data.status ?? "scheduled",
-                        };
-                    })
-                );
+                    return {
+                        id: trainer.id,
+                        fullName: name,
+                        initials: initials || "TR",
+                        designation: tProfile.designation || "Personal Trainer",
+                        yearsExperience: tProfile.yearsExperience || 0,
+                        status: tProfile.status || "Active",
+                        clientCount: totalClients,
+                        todaySessions: todayCount,
+                        completionPct: todayCount === 0 ? 0 : Math.round((completedCount / todayCount) * 100),
+                    };
+                });
+
+                // 4. Build Today's Schedule Table
+                const todayAllSessions = allSessions.filter(s => isToday(s.scheduledDate || s.date));
+
+                const scheduleRows = todayAllSessions.map(data => {
+                    let clientName = data.clientName;
+                    if (!clientName && data.clientId) {
+                        const clientMatch = allUsers.find(u => u.id === data.clientId);
+                        if (clientMatch) clientName = clientMatch.fullName;
+                    }
+
+                    let trainerName = data.trainerName;
+                    if (!trainerName && data.trainerId) {
+                        const trainerMatch = trainersList.find(u => u.id === data.trainerId);
+                        if (trainerMatch) trainerName = trainerMatch.fullName;
+                    }
+
+                    return {
+                        id: data.id,
+                        time: (data.scheduledTime || data.time) ?? "—",
+                        clientName: clientName ?? "Unknown Client",
+                        area: data.area ?? "—",
+                        service: (data.serviceType || data.service) ?? "—",
+                        notes: data.notes ?? "",
+                        trainerName: trainerName ?? "Unknown Trainer",
+                        status: data.status ?? "scheduled",
+                    };
+                });
 
                 if (isMounted) {
                     setTrainers(trainerRows);
                     setSchedule(scheduleRows.sort((a, b) => a.time.localeCompare(b.time)));
                 }
+
             } catch (err) {
-                console.error("Trainers load error:", err);
+                console.error("Error fetching data from Firebase:", err);
             } finally {
                 if (isMounted) setLoading(false);
             }
         }
 
-        load();
+        loadData();
 
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, []);
-
-    async function handleConfirmDelete() {
-        if (!deleteTarget) return;
-        setDeleting(true);
-        setDeleteError(null);
-
-        try {
-            const availSnap = await getDocs(
-                collection(db, "trainers", deleteTarget.id, "availability")
-            );
-            await Promise.all(
-                availSnap.docs.map((d) =>
-                    deleteDoc(doc(db, "trainers", deleteTarget.id, "availability", d.id))
-                )
-            );
-
-            await deleteDoc(doc(db, "trainers", deleteTarget.id));
-            await deleteDoc(doc(db, "users", deleteTarget.id));
-
-            setTrainers((prev) => prev.filter((t) => t.id !== deleteTarget.id));
-            setDeleteTarget(null);
-        } catch (err) {
-            console.error("Delete trainer failed:", err);
-            setDeleteError("Couldn't remove this trainer. Try again.");
-        } finally {
-            setDeleting(false);
-        }
-    }
 
     const formattedDate = new Date().toLocaleDateString("en-US", {
         month: "long",
@@ -206,19 +233,18 @@ export default function Trainers() {
     if (loading) {
         return (
             <Layout title="Trainers">
-                <p style={{ color: "#999", padding: "20px" }}>Loading trainers...</p>
+                <p style={{ color: "#9ca3af", padding: "20px", fontSize: "14px" }}>Loading trainers...</p>
             </Layout>
         );
     }
 
     return (
         <Layout title="Trainers">
-            {/* PAGE HEADER */}
             <div className="trainers-page-header">
                 <div>
                     <h1 className="trainers-page-title">Trainers Management</h1>
                     <p className="trainers-page-subtitle">
-                        Add trainers and view the details to their scheduling.
+                        Add trainers and view the details to there scheduling.
                     </p>
                 </div>
                 <button className="trainers-add-btn" onClick={() => navigate("/trainers/add")}>
@@ -226,14 +252,14 @@ export default function Trainers() {
                 </button>
             </div>
 
-            {/* TRAINERS GRID */}
             {trainers.length === 0 ? (
-                <div className="profile-empty">No trainers added yet.</div>
+                <div className="profile-empty" style={{ background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+                    No trainers added yet.
+                </div>
             ) : (
                 <div className="trainers-card-grid">
                     {trainers.map((t) => (
                         <div key={t.id} className="trainer-card">
-
                             <div className="trainer-card-top">
                                 <div className="trainer-profile-section">
                                     <div className="trainer-avatar-circle">{t.initials}</div>
@@ -244,7 +270,9 @@ export default function Trainers() {
                                         </div>
                                     </div>
                                 </div>
-                                <span className="trainer-status-pill">{t.status}</span>
+                                <span className={`trainer-status-pill ${t.status.toLowerCase() === 'active' ? 'active-pill' : ''}`}>
+                                    {t.status}
+                                </span>
                             </div>
 
                             <div className="trainer-stats-list">
@@ -271,30 +299,17 @@ export default function Trainers() {
                             </div>
 
                             <div className="trainer-card-actions">
-                                {/* GOES TO TRAINER PROFILE -> /trainers/:id */}
                                 <button
                                     className="trainer-action-btn-outline"
                                     onClick={() => navigate(`/trainers/${t.id}`)}
                                 >
-                                    <i className="bx bx-user-circle"></i> View Profile
+                                    <i className="bx bx-calendar"></i> View Schedule
                                 </button>
-
-                                {/* GOES TO ASSIGN DUTIES -> /trainers/assign */}
                                 <button
                                     className="trainer-action-btn-outline"
                                     onClick={() => navigate("/trainers/assign")}
                                 >
                                     <i className="bx bx-user-plus"></i> Assign
-                                </button>
-
-                                <button
-                                    className="trainer-delete-btn"
-                                    onClick={() =>
-                                        setDeleteTarget({ id: t.id, name: t.fullName })
-                                    }
-                                    title="Remove trainer"
-                                >
-                                    <i className="bx bx-trash" />
                                 </button>
                             </div>
                         </div>
@@ -302,7 +317,6 @@ export default function Trainers() {
                 </div>
             )}
 
-            {/* SCHEDULE SECTION */}
             <div className="schedule-section">
                 <div className="schedule-header">
                     <h2 className="schedule-title">
@@ -314,7 +328,9 @@ export default function Trainers() {
                 </div>
 
                 {schedule.length === 0 ? (
-                    <div className="profile-empty">No sessions scheduled for today.</div>
+                    <div className="profile-empty" style={{ background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+                        No sessions scheduled for today. Make sure sessions in Firebase have today's date assigned!
+                    </div>
                 ) : (
                     <div className="schedule-table-container">
                         <table className="schedule-table">
@@ -322,7 +338,7 @@ export default function Trainers() {
                                 <tr>
                                     <th>Time</th>
                                     <th>Trainer</th>
-                                    <th>Users</th>
+                                    <th>Client</th>
                                     <th>Area</th>
                                     <th>Service</th>
                                     <th>Status</th>
@@ -330,68 +346,34 @@ export default function Trainers() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {schedule.map((s) => (
-                                    <tr key={s.id}>
-                                        <td className="fw-500">{s.time}</td>
-                                        <td className="fw-700 text-dark">{s.trainerName}</td>
-                                        <td>{s.clientName}</td>
-                                        <td>{s.area}</td>
-                                        <td>{s.service}</td>
-                                        <td>
-                                            <span className={`table-status-pill ${s.status === 'completed' ? 'status-done' : 'status-upcoming'}`}>
-                                                {s.status === "completed" ? "Complete" : "Incomplete"}
-                                            </span>
-                                        </td>
-                                        <td className="schedule-notes-text">
-                                            {s.notes ? s.notes : <span className="empty-line"></span>}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {schedule.map((s) => {
+                                    const isDone = s.status.toLowerCase() === "completed" || s.status.toLowerCase() === "done";
+
+                                    return (
+                                        <tr key={s.id}>
+                                            <td className="fw-500">{s.time}</td>
+                                            <td className="fw-800 text-dark">{s.trainerName}</td>
+                                            <td className="text-dark">{s.clientName}</td>
+                                            <td className="text-dark">{s.area}</td>
+                                            <td className="text-dark">{s.service}</td>
+                                            <td>
+                                                {isDone ? (
+                                                    <span className="table-status-pill status-done">Done</span>
+                                                ) : (
+                                                    <span className="table-status-pill">{s.status}</span>
+                                                )}
+                                            </td>
+                                            <td className="schedule-notes-text">
+                                                {s.notes ? s.notes : ""}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
                 )}
             </div>
-
-            {/* DELETE CONFIRMATION MODAL */}
-            {deleteTarget && (
-                <div
-                    className="delete-modal-overlay"
-                    onClick={() => !deleting && setDeleteTarget(null)}
-                >
-                    <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="delete-modal-icon">
-                            <i className="bx bx-error-circle" />
-                        </div>
-                        <div className="delete-modal-title">
-                            Remove {deleteTarget.name}?
-                        </div>
-                        <p className="delete-modal-text">
-                            This permanently removes their profile, availability, and
-                            certification records. This can't be undone.
-                        </p>
-                        {deleteError && (
-                            <div className="delete-modal-error">{deleteError}</div>
-                        )}
-                        <div className="delete-modal-actions">
-                            <button
-                                className="delete-modal-cancel"
-                                onClick={() => setDeleteTarget(null)}
-                                disabled={deleting}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="delete-modal-confirm"
-                                onClick={handleConfirmDelete}
-                                disabled={deleting}
-                            >
-                                {deleting ? "Removing..." : "Remove Trainer"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </Layout>
     );
 }

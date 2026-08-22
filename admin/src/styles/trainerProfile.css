@@ -12,24 +12,24 @@
     background-color: #ffffff;
     border: 1px solid #d1d5db;
     border-radius: 8px;
-    padding: 10px 16px;
+    padding: 8px 16px;
     font-family: "Work Sans", Helvetica, sans-serif;
     font-size: 14px;
-    font-weight: 700;
+    font-weight: 600;
     color: #111827;
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
 
 .tp-back-btn:hover {
-    background-color: #f3f4f6;
+    background-color: #f9fafb;
 }
 
 /* =========================================
    BLUE BANNER CARD
 ========================================= */
 .tp-banner-card {
-    background-color: #00308F;
+    background-color: #0b3b9b;
     /* Deep blue from image */
     border-radius: 12px;
     padding: 32px;
@@ -38,36 +38,36 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 32px;
-    margin-bottom: 32px;
+    margin-bottom: 24px;
     color: #ffffff;
-    box-shadow: 0 4px 12px rgba(0, 48, 143, 0.2);
+    box-shadow: 0 4px 10px rgba(11, 59, 155, 0.15);
 }
 
 .tp-banner-left {
     display: flex;
-    align-items: center;
-    gap: 24px;
+    align-items: flex-start;
+    gap: 20px;
 }
 
 .tp-avatar {
-    width: 64px;
-    height: 64px;
-    background-color: #e50014;
+    width: 60px;
+    height: 60px;
+    background-color: #e11d27;
     /* Red circle */
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: "Work Sans", Helvetica, sans-serif;
-    font-size: 24px;
-    font-weight: 800;
+    font-size: 22px;
+    font-weight: 700;
     flex-shrink: 0;
 }
 
 .tp-info {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .tp-name {
@@ -80,17 +80,17 @@
 .tp-subtitle {
     margin: 0;
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.8);
+    font-size: 13px;
+    color: #cbd5e1;
 }
 
 .tp-contact {
     display: flex;
     gap: 16px;
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.9);
-    margin-top: 4px;
+    font-size: 12px;
+    color: #cbd5e1;
+    margin-top: 2px;
 }
 
 .tp-contact span {
@@ -99,52 +99,56 @@
     gap: 6px;
 }
 
+.tp-contact span.tp-email {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
 .tp-cert-badges {
     display: flex;
-    gap: 12px;
-    margin-top: 12px;
+    gap: 10px;
+    margin-top: 14px;
 }
 
 .tp-badge {
     background-color: #ffffff;
-    color: #00308F;
-    padding: 6px 16px;
+    color: #475569;
+    padding: 4px 16px;
     border-radius: 20px;
-    font-family: "Work Sans", Helvetica, sans-serif;
-    font-size: 12px;
-    font-weight: 700;
+    font-family: "Inter", Helvetica, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
 }
 
 .tp-banner-right {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 28px;
+    padding-right: 16px;
 }
 
 .tp-stat-block {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
 }
 
 .tp-stat-value {
-    font-family: "JetBrains Mono", monospace;
-    font-size: 24px;
+    font-family: "Work Sans", sans-serif;
+    font-size: 22px;
     font-weight: 700;
 }
 
 .tp-stat-label {
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.7);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: 10px;
+    color: #cbd5e1;
 }
 
 .tp-stat-divider {
     width: 1px;
-    height: 40px;
+    height: 36px;
     background-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -161,10 +165,9 @@
 
 .tp-toggle-group {
     display: flex;
-    background-color: #f3f4f6;
+    background-color: #f1f5f9;
     padding: 4px;
     border-radius: 8px;
-    border: 1px solid #e5e7eb;
 }
 
 .tp-toggle-btn {
@@ -172,32 +175,31 @@
     align-items: center;
     gap: 8px;
     background: transparent;
-    border: none;
+    border: 1px solid transparent;
     padding: 8px 16px;
     border-radius: 6px;
-    font-family: "Work Sans", Helvetica, sans-serif;
-    font-size: 14px;
+    font-family: "Inter", Helvetica, sans-serif;
+    font-size: 13px;
     font-weight: 600;
-    color: #6b7280;
+    color: #64748b;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .tp-toggle-btn.active {
     background-color: #ffffff;
-    color: #111827;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    color: #0f172a;
+    border: 1px solid #1e293b;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .tp-days-scroll {
     display: flex;
     gap: 12px;
     overflow-x: auto;
-    padding-bottom: 8px;
     -webkit-overflow-scrolling: touch;
 }
 
-/* Hide scrollbar for cleaner look */
 .tp-days-scroll::-webkit-scrollbar {
     display: none;
 }
@@ -209,68 +211,70 @@
 
 .tp-day-card {
     background-color: #ffffff;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    padding: 12px 16px;
-    min-width: 110px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 10px 12px;
+    min-width: 100px;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 4px;
 }
 
 .tp-day-card:hover {
-    border-color: #9ca3af;
+    border-color: #94a3b8;
 }
 
 .tp-day-card.active {
-    background-color: #00308F;
-    border-color: #00308F;
+    background-color: #0c1c42;
+    /* Very dark navy from image */
+    border-color: #0c1c42;
     color: #ffffff;
 }
 
 .tp-day-header {
     font-family: "Work Sans", Helvetica, sans-serif;
-    font-size: 14px;
-    font-weight: 800;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 .tp-day-card:not(.active) .tp-day-header {
-    color: #00308F;
+    color: #0f172a;
 }
 
 .tp-day-num {
-    font-weight: 500;
+    font-weight: 700;
 }
 
 .tp-day-sub {
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 11px;
-    color: #6b7280;
+    font-size: 10px;
+    color: #64748b;
     display: flex;
     align-items: center;
     gap: 6px;
+    margin-top: 2px;
 }
 
 .tp-day-card.active .tp-day-sub {
-    color: rgba(255, 255, 255, 0.8);
+    color: #94a3b8;
 }
 
 .tp-dot-indicator {
-    width: 6px;
-    height: 6px;
-    background-color: #e50014;
+    width: 4px;
+    height: 4px;
+    background-color: #ef4444;
     border-radius: 50%;
 }
 
 .tp-progress-bar {
     width: 100%;
-    height: 4px;
-    background-color: #e5e7eb;
+    height: 3px;
+    background-color: #e2e8f0;
     border-radius: 4px;
     overflow: hidden;
-    margin-top: 4px;
+    margin-top: 6px;
 }
 
 .tp-day-card.active .tp-progress-bar {
@@ -283,11 +287,12 @@
 }
 
 .tp-progress-fill.green {
-    background-color: #17cc1a;
+    background-color: #22c55e;
 }
 
 .tp-progress-fill.light {
-    background-color: #ffffff;
+    background-color: #60a5fa;
+    /* Blue progress for active day in image */
 }
 
 /* =========================================
@@ -306,9 +311,9 @@
 
 .tp-schedule-title {
     font-family: "Work Sans", Helvetica, sans-serif;
-    font-size: 16px;
-    font-weight: 800;
-    color: #00225d;
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
     margin: 0;
 }
 
@@ -317,22 +322,21 @@
     align-items: center;
     gap: 8px;
     background: #ffffff;
-    border: 1px solid #d1d5db;
+    border: 1px solid #cbd5e1;
     padding: 8px 16px;
     border-radius: 6px;
-    font-family: "Work Sans", Helvetica, sans-serif;
+    font-family: "Inter", Helvetica, sans-serif;
     font-size: 13px;
-    font-weight: 700;
+    font-weight: 600;
+    color: #0f172a;
     cursor: pointer;
 }
 
 /* =========================================
-   WEEK VIEW TABLE
+   TABLE VIEW
 ========================================= */
 .tp-table-card {
     background-color: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
     overflow: hidden;
 }
 
@@ -349,51 +353,51 @@
 
 .tp-table th {
     text-align: left;
-    background-color: #f9fafb;
-    padding: 16px 24px;
+    background-color: #f8fafc;
+    padding: 12px 24px;
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    color: #6b7280;
-    border-bottom: 1px solid #e5e7eb;
-    letter-spacing: 0.5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    border: none;
+    text-transform: uppercase;
 }
 
 .tp-table td {
-    padding: 20px 24px;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 24px 24px;
+    border-bottom: none;
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 14px;
-    color: #374151;
+    font-size: 13px;
+    color: #334155;
     vertical-align: top;
 }
 
-/* Day Column Grouping effect */
+/* Day Column Grouping */
 .tp-day-group {
-    padding-left: 16px;
+    padding-left: 12px;
     border-left: 3px solid;
     display: flex;
     flex-direction: column;
 }
 
 .tp-day-group.border-blue {
-    border-left-color: #00308F;
+    border-left-color: #1e3a8a;
 }
 
 .tp-day-group.border-red {
-    border-left-color: #e50014;
+    border-left-color: #dc2626;
 }
 
 .tp-day-group-main {
     font-family: "Work Sans", Helvetica, sans-serif;
-    font-weight: 800;
-    color: #111827;
-    font-size: 15px;
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 13px;
 }
 
 .tp-day-group-sub {
-    font-size: 12px;
-    color: #6b7280;
+    font-size: 11px;
+    color: #64748b;
     margin-top: 2px;
 }
 
@@ -406,91 +410,75 @@
     gap: 16px;
     margin-bottom: 16px;
     overflow-x: auto;
-    /* Allows horizontal scroll on very small screens */
-    -webkit-overflow-scrolling: touch;
 }
 
-/* 6 Column Grid aligning exactly like a table but without Audio */
 .tp-grid-6 {
     display: grid;
     grid-template-columns: 100px 1.5fr 1.2fr 1.2fr 100px 2fr;
     gap: 16px;
     align-items: center;
     min-width: 800px;
-    /* Prevents squishing on mobile */
 }
 
-/* Gray Header Row */
 .tp-day-header-row {
-    background-color: #f9fafb;
-    padding: 16px 24px;
-    border-radius: 8px;
+    background-color: #f8fafc;
+    padding: 12px 24px;
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-    color: #6b7280;
-    letter-spacing: 0.5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
     text-transform: uppercase;
-    border: 1px solid #e5e7eb;
 }
 
-/* Separated White Cards for each row */
 .tp-day-cards-list {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 0;
 }
 
 .tp-day-card-row {
     background-color: #ffffff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
     padding: 24px;
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 14px;
-    color: #374151;
-    transition: box-shadow 0.2s, border-color 0.2s;
-}
-
-.tp-day-card-row:hover {
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
-    border-color: #d1d5db;
+    font-size: 13px;
+    color: #334155;
 }
 
 /* =========================================
-   SHARED UTILITIES & TEXT STYLES
+   TEXT UTILITIES & PILLS
 ========================================= */
 .tp-mono-text {
     font-family: "JetBrains Mono", monospace;
-    font-weight: 500;
+    font-weight: 600;
+    color: #0f172a;
 }
 
 .tp-bold-text {
-    font-family: "Work Sans", Helvetica, sans-serif;
-    font-weight: 700;
-    color: #00225d;
+    font-family: "Inter", Helvetica, sans-serif;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.tp-area-text {
+    color: #0f172a;
+    font-weight: 500;
+}
+
+.tp-service-text {
+    color: #0f172a;
+    font-weight: 500;
 }
 
 .tp-notes-cell {
-    color: #6b7280;
-    max-width: 250px;
+    color: #64748b;
     white-space: normal;
-    /* allow wrap */
     line-height: 1.4;
 }
 
-.tp-empty-state {
-    padding: 40px;
-    text-align: center;
-    color: #6b7280;
-    font-family: "Inter", sans-serif;
-}
-
-/* Status Pills */
 .tp-status-pill {
-    padding: 6px 12px;
+    padding: 4px 12px;
     border-radius: 4px;
-    font-family: "Work Sans", Helvetica, sans-serif;
+    font-family: "Inter", Helvetica, sans-serif;
     font-size: 11px;
     font-weight: 700;
     display: inline-block;
@@ -498,42 +486,34 @@
 }
 
 .tp-status-pill.done {
-    background-color: #d1fae5;
-    color: #065f46;
+    background-color: #dcfce7;
+    color: #166534;
 }
 
 .tp-status-pill.pending {
-    background-color: #f3f4f6;
-    color: #4b5563;
+    background-color: #f1f5f9;
+    color: #475569;
 }
 
 /* =========================================
-   PAGINATION (Footer)
+   PAGINATION
 ========================================= */
 .tp-pagination {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 16px 24px;
-    background-color: #fcfcfd;
-    border: 1px solid #e5e7eb;
+    background-color: #fafaf9;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
-    margin-top: 16px;
-}
-
-/* If inside week view table, attach it to bottom without top margin */
-.tp-table-card .tp-pagination {
-    border: none;
-    border-top: 1px solid #e5e7eb;
-    border-radius: 0 0 12px 12px;
-    margin-top: 0;
+    margin-top: 24px;
 }
 
 .tp-page-info {
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    color: #6b7280;
+    color: #64748b;
 }
 
 .tp-page-controls {
@@ -545,16 +525,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     background-color: #ffffff;
-    border: 1px solid #d1d5db;
-    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
     cursor: pointer;
-    color: #374151;
+    color: #475569;
     transition: background-color 0.2s;
 }
 
 .tp-page-controls button:hover {
-    background-color: #f3f4f6;
+    background-color: #f1f5f9;
 }
