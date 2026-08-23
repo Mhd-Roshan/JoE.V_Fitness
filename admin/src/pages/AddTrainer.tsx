@@ -71,15 +71,6 @@ function makeSlotId() {
     return Math.random().toString(36).slice(2, 9);
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-    return Promise.race([
-        promise,
-        new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
-        ),
-    ]);
-}
-
 // ==============================================================
 // 12-HOUR TIME CONVERTER HELPER
 // ==============================================================
@@ -428,97 +419,111 @@ export default function AddTrainer() {
         try {
             console.log("[onboarding] creating auth account...");
 
-            const credential = await withTimeout(
-                createUserWithEmailAndPassword(secondaryAuth, form.email, form.password),
-                15000,
-                "Account creation"
-            );
-            const trainerId = credential.user.uid;
-            console.log("[onboarding] account created:", trainerId);
+            let trainerId;
 
-            await signOut(secondaryAuth);
-            console.log("[onboarding] secondary session cleared");
+            // Step 1: Create Authentication Account
+            try {
+                const credential = await createUserWithEmailAndPassword(secondaryAuth, form.email, form.password);
+                trainerId = credential.user.uid;
+                console.log("[onboarding] account created:", trainerId);
 
+                await signOut(secondaryAuth);
+                console.log("[onboarding] secondary session cleared");
+            } catch (authErr: unknown) {
+                console.error("Authentication Error:", authErr);
+
+                // Proper check handling using imported FirebaseError
+                if (authErr instanceof FirebaseError) {
+                    if (authErr.code === "auth/email-already-in-use") {
+                        throw new Error(
+                            "This email is already registered. If a previous attempt failed midway, the account might exist. Please use a different email or contact support.",
+                            { cause: authErr }
+                        );
+                    } else if (authErr.code === "auth/weak-password") {
+                        throw new Error("Password is too weak — use at least 8 characters.", { cause: authErr });
+                    }
+                }
+
+                const message = authErr instanceof Error ? authErr.message : "Failed to create the authentication account.";
+                throw new Error(message, { cause: authErr });
+            }
+
+            // Step 2: Upload Photo (Non-blocking: If it fails, it will still create the profile)
             let photoURL: string | null = null;
             if (form.photoFile) {
-                console.log("[onboarding] uploading photo...");
-                const photoRef = ref(storage, `trainerPhotos/${trainerId}`);
-                await withTimeout(uploadBytes(photoRef, form.photoFile), 20000, "Photo upload");
-                photoURL = await withTimeout(
-                    getDownloadURL(photoRef),
-                    10000,
-                    "Getting photo URL"
-                );
-                console.log("[onboarding] photo uploaded:", photoURL);
+                try {
+                    console.log("[onboarding] uploading photo...");
+                    const photoRef = ref(storage, `trainerPhotos/${trainerId}`);
+                    await uploadBytes(photoRef, form.photoFile);
+                    photoURL = await getDownloadURL(photoRef);
+                    console.log("[onboarding] photo uploaded:", photoURL);
+                } catch (uploadErr: unknown) {
+                    console.error("[onboarding] Photo upload failed, continuing without photo:", uploadErr);
+                    // Do NOT throw an error here, or the account will exist in Auth but not Firestore!
+                }
             }
 
-            console.log("[onboarding] writing Firestore docs...");
-            const batch = writeBatch(db);
+            // Step 3: Write Profile Details to Firestore
+            try {
+                console.log("[onboarding] writing Firestore docs...");
+                const batch = writeBatch(db);
 
-            batch.set(doc(db, "users", trainerId), {
-                role: "trainer",
-                fullName: form.fullName,
-                email: form.email,
-                phone: `+91${form.phone}`,
-                dob: form.dob,
-                photoURL: photoURL ?? null,
-                createdAt: serverTimestamp(),
-            });
+                batch.set(doc(db, "users", trainerId), {
+                    role: "trainer",
+                    fullName: form.fullName,
+                    email: form.email,
+                    phone: `+91${form.phone}`,
+                    dob: form.dob,
+                    photoURL: photoURL ?? null,
+                    createdAt: serverTimestamp(),
+                });
 
-            batch.set(doc(db, "trainers", trainerId), {
-                trainerId,
-                fullName: form.fullName,
-                photoURL: photoURL ?? null,
-                designation: form.designation,
-                yearsExperience: Number(form.yearsExperience) || 0,
-                specializations: form.specializations,
-                bio: form.educationBackground,
-                certifications: [
-                    ...form.certBodies,
-                    ...form.certFiles.map((f) => f.name),
-                ],
-                status: "active",
-                rating: 0,
-                ratingCount: 0,
-                createdAt: serverTimestamp(),
-            });
+                batch.set(doc(db, "trainers", trainerId), {
+                    trainerId,
+                    fullName: form.fullName,
+                    photoURL: photoURL ?? null,
+                    designation: form.designation,
+                    yearsExperience: Number(form.yearsExperience) || 0,
+                    specializations: form.specializations,
+                    bio: form.educationBackground,
+                    certifications: [
+                        ...form.certBodies,
+                        ...form.certFiles.map((f) => f.name),
+                    ],
+                    status: "active",
+                    rating: 0,
+                    ratingCount: 0,
+                    createdAt: serverTimestamp(),
+                });
 
-            DAYS.forEach((day) => {
-                form.availability[day].forEach((slot) => {
-                    const availRef = doc(
-                        collection(db, "trainers", trainerId, "availability")
-                    );
-                    batch.set(availRef, {
-                        dayOfWeek: day,
-                        startTime: convertTo12Hour(slot.start),
-                        endTime: convertTo12Hour(slot.end),
-                        timezone: form.timezone,
+                DAYS.forEach((day) => {
+                    form.availability[day].forEach((slot) => {
+                        const availRef = doc(
+                            collection(db, "trainers", trainerId, "availability")
+                        );
+                        batch.set(availRef, {
+                            dayOfWeek: day,
+                            startTime: convertTo12Hour(slot.start),
+                            endTime: convertTo12Hour(slot.end),
+                            timezone: form.timezone,
+                        });
                     });
                 });
-            });
 
-            await withTimeout(batch.commit(), 15000, "Saving trainer");
-            console.log("[onboarding] done, navigating...");
-            navigate("/trainers");
-        } catch (err) {
-            console.error("Onboarding submission failed:", err);
-            if (err instanceof FirebaseError) {
-                if (err.code === "auth/email-already-in-use") {
-                    setSubmitError("This email is already registered to another account.");
-                } else if (err.code === "auth/weak-password") {
-                    setSubmitError("Password is too weak — use at least 8 characters.");
-                } else {
-                    setSubmitError(
-                        "Couldn't create this trainer. Check your connection and try again."
-                    );
-                }
-            } else if (err instanceof Error) {
-                setSubmitError(err.message);
-            } else {
-                setSubmitError(
-                    "Couldn't create this trainer. Check your connection and try again."
-                );
+                await batch.commit();
+                console.log("[onboarding] done, navigating...");
+                navigate("/trainers");
+            } catch (dbErr: unknown) {
+                console.error("Firestore database write failed:", dbErr);
+                throw new Error("Account was created, but failed to save profile details. Please check your connection.", { cause: dbErr });
             }
+
+        } catch (err: unknown) {
+            console.error("Onboarding submission failed:", err);
+            const errorMessage = err instanceof Error
+                ? err.message
+                : "Couldn't create this trainer. Check your connection and try again.";
+            setSubmitError(errorMessage);
         } finally {
             setSubmitting(false);
         }
@@ -1058,7 +1063,6 @@ export default function AddTrainer() {
                                     <div className="review-card-title">
                                         <i className="bx bx-user" /> Personal Information
                                     </div>
-                                    {/* UPDATED: Pill-shaped Edit Button */}
                                     <button
                                         type="button"
                                         className="edit-section-btn"
@@ -1129,7 +1133,6 @@ export default function AddTrainer() {
                                     <div className="review-card-title">
                                         <i className="bx bx-medal" /> Professional Experience
                                     </div>
-                                    {/* UPDATED: Pill-shaped Edit Button */}
                                     <button
                                         type="button"
                                         className="edit-section-btn"
@@ -1208,7 +1211,6 @@ export default function AddTrainer() {
                                     <div className="review-card-title">
                                         <i className="bx bx-calendar" /> Weekly Availability
                                     </div>
-                                    {/* UPDATED: Pill-shaped Edit Button */}
                                     <button
                                         type="button"
                                         className="edit-section-btn"

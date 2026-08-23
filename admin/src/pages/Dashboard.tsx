@@ -105,33 +105,57 @@ export default function Dashboard() {
                 // ==========================================
                 const activityFeed: ActivityItem[] = [];
 
+                // PRE-FETCH USERS TO GET REAL NAMES FOR BOOKINGS
+                const allUsersMap = new Map<string, string>();
+                const allUsersSnap = await getDocs(collection(db, "users"));
+                allUsersSnap.docs.forEach(doc => {
+                    const d = doc.data();
+                    allUsersMap.set(doc.id, d.fullName || d.name || "Unknown Client");
+                });
+
                 // Get newest users
                 const recentUsersSnap = await getDocs(query(collection(db, "users"), orderBy("createdAt", "desc"), limit(3)));
                 recentUsersSnap.docs.forEach(doc => {
                     const d = doc.data();
                     if (d.createdAt) {
                         const dateObj = d.createdAt.toDate ? d.createdAt.toDate() : new Date(d.createdAt);
+
+                        // Check if the user is a trainer or client
+                        const role = (d.role || "client").toLowerCase();
+                        const isTrainer = role === "trainer";
+
                         activityFeed.push({
                             id: `u-${doc.id}`,
-                            name: d.fullName || d.name || "New Client",
-                            detail: "Registered as a new user",
+                            name: d.fullName || d.name || (isTrainer ? "New Trainer" : "New Client"),
+                            // Display different text based on role
+                            detail: isTrainer ? "Added as a new trainer" : "Registered as a new client",
                             time: timeAgo(dateObj),
                             timestamp: dateObj.getTime()
                         });
                     }
                 });
 
-                // Get newest bookings
-                const recentBookingsSnap = await getDocs(query(collection(db, "bookings"), limit(5)));
+                // Get newest bookings (fetch a bit more, sort by date)
+                const recentBookingsSnap = await getDocs(collection(db, "bookings"));
                 recentBookingsSnap.docs.forEach(doc => {
                     const d = doc.data();
                     const dateObj = d.createdAt?.toDate ? d.createdAt.toDate() : new Date(d.date + "T" + (d.time || "00:00:00"));
 
                     if (!isNaN(dateObj.getTime())) {
+
+                        // Extract Name using mapping if missing
+                        let resolvedName = d.clientName || d.userName;
+                        if (!resolvedName && d.clientId) {
+                            resolvedName = allUsersMap.get(d.clientId);
+                        }
+                        if (!resolvedName && d.userId) {
+                            resolvedName = allUsersMap.get(d.userId);
+                        }
+
                         activityFeed.push({
                             id: `b-${doc.id}`,
-                            name: d.clientName || d.userName || "Client",
-                            detail: `Booked ${d.serviceType || d.sessionType || "a session"}`,
+                            name: resolvedName || "Unknown Client",
+                            detail: `Booked ${d.serviceType || d.sessionType || d.service || "a session"}`,
                             time: timeAgo(dateObj),
                             timestamp: dateObj.getTime()
                         });

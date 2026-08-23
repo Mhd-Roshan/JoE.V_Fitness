@@ -13,6 +13,7 @@ interface TrainerCard {
     id: string;
     fullName: string;
     initials: string;
+    photoURL: string | null; // Added photoURL
     designation: string;
     yearsExperience: number;
     status: string;
@@ -40,6 +41,7 @@ interface UserData {
     trainerId?: string;
     assignedTrainer?: string;
     assignedTrainerId?: string;
+    photoURL?: string | null; // Added photoURL
 }
 
 interface TrainerProfileData {
@@ -47,6 +49,7 @@ interface TrainerProfileData {
     designation?: string;
     yearsExperience?: number;
     status?: string;
+    photoURL?: string | null; // Added photoURL
 }
 
 interface SessionData {
@@ -166,10 +169,14 @@ export default function Trainers() {
                     const name = trainer.fullName || "Unnamed Trainer";
                     const initials = name.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
 
+                    // Get photo URL from either the users doc or trainers doc
+                    const photoURL = trainer.photoURL || tProfile.photoURL || null;
+
                     return {
                         id: trainer.id,
                         fullName: name,
                         initials: initials || "TR",
+                        photoURL: photoURL,
                         designation: tProfile.designation || "Personal Trainer",
                         yearsExperience: tProfile.yearsExperience || 0,
                         status: tProfile.status || "Active",
@@ -287,7 +294,18 @@ export default function Trainers() {
                         <div key={t.id} className="trainer-card">
                             <div className="trainer-card-top">
                                 <div className="trainer-profile-section">
-                                    <div className="trainer-avatar-circle">{t.initials}</div>
+                                    {/* PHOTO OR INITIALS */}
+                                    {t.photoURL ? (
+                                        <img
+                                            src={t.photoURL}
+                                            alt={t.fullName}
+                                            className="trainer-avatar-circle"
+                                            style={{ objectFit: 'cover' }}
+                                        />
+                                    ) : (
+                                        <div className="trainer-avatar-circle">{t.initials}</div>
+                                    )}
+
                                     <div className="trainer-info">
                                         <div className="trainer-name">{t.fullName}</div>
                                         <div className="trainer-designation">

@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/trainerProfile.css";
+import "../styles/sessions.css";
 
 interface TrainerDetails {
     id: string;
     fullName: string;
     initials: string;
+    photoURL: string | null;
     designation: string;
     yearsExperience: number;
     phone: string;
@@ -42,12 +44,16 @@ interface DaySummary {
     completedSessions: number;
 }
 
+// Ensure the week starts perfectly at midnight (Monday start)
 function getStartOfWeek(date: Date) {
     const d = new Date(date);
-    const day = d.getDay(),
-        diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
     return new Date(d.setDate(diff));
 }
+
+const PAGE_SIZE = 5;
 
 export default function TrainerProfile() {
     const { id } = useParams<{ id: string }>();
@@ -66,26 +72,31 @@ export default function TrainerProfile() {
     const [viewMode, setViewMode] = useState<"week" | "day">("week");
     const [selectedDate, setSelectedDate] = useState<string>("");
 
+    const [page, setPage] = useState(1);
+
     useEffect(() => {
         if (!id) return;
 
         async function loadData() {
             try {
+                // 1. Get Trainer User Doc
                 const userDoc = await getDoc(doc(db, "users", id!));
                 const userData = userDoc.exists() ? userDoc.data() : {};
 
-                const trainerQuery = await getDocs(
-                    query(collection(db, "trainers"), where("trainerId", "==", id))
-                );
-                const trainerData = trainerQuery.docs[0]?.data() ?? {};
+                // 2. Get Trainer Profile Doc
+                const trainersSnap = await getDocs(collection(db, "trainers"));
+                const trainerDoc = trainersSnap.docs.find(d => d.data().trainerId === id || d.id === id);
+                const trainerData = trainerDoc ? trainerDoc.data() : {};
 
-                const fullName = userData.fullName || "Unknown Trainer";
+                const fullName = userData.fullName || trainerData.fullName || "Unknown Trainer";
                 const initials = fullName.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase();
+                const photoURL = userData.photoURL || trainerData.photoURL || null;
 
                 setTrainer({
                     id: id!,
                     fullName,
                     initials,
+                    photoURL,
                     designation: trainerData.designation || "Senior Trainer",
                     yearsExperience: trainerData.yearsExperience || 0,
                     phone: userData.phone || "+91 —",
@@ -93,37 +104,45 @@ export default function TrainerProfile() {
                     certifications: trainerData.certifications || [],
                 });
 
+                // 3. Generate the 7 days of the current week
                 const today = new Date();
+                today.setHours(0, 0, 0, 0);
                 const startOfWeek = getStartOfWeek(today);
                 const daysArray: DaySummary[] = [];
 
                 for (let i = 0; i < 7; i++) {
                     const d = new Date(startOfWeek);
                     d.setDate(d.getDate() + i);
+
+                    // Format strictly as YYYY-MM-DD local time
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const dayNum = String(d.getDate()).padStart(2, '0');
+                    const dateStr = `${y}-${m}-${dayNum}`;
+
                     daysArray.push({
-                        dateStr: d.toISOString().split("T")[0],
+                        dateStr,
                         dayName: d.toLocaleDateString("en-US", { weekday: "short" }),
-                        dayNum: d.toLocaleDateString("en-US", { day: "2-digit" }),
+                        dayNum: dayNum,
                         totalSessions: 0,
                         completedSessions: 0,
                     });
                 }
 
-                const startStr = daysArray[0].dateStr;
-                const endStr = daysArray[6].dateStr;
+                const todayY = today.getFullYear();
+                const todayM = String(today.getMonth() + 1).padStart(2, '0');
+                const todayD = String(today.getDate()).padStart(2, '0');
+                const todayStr = `${todayY}-${todayM}-${todayD}`;
 
-                const todayStr = today.toISOString().split("T")[0];
                 const isTodayInWeek = daysArray.some(d => d.dateStr === todayStr);
-                setSelectedDate(isTodayInWeek ? todayStr : startStr);
+                setSelectedDate(isTodayInWeek ? todayStr : daysArray[0].dateStr);
 
-                const sessionsSnap = await getDocs(
-                    query(
-                        collection(db, "sessions"),
-                        where("trainerId", "==", id),
-                        where("scheduledDate", ">=", startStr),
-                        where("scheduledDate", "<=", endStr)
-                    )
-                );
+                // 4. Fetch Users mapping for Client Names
+                const allUsersSnap = await getDocs(collection(db, "users"));
+                const usersMap = new Map(allUsersSnap.docs.map(d => [d.id, d.data().fullName]));
+
+                // 5. Fetch ALL sessions and filter perfectly in-memory
+                const sessionsSnap = await getDocs(collection(db, "sessions"));
 
                 const loadedSessions: SessionData[] = [];
                 const uniqueClients = new Set<string>();
@@ -133,37 +152,56 @@ export default function TrainerProfile() {
                 for (const docSnap of sessionsSnap.docs) {
                     const data = docSnap.data();
 
-                    let clientName = data.clientName;
+                    // Ensure this session belongs to THIS trainer
+                    const isMatch = data.trainerId === id || data.trainerName === fullName || data.trainer === fullName;
+                    if (!isMatch) continue;
+
+                    // Parse Date accurately (Handle Timestamp, string, etc.)
+                    let dateObj: Date | null = null;
+                    const rawDate = data.scheduledDate || data.date || data.sessionDate || data.createdAt;
+                    if (rawDate) {
+                        if (typeof rawDate.toDate === "function") dateObj = rawDate.toDate();
+                        else dateObj = new Date(rawDate);
+                    }
+                    if (!dateObj || isNaN(dateObj.getTime())) continue;
+
+                    // Convert session date to matching YYYY-MM-DD
+                    const sY = dateObj.getFullYear();
+                    const sM = String(dateObj.getMonth() + 1).padStart(2, '0');
+                    const sD = String(dateObj.getDate()).padStart(2, '0');
+                    const sessionDateStr = `${sY}-${sM}-${sD}`;
+
+                    // Check if the session falls in the current week we generated
+                    const dayObj = daysArray.find(d => d.dateStr === sessionDateStr);
+                    if (!dayObj) continue; // Skip if it's from a different week
+
+                    let clientName = data.clientName || data.client;
                     if (!clientName && data.clientId) {
-                        const clientDoc = await getDoc(doc(db, "users", data.clientId));
-                        if (clientDoc.exists()) clientName = clientDoc.data().fullName;
+                        clientName = usersMap.get(data.clientId);
                     }
 
-                    if (data.clientId) uniqueClients.add(data.clientId);
-
-                    const isCompleted = data.status === "completed" || data.status === "Complete" || data.status === "Done";
+                    const isCompleted = ["completed", "complete", "done"].includes((data.status || "").toLowerCase());
 
                     loadedSessions.push({
                         id: docSnap.id,
-                        scheduledDate: data.scheduledDate,
-                        scheduledTime: data.scheduledTime || "TBD",
+                        scheduledDate: sessionDateStr,
+                        scheduledTime: data.scheduledTime || data.time || "—",
                         clientName: clientName || "Unknown Client",
                         area: data.area || "—",
                         service: data.serviceType || data.service || "—",
-                        status: isCompleted ? "Done" : "Pending",
-                        notes: data.notes || "",
+                        status: isCompleted ? "Done" : (data.status || "Upcoming"),
+                        notes: data.notes || data.sessionNotes || data.trainerNotes || "",
                     });
 
-                    const dayObj = daysArray.find(d => d.dateStr === data.scheduledDate);
-                    if (dayObj) {
-                        dayObj.totalSessions += 1;
-                        if (isCompleted) dayObj.completedSessions += 1;
-                    }
+                    dayObj.totalSessions += 1;
+                    if (isCompleted) dayObj.completedSessions += 1;
 
+                    if (data.clientId) uniqueClients.add(data.clientId);
                     totalSess++;
                     if (isCompleted) doneSess++;
                 }
 
+                // Sort by Date, then by Time
                 loadedSessions.sort((a, b) => {
                     if (a.scheduledDate === b.scheduledDate) {
                         return a.scheduledTime.localeCompare(b.scheduledTime);
@@ -191,24 +229,28 @@ export default function TrainerProfile() {
     }, [id]);
 
     if (loading) {
-        return <Layout title="View Profile"><div style={{ padding: "24px" }}>Loading profile...</div></Layout>;
+        return <Layout title="View Profile"><div style={{ padding: "24px", color: "#9ca3af" }}>Loading profile...</div></Layout>;
     }
     if (!trainer) {
         return <Layout title="View Profile"><div style={{ padding: "24px", color: "red" }}>Trainer not found.</div></Layout>;
     }
 
-    const displaySessions = viewMode === "week"
+    const filteredSessions = viewMode === "week"
         ? sessions
         : sessions.filter(s => s.scheduledDate === selectedDate);
+
+    // Pagination logic
+    const totalPages = Math.max(1, Math.ceil(filteredSessions.length / PAGE_SIZE));
+    const pageRows = filteredSessions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     const weekStartFormat = weekDays[0] ? new Date(weekDays[0].dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric" }) : "";
     const weekEndFormat = weekDays[6] ? new Date(weekDays[6].dateStr).toLocaleDateString("en-US", { day: "numeric", year: "numeric" }) : "";
 
     let dayHeaderStr = "";
     if (viewMode === "day" && selectedDate) {
-        const d = new Date(selectedDate);
-        const dateStr = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-        dayHeaderStr = dateStr;
+        // Prevent JS from shifting timezone back 1 day by appending T00:00:00
+        const d = new Date(`${selectedDate}T00:00:00`);
+        dayHeaderStr = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     }
 
     return (
@@ -223,7 +265,19 @@ export default function TrainerProfile() {
             {/* Blue Info Banner */}
             <div className="tp-banner-card">
                 <div className="tp-banner-left">
-                    <div className="tp-avatar">{trainer.initials}</div>
+
+                    {/* conditionally render image or initials */}
+                    {trainer.photoURL ? (
+                        <img
+                            src={trainer.photoURL}
+                            alt={trainer.fullName}
+                            className="tp-avatar"
+                            style={{ objectFit: 'cover' }}
+                        />
+                    ) : (
+                        <div className="tp-avatar">{trainer.initials}</div>
+                    )}
+
                     <div className="tp-info">
                         <h2 className="tp-name">{trainer.fullName}</h2>
                         <p className="tp-subtitle">
@@ -276,13 +330,19 @@ export default function TrainerProfile() {
                 <div className="tp-toggle-group">
                     <button
                         className={`tp-toggle-btn ${viewMode === "week" ? "active" : ""}`}
-                        onClick={() => setViewMode("week")}
+                        onClick={() => {
+                            setViewMode("week");
+                            setPage(1); // Safely reset page on click
+                        }}
                     >
                         <i className="bx bx-calendar-event" /> Week View
                     </button>
                     <button
                         className={`tp-toggle-btn ${viewMode === "day" ? "active" : ""}`}
-                        onClick={() => setViewMode("day")}
+                        onClick={() => {
+                            setViewMode("day");
+                            setPage(1); // Safely reset page on click
+                        }}
                     >
                         <i className="bx bx-file" /> Day View
                     </button>
@@ -300,6 +360,7 @@ export default function TrainerProfile() {
                                 onClick={() => {
                                     setViewMode("day");
                                     setSelectedDate(day.dateStr);
+                                    setPage(1); // Safely reset page on click
                                 }}
                             >
                                 <div className="tp-day-header">
@@ -321,126 +382,118 @@ export default function TrainerProfile() {
                 </div>
             </div>
 
-            {/* Schedule Header */}
-            <div className="tp-schedule-container">
-                <div className="tp-schedule-header">
-                    <h3 className="tp-schedule-title">
+            {/* NEW STANDARD SESSIONS TABLE */}
+            <div className="sessions-table-card" style={{ marginTop: "24px" }}>
+
+                {/* TABLE HEADER */}
+                <div className="sessions-table-header">
+                    <h3 className="sessions-table-title">
                         {viewMode === "week"
-                            ? `Full Schedule - Week, ${weekStartFormat} -${weekEndFormat.split(",")[0]} ${weekEndFormat.split(",")[1]}`
+                            ? `Full Schedule - Week, ${weekStartFormat} - ${weekEndFormat}`
                             : `Full Schedule - ${dayHeaderStr}`
                         }
                     </h3>
-                    <button className="tp-outline-btn">
-                        <i className="bx bx-calendar" style={{ fontSize: '16px' }} /> All Sessions
+                    <button
+                        className="sessions-action-btn"
+                        onClick={() => navigate('/sessions')}
+                        style={{ border: "none", color: "#00225d", display: "flex", alignItems: "center", gap: "6px", fontWeight: "700" }}
+                    >
+                        <i className="bx bx-calendar" /> All Sessions
                     </button>
                 </div>
 
-                {displaySessions.length === 0 ? (
-                    <div className="tp-empty-state">No sessions scheduled for this period.</div>
-                ) : (
-                    <>
-                        {/* =========================================
-                            WEEK VIEW (Solid Table layout)
-                        ========================================= */}
-                        {viewMode === "week" && (
-                            <div className="tp-table-card">
-                                <div className="tp-table-responsive">
-                                    <table className="tp-table">
-                                        <thead>
-                                            <tr>
-                                                <th>DAY</th>
-                                                <th>TIME</th>
-                                                <th>USER</th>
-                                                <th>AREA</th>
-                                                <th>SERVICE</th>
-                                                <th>STATUS</th>
-                                                <th>NOTES</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {displaySessions.map((session, index) => {
-                                                const showDateGroup = index === 0 || displaySessions[index - 1].scheduledDate !== session.scheduledDate;
-                                                const d = new Date(session.scheduledDate);
-                                                const displayDay = d.toLocaleDateString("en-US", { weekday: "short" });
-                                                const displayNum = d.toLocaleDateString("en-US", { day: "numeric" });
-                                                const displayMonth = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                {/* TABLE */}
+                <div style={{ overflowX: "auto" }}>
+                    <table className="sessions-table">
+                        <thead>
+                            <tr>
+                                <th>TIME</th>
+                                <th>CLIENT</th>
+                                <th>AREA</th>
+                                <th>SERVICE</th>
+                                <th>STATUS</th>
+                                <th>NOTES</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pageRows.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} style={{ textAlign: "center", color: "#94a3b8", padding: "32px" }}>
+                                        No sessions scheduled for this period.
+                                    </td>
+                                </tr>
+                            ) : (
+                                pageRows.map((row) => {
+                                    const statusLower = row.status.toLowerCase();
+                                    const statusClass =
+                                        (statusLower === "done" || statusLower === "completed") ? "done" :
+                                            statusLower === "live" ? "live" : "upcoming";
 
-                                                // Pattern styling like in the image
-                                                const borderClass = (index % 2 === 0) ? "border-blue" : "border-red";
-
-                                                return (
-                                                    <tr key={session.id}>
-                                                        <td className="tp-cell-day">
-                                                            {showDateGroup && (
-                                                                <div className={`tp-day-group ${borderClass}`}>
-                                                                    <div className="tp-day-group-main">{displayDay} {displayNum}</div>
-                                                                    <div className="tp-day-group-sub">{displayMonth}</div>
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="tp-mono-text">{session.scheduledTime}</td>
-                                                        <td className="tp-bold-text">{session.clientName}</td>
-                                                        <td className="tp-area-text">{session.area}</td>
-                                                        <td className="tp-service-text">{session.service}</td>
-                                                        <td>
-                                                            <span className={`tp-status-pill ${session.status === "Done" ? "done" : "pending"}`}>
-                                                                {session.status}
-                                                            </span>
-                                                        </td>
-                                                        <td className="tp-notes-cell">{session.notes || "—"}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* =========================================
-                            DAY VIEW (Separated Cards Layout)
-                        ========================================= */}
-                        {viewMode === "day" && (
-                            <div className="tp-day-view-wrapper">
-                                <div className="tp-day-header-row tp-grid-6">
-                                    <div>TIME</div>
-                                    <div>USER</div>
-                                    <div>AREA</div>
-                                    <div>SERVICE</div>
-                                    <div>STATUS</div>
-                                    <div>NOTES</div>
-                                </div>
-
-                                <div className="tp-day-cards-list">
-                                    {displaySessions.map((session) => (
-                                        <div key={session.id} className="tp-day-card-row tp-grid-6">
-                                            <div className="tp-mono-text">{session.scheduledTime}</div>
-                                            <div className="tp-bold-text">{session.clientName}</div>
-                                            <div className="tp-area-text">{session.area}</div>
-                                            <div className="tp-service-text">{session.service}</div>
-                                            <div>
-                                                <span className={`tp-status-pill ${session.status === "Done" ? "done" : "pending"}`}>
-                                                    {session.status}
+                                    return (
+                                        <tr key={row.id}>
+                                            <td className="sessions-mono" style={{ color: statusLower === 'live' || row.scheduledTime.includes('10:00') ? '#bb0013' : 'inherit' }}>
+                                                {/* In week view, stack the date above the time. In day view, just show time. */}
+                                                {viewMode === "week" && row.scheduledDate ? (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                                        <span style={{ fontSize: '10px', color: '#808080', textTransform: 'uppercase' }}>
+                                                            {new Date(`${row.scheduledDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                        </span>
+                                                        <span>{row.scheduledTime}</span>
+                                                    </div>
+                                                ) : (
+                                                    row.scheduledTime
+                                                )}
+                                            </td>
+                                            <td className="sessions-bold">{row.clientName}</td>
+                                            <td>{row.area}</td>
+                                            <td>
+                                                <span className="sessions-service-pill">
+                                                    {row.service}
                                                 </span>
-                                            </div>
-                                            <div className="tp-notes-cell">{session.notes || "—"}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                                            </td>
+                                            <td>
+                                                <span className={`sessions-status-pill ${statusClass}`}>
+                                                    {statusLower === "live" && <div className="live-dot"></div>}
+                                                    {row.status === "completed" || row.status === "Complete" ? "Done" : row.status}
+                                                </span>
+                                            </td>
+                                            <td style={{ color: "#808080", fontSize: "13px" }}>
+                                                {row.notes || "—"}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
 
-                        {/* Pagination Footer */}
-                        <div className="tp-pagination">
-                            <span className="tp-page-info">
-                                Showing 1 to {displaySessions.length} of {viewMode === "week" ? "weekly" : "daily"} sessions
-                            </span>
-                            <div className="tp-page-controls">
-                                <button><i className="bx bx-chevron-left" /></button>
-                                <button><i className="bx bx-chevron-right" /></button>
-                            </div>
+                {/* TABLE FOOTER (PAGINATION) */}
+                {filteredSessions.length > 0 && (
+                    <div className="sessions-table-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>
+                            Showing {pageRows.length} of {filteredSessions.length} {viewMode === "week" ? "weekly" : "daily"} sessions
+                        </span>
+
+                        <div style={{ display: "flex", gap: "8px" }}>
+                            <button
+                                disabled={page === 1}
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                className="sessions-action-btn"
+                                style={{ opacity: page === 1 ? 0.5 : 1 }}
+                            >
+                                <i className="bx bx-chevron-left" style={{ fontSize: '16px', verticalAlign: 'middle' }} />
+                            </button>
+                            <button
+                                disabled={page === totalPages}
+                                onClick={() => setPage((p) => Math.max(totalPages, p + 1))}
+                                className="sessions-action-btn"
+                                style={{ opacity: page === totalPages ? 0.5 : 1 }}
+                            >
+                                <i className="bx bx-chevron-right" style={{ fontSize: '16px', verticalAlign: 'middle' }} />
+                            </button>
                         </div>
-                    </>
+                    </div>
                 )}
             </div>
         </Layout>

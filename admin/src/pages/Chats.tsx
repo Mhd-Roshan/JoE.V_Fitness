@@ -12,18 +12,19 @@ import {
     limit,
     where,
     getDocs,
-    getDoc
+    getDoc,
+    writeBatch
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import Layout from "../components/Layout";
-import EmojiPicker, { Theme } from "emoji-picker-react"; // Import Theme for cleaner UI
+import EmojiPicker, { Theme } from "emoji-picker-react";
 import "../styles/chats.css";
 
 // ------------------------------------------------------------------
 // Types
 // ------------------------------------------------------------------
 interface ThreadRow {
-    id: string; // clientId
+    id: string;
     clientName: string;
     photoURL: string | null;
     lastMessage: string;
@@ -41,6 +42,12 @@ interface MessageRow {
         name?: string;
         subtitle?: string;
         url?: string;
+        pdfUrl?: string;
+        imageURL?: string;
+        protein?: number;
+        fat?: number;
+        carbs?: number;
+        calories?: number;
     };
     createdAt: string;
 }
@@ -59,6 +66,7 @@ interface DietTemplate {
     id: string;
     name: string;
     subtitle: string;
+    url?: string;
 }
 
 // ------------------------------------------------------------------
@@ -110,16 +118,13 @@ export default function Chats() {
 
     // UI & Modal States
     const [showMobileChat, setShowMobileChat] = useState(false);
-    const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [showDietModal, setShowDietModal] = useState(false);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [dietTemplates, setDietTemplates] = useState<DietTemplate[]>([]);
 
     const scrollRef = useRef<HTMLDivElement>(null);
-    const attachMenuRef = useRef<HTMLDivElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
 
-    // Dynamic extraction of shared files
     const sharedFiles = messages
         .filter(m => m.attachment && m.attachment.name)
         .map(m => ({
@@ -130,12 +135,8 @@ export default function Chats() {
         }))
         .reverse();
 
-    // Close menus on click outside
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
-            if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
-                setShowAttachMenu(false);
-            }
             if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
                 setShowEmojiPicker(false);
             }
@@ -174,11 +175,7 @@ export default function Chats() {
     // 2. Fetch Live Messages
     useEffect(() => {
         if (!selectedId) return;
-        const q = query(
-            collection(db, "chatThreads", selectedId, "messages"),
-            orderBy("createdAt", "asc"),
-            limit(200)
-        );
+        const q = query(collection(db, "chatThreads", selectedId, "messages"), orderBy("createdAt", "asc"), limit(200));
         const unsub = onSnapshot(q, (snap) => {
             setMessages(
                 snap.docs.map((d) => {
@@ -229,10 +226,7 @@ export default function Chats() {
                 if (assessDocSnap.exists()) assessData = assessDocSnap.data();
                 else if (!assessUserSnap.empty) assessData = assessUserSnap.docs[0].data();
 
-                const possibleSources = [
-                    userData, profileData, assessData,
-                    userData.personalInfo, assessData.fitnessGoals, profileData.personalInfo
-                ];
+                const possibleSources = [userData, profileData, assessData, userData.personalInfo, assessData.fitnessGoals, profileData.personalInfo];
 
                 const goal = extractDataAggressively(possibleSources, ['primaryGoal', 'goal', 'fitnessGoal', 'goals']) || "Not Set";
 
@@ -252,16 +246,13 @@ export default function Chats() {
 
                 const initials = fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
                 const dietName = dietSnap.empty ? null : (dietSnap.docs[0].data().templateName as string);
+                const fetchedPhotoURL = (userData.photoURL as string) || null;
 
-                setClientPanel({
-                    fullName,
-                    initials,
-                    photoURL: (userData.photoURL as string) || null,
-                    primaryGoal: goal,
-                    dietPlanName: dietName,
-                    weight: currentWeight,
-                    bodyFat: currentBf,
-                });
+                if (threadFallback && fullName !== "Unknown Client" && fullName !== threadFallback.clientName) {
+                    updateDoc(doc(db, "chatThreads", selectedId!), { clientName: fullName, clientPhotoURL: fetchedPhotoURL }).catch(console.error);
+                }
+
+                setClientPanel({ fullName, initials, photoURL: fetchedPhotoURL, primaryGoal: goal, dietPlanName: dietName, weight: currentWeight, bodyFat: currentBf });
 
             } catch (err) {
                 console.error("Client panel load error:", err);
@@ -275,6 +266,28 @@ export default function Chats() {
     // ------------------------------------------------------------------
     // Actions
     // ------------------------------------------------------------------
+
+    async function handleDeleteChat() {
+        if (!selectedId) return;
+        const confirmDelete = window.confirm("Are you sure you want to delete this entire conversation? This action cannot be undone.");
+        if (!confirmDelete) return;
+
+        try {
+            const batch = writeBatch(db);
+            const msgsSnap = await getDocs(collection(db, "chatThreads", selectedId, "messages"));
+            msgsSnap.forEach(docSnap => batch.delete(docSnap.ref));
+            batch.delete(doc(db, "chatThreads", selectedId));
+            await batch.commit();
+
+            setSelectedId(null);
+            setShowMobileChat(false);
+            setMessages([]);
+        } catch (err) {
+            console.error("Failed to delete chat:", err);
+            alert("An error occurred while deleting the chat.");
+        }
+    }
+
     async function handleSendText() {
         if (!draft.trim() || !selectedId) return;
         const text = draft.trim();
@@ -299,37 +312,88 @@ export default function Chats() {
     }
 
     async function handleOpenDietModal() {
-        setShowAttachMenu(false);
         try {
             const snap = await getDocs(collection(db, "dietPlanTemplates"));
-            setDietTemplates(snap.docs.map(d => ({
-                id: d.id,
-                name: d.data().name || "Untitled",
-                subtitle: d.data().subtitle || "Custom Diet Plan"
-            })));
+            setDietTemplates(snap.docs.map(d => {
+                const data = d.data();
+                return {
+                    id: d.id,
+                    name: data.name || data.templateName || "Untitled",
+                    subtitle: data.subtitle || data.description || "Custom Diet Plan",
+                    url: data.pdfUrl || data.fileUrl || data.url || ""
+                };
+            }));
             setShowDietModal(true);
         } catch (error) {
             console.error("Failed to load templates:", error);
         }
     }
 
+    // --- CLEAN DIET PLAN SENDER ---
     async function handleSendDietPlan(template: DietTemplate) {
         if (!selectedId) return;
         setShowDietModal(false);
 
         try {
+            // 1. Fetch template data
+            const tplSnap = await getDoc(doc(db, "dietPlanTemplates", template.id));
+            const tplData = tplSnap.exists() ? tplSnap.data() : {};
+
+            // 2. Fetch meals safely
+            let meals: Record<string, unknown>[] = [];
+            if (Array.isArray(tplData.meals) && tplData.meals.length > 0) {
+                meals = tplData.meals;
+            } else if (Array.isArray(tplData.schedule) && tplData.schedule.length > 0) {
+                meals = tplData.schedule;
+            } else {
+                const mealsSnap = await getDocs(collection(db, "dietPlanTemplates", template.id, "meals"));
+                meals = mealsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            }
+
+            // 3. Fallbacks for Image & Macros
+            let finalImageUrl = (tplData?.imageURL || tplData?.imageUrl || "") as string;
+            if (!finalImageUrl && meals.length > 0) {
+                const mealWithImage = meals.find((m) => m.imageURL || m.imageUrl || m.image);
+                if (mealWithImage) {
+                    finalImageUrl = (mealWithImage.imageURL || mealWithImage.imageUrl || mealWithImage.image || "") as string;
+                }
+            }
+
+            let p = Number(tplData?.protein) || 0;
+            let f = Number(tplData?.fat || tplData?.fats) || 0;
+            let c = Number(tplData?.netCarbsLimit || tplData?.carbs) || 0;
+            let totalCals = Number(tplData?.calories) || 0;
+
+            if (p === 0 && f === 0 && c === 0) {
+                meals.forEach((m) => {
+                    p += Number(m.protein || m.p || 0);
+                    f += Number(m.fat || m.fats || m.f || 0);
+                    c += Number(m.carbs || m.c || 0);
+                    totalCals += Number(m.calories || m.cals || 0);
+                });
+            }
+
+            // 4. Send message as a clean diet_plan attachment (Clean text, no markdown table)
             await addDoc(collection(db, "chatThreads", selectedId, "messages"), {
                 senderRole: "admin",
                 senderId: auth.currentUser?.uid ?? null,
-                text: "",
+                text: `Shared Diet Plan: ${template.name}`,
                 type: "diet_plan",
                 attachment: {
                     templateId: template.id,
                     name: template.name,
-                    subtitle: template.subtitle
+                    subtitle: template.subtitle || tplData?.description || "Optimized nutritional protocol for peak performance and recovery.",
+                    url: template.url || "",
+                    pdfUrl: template.url || "",
+                    imageURL: finalImageUrl,
+                    protein: p,
+                    fat: f,
+                    carbs: c,
+                    calories: totalCals
                 },
                 createdAt: serverTimestamp(),
             });
+
             await updateDoc(doc(db, "chatThreads", selectedId), {
                 lastMessage: `Shared Diet Plan: ${template.name}`,
                 lastMessageAt: serverTimestamp(),
@@ -341,6 +405,9 @@ export default function Chats() {
 
     const filteredThreads = threads.filter((t) => t.clientName.toLowerCase().includes(threadSearch.toLowerCase()));
     const selectedThread = threads.find((t) => t.id === selectedId);
+
+    const currentChatName = clientPanel?.fullName || selectedThread?.clientName || "Unknown Client";
+    const currentChatPhoto = clientPanel?.photoURL || selectedThread?.photoURL;
 
     return (
         <Layout title="Chats">
@@ -433,23 +500,35 @@ export default function Chats() {
                                 >
                                     <i className="bx bx-chevron-left"></i>
                                 </button>
+
                                 <div className="thread-avatar-wrapper" style={{ width: 42, height: 42 }}>
-                                    {selectedThread.photoURL ? (
-                                        <img src={selectedThread.photoURL} alt="Client" className="thread-avatar" />
+                                    {currentChatPhoto ? (
+                                        <img src={currentChatPhoto} alt="Client" className="thread-avatar" />
                                     ) : (
                                         <div className="thread-avatar">
-                                            {selectedThread.clientName.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()}
+                                            {currentChatName.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()}
                                         </div>
                                     )}
                                 </div>
                                 <div className="chat-header-info">
-                                    <div className="chat-header-name">{selectedThread.clientName}</div>
+                                    <div className="chat-header-name">{currentChatName}</div>
                                     <div className="chat-header-status">
                                         <i className="bx bxs-circle"></i> Active Now
                                     </div>
                                 </div>
+
                                 <div className="chat-header-actions">
-                                    <button title="View Profile" onClick={() => navigate(`/users/${selectedId}`)}>
+                                    <button
+                                        className="chat-delete-btn"
+                                        title="Delete Chat"
+                                        onClick={handleDeleteChat}
+                                    >
+                                        <i className="bx bx-trash"></i>
+                                    </button>
+                                    <button
+                                        title="View Profile"
+                                        onClick={() => navigate(`/users/${selectedId}`)}
+                                    >
                                         <i className="bx bx-user-circle"></i>
                                     </button>
                                 </div>
@@ -461,38 +540,56 @@ export default function Chats() {
 
                                 {messages.map((m, index) => {
                                     const isLast = index === messages.length - 1 || messages[index + 1].senderRole !== m.senderRole;
+
+                                    // 🔥 DETECT DIET PLAN (Check type, keyword, or attachment)
+                                    const isDietPlan = m.type === "diet_plan" ||
+                                        m.text.includes("**DIET PLAN") ||
+                                        m.text.toLowerCase().includes("shared diet plan") ||
+                                        m.attachment != null;
+
+                                    const formattedText = m.text.split('\n').map((item, key) => (
+                                        <span key={key}>{item}<br /></span>
+                                    ));
+
                                     return (
                                         <div
                                             key={m.id}
                                             className={`message-row ${m.senderRole === "admin" ? "sent" : "received"} ${isLast ? 'last-in-group' : ''}`}
                                         >
-                                            {m.type === "text" && (
-                                                <div className="message-bubble-wrapper">
-                                                    <div className="message-bubble">{m.text}</div>
-                                                    {isLast && <div className="message-time">{m.createdAt}</div>}
-                                                </div>
-                                            )}
-
-                                            {m.type === "diet_plan" && m.attachment && (
-                                                <div className="message-bubble-wrapper">
-                                                    <div className="diet-attachment-card">
-                                                        <div className="diet-att-icon"><i className="bx bx-restaurant"></i></div>
-                                                        <div className="diet-att-info">
-                                                            <div className="diet-att-label">NEW DIET SHARED</div>
-                                                            <h4 className="diet-att-title">{m.attachment.name}</h4>
-                                                            <div className="diet-att-sub">{m.attachment.subtitle}</div>
+                                            <div className="message-bubble-wrapper">
+                                                {/* ONLY render the clean card. NEVER render the blue text bubble for diet plans */}
+                                                {isDietPlan ? (
+                                                    <div className="diet-attachment-card" style={{ marginTop: 4, padding: 14, width: 280, borderRadius: 16 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                                            <div className="diet-att-icon"><i className="bx bx-restaurant"></i></div>
+                                                            <div className="diet-att-info" style={{ overflow: 'hidden' }}>
+                                                                <div className="diet-att-label" style={{ fontSize: 10 }}>ATTACHED DIET TEMPLATE</div>
+                                                                <h4 className="diet-att-title" style={{ fontSize: 15, margin: '2px 0 0 0', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                                                    {m.attachment?.name || (m.text.match(/\*\*DIET PLAN:\s*([^*]+)\*\*/)?.[1]?.trim()) || "Diet Plan"}
+                                                                </h4>
+                                                            </div>
                                                         </div>
                                                         <button
                                                             className="diet-att-btn"
                                                             title="View Plan"
-                                                            onClick={() => navigate(`/diet-plans/view/${m.attachment?.templateId}`)}
+                                                            style={{ marginTop: 12, width: '100%', borderRadius: 8, padding: '8px 0', height: 'auto', fontSize: 13, fontWeight: 600 }}
+                                                            onClick={() => {
+                                                                const tId = m.attachment?.templateId;
+                                                                if (tId) navigate(`/diet-plans/view/${tId}`);
+                                                                else navigate('/diet-plans');
+                                                            }}
                                                         >
-                                                            <i className="bx bx-right-arrow-alt"></i>
+                                                            View Plan in Library
                                                         </button>
                                                     </div>
-                                                    {isLast && <div className="message-time">{m.createdAt} • Delivered</div>}
-                                                </div>
-                                            )}
+                                                ) : (
+                                                    <div className="message-bubble" style={{ whiteSpace: "pre-line" }}>
+                                                        {formattedText}
+                                                    </div>
+                                                )}
+
+                                                {isLast && <div className="message-time">{m.createdAt} {m.senderRole === 'admin' ? '• Delivered' : ''}</div>}
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -500,27 +597,14 @@ export default function Chats() {
 
                             {/* Chat Input Area */}
                             <div className="chat-input-container">
-                                <div className="attachment-wrapper" ref={attachMenuRef}>
-                                    <button
-                                        className={`chat-action-btn ${showAttachMenu ? 'active' : ''}`}
-                                        onClick={() => setShowAttachMenu(!showAttachMenu)}
-                                    >
-                                        <i className="bx bx-plus-circle"></i>
-                                    </button>
-
-                                    {showAttachMenu && (
-                                        <div className="attach-popover">
-                                            <button onClick={handleOpenDietModal}>
-                                                <div className="pop-icon diet"><i className="bx bx-food-menu"></i></div>
-                                                <span>Share Diet Plan</span>
-                                            </button>
-                                            <button onClick={() => setShowAttachMenu(false)}>
-                                                <div className="pop-icon doc"><i className="bx bx-file"></i></div>
-                                                <span>Share Document</span>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
+                                {/* Direct Plus Button opening Diet Plan Selection Modal (No Share Document option) */}
+                                <button
+                                    className="chat-action-btn"
+                                    title="Share Diet Plan"
+                                    onClick={handleOpenDietModal}
+                                >
+                                    <i className="bx bx-plus-circle"></i>
+                                </button>
 
                                 <div className="chat-input-wrapper">
                                     <input
@@ -530,10 +614,10 @@ export default function Chats() {
                                         value={draft}
                                         onChange={(e) => setDraft(e.target.value)}
                                         onKeyDown={(e) => e.key === "Enter" && handleSendText()}
-                                        onClick={() => { setShowAttachMenu(false); setShowEmojiPicker(false); }}
+                                        onClick={() => setShowEmojiPicker(false)}
                                     />
 
-                                    {/* Cleaner Emoji Picker */}
+                                    {/* Emoji Picker */}
                                     <div className="emoji-picker-container" ref={emojiPickerRef}>
                                         <button
                                             className="chat-emoji-btn"
@@ -624,7 +708,7 @@ export default function Chats() {
                                 <div className="cp-files-list">
                                     {sharedFiles.length === 0 ? (
                                         <div className="empty-state" style={{ padding: '10px 0' }}>
-                                            <p style={{ fontSize: '12px' }}>No files shared yet.</p>
+                                            <p style={{ fontSize: '12px' }}>No plans shared yet.</p>
                                         </div>
                                     ) : (
                                         sharedFiles.map((f) => (
@@ -634,7 +718,7 @@ export default function Chats() {
                                                 onClick={() => f.templateId && navigate(`/diet-plans/view/${f.templateId}`)}
                                             >
                                                 <div className="file-icon">
-                                                    <i className={f.type === "diet_plan" ? "bx bx-restaurant" : "bx bx-file-blank"}></i>
+                                                    <i className="bx bx-restaurant"></i>
                                                 </div>
                                                 <span className="file-name">{f.name}</span>
                                             </div>

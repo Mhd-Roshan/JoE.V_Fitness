@@ -13,7 +13,7 @@ import 'app_settings_screen.dart';
 import 'trainer_client_reviews_screen.dart';
 import '../auth/login_screen.dart';
 
-// ---> NEW: IMPORT LANGUAGE SERVICE <---
+// ---> IMPORT LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
 
 class TrainerProfileScreen extends StatefulWidget {
@@ -30,14 +30,15 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   bool _isLoading = true;
   String _fullName = '';
   String _designation = '';
-  int _yearsExperience = 0;
+  String _yearsExperience = '0';
   String _phone = '';
   String _email = '';
-  String _area = '';
+  String _specializations = '';
   String _profileImageUrl = '';
   int _clientCount = 0;
   int _totalSessions = 0;
-  String _successRate = '';
+  int _totalWorkouts = 0; // Added Workouts
+  String _rating = '0.0';
   List<Map<String, dynamic>> _feedbacks = [];
 
   @override
@@ -48,33 +49,72 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
 
   Future<void> _loadProfileData() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
+    final userEmail = FirebaseAuth.instance.currentUser?.email;
     if (uid == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
     try {
+      // 1. Fetch User Doc
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
       final userData = userDoc.data() ?? {};
-      final trainerQuery = await FirebaseFirestore.instance
+
+      // 2. Fetch Trainer Profile Doc (Robust Fallback Strategy)
+      Map<String, dynamic> trainerData = {};
+
+      // Attempt A: Direct Document ID
+      final directTrainerDoc = await FirebaseFirestore.instance
           .collection('trainers')
-          .where('trainerId', isEqualTo: uid)
-          .limit(1)
+          .doc(uid)
           .get();
-      final trainerData = trainerQuery.docs.isNotEmpty
-          ? trainerQuery.docs.first.data()
-          : {};
+      if (directTrainerDoc.exists && directTrainerDoc.data() != null) {
+        trainerData = directTrainerDoc.data()!;
+      } else {
+        // Attempt B: Query by userId field
+        final trainerQuery = await FirebaseFirestore.instance
+            .collection('trainers')
+            .where('userId', isEqualTo: uid)
+            .limit(1)
+            .get();
+
+        if (trainerQuery.docs.isNotEmpty) {
+          trainerData = trainerQuery.docs.first.data();
+        } else if (userEmail != null) {
+          // Attempt C: Query by email field
+          final emailQuery = await FirebaseFirestore.instance
+              .collection('trainers')
+              .where('email', isEqualTo: userEmail)
+              .limit(1)
+              .get();
+          if (emailQuery.docs.isNotEmpty) {
+            trainerData = emailQuery.docs.first.data();
+          }
+        }
+      }
+
+      // Fetch Clients Count
       final clientsQuery = await FirebaseFirestore.instance
           .collection('users')
           .where('trainerId', isEqualTo: uid)
           .get();
+
+      // Fetch Sessions Count
       final sessionsQuery = await FirebaseFirestore.instance
           .collection('sessions')
           .where('trainerId', isEqualTo: uid)
           .get();
+
+      // Fetch Workouts Count (Added Workouts Fetch)
+      final workoutsQuery = await FirebaseFirestore.instance
+          .collection('workouts')
+          .where('trainerId', isEqualTo: uid)
+          .get();
+
+      // Fetch Feedbacks
       final feedbackQuery = await FirebaseFirestore.instance
           .collection('feedbacks')
           .where('trainerId', isEqualTo: uid)
@@ -84,40 +124,80 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
 
       if (mounted) {
         setState(() {
+          // STRICT REAL DATA BINDING
           _fullName =
-              userData['fullName'] ??
-              trainerData['fullName'] ??
-              userData['name'] ??
-              'Trainer';
-          _phone = userData['phone'] ?? trainerData['phone'] ?? '—';
+              (trainerData['fullName'] ??
+                      trainerData['name'] ??
+                      userData['fullName'] ??
+                      userData['name'] ??
+                      '')
+                  .toString();
+
+          // Phone Number (Checking multiple common database field names)
+          _phone =
+              (trainerData['phone'] ??
+                      trainerData['phoneNumber'] ??
+                      userData['phone'] ??
+                      userData['phoneNumber'] ??
+                      '')
+                  .toString();
+
+          // Email
           _email =
-              userData['email'] ??
-              FirebaseAuth.instance.currentUser?.email ??
-              '—';
-          _area = trainerData['area'] ?? userData['area'] ?? '—';
+              (trainerData['email'] ?? userData['email'] ?? userEmail ?? '')
+                  .toString();
+
+          // Profile Photo (Checking multiple common database field names)
           _profileImageUrl =
-              trainerData['profileImageUrl'] ??
-              userData['profileImageUrl'] ??
-              '';
+              (trainerData['profileImageUrl'] ??
+                      trainerData['photoURL'] ??
+                      trainerData['image'] ??
+                      trainerData['imageUrl'] ??
+                      userData['profileImageUrl'] ??
+                      userData['photoURL'] ??
+                      '')
+                  .toString();
+
+          // Designation & Experience
           _designation =
-              (trainerData['designation'] ??
-                      userData['designation'] ??
-                      'FITNESS TRAINER')
+              (trainerData['designation'] ?? userData['designation'] ?? '')
                   .toString()
                   .toUpperCase();
           _yearsExperience =
-              trainerData['yearsExperience'] ??
-              userData['yearsExperience'] ??
-              0;
-          _successRate =
-              trainerData['successRate'] ?? userData['successRate'] ?? '100%';
+              (trainerData['yearsExperience'] ??
+                      userData['yearsExperience'] ??
+                      0)
+                  .toString();
+
+          // Safely map specializations (Checking both singular and plural names)
+          final specs =
+              trainerData['specializations'] ??
+              trainerData['specialization'] ??
+              userData['specializations'] ??
+              userData['specialization'];
+          if (specs is List && specs.isNotEmpty) {
+            _specializations = specs.map((e) => e.toString()).join(', ');
+          } else if (specs is String) {
+            _specializations = specs;
+          } else {
+            _specializations = '';
+          }
+
+          // Real Rating logic
+          final ratingVal = trainerData['rating'] ?? 0.0;
+          _rating = ratingVal is double
+              ? ratingVal.toStringAsFixed(1)
+              : ratingVal.toString();
+
           _clientCount = clientsQuery.docs.length;
           _totalSessions = sessionsQuery.docs.length;
+          _totalWorkouts = workoutsQuery.docs.length; // Assign workouts
           _feedbacks = feedbackQuery.docs.map((doc) => doc.data()).toList();
           _isLoading = false;
         });
       }
     } catch (e) {
+      debugPrint("Error loading profile: $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -181,8 +261,6 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final strings = languageService.strings;
-
-    // ---> DYNAMIC THEME COLORS <---
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final brandBlue = Theme.of(context).colorScheme.primary;
 
@@ -202,29 +280,45 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                         const SizedBox(height: 30),
                         _buildProfileHeader(),
                         const SizedBox(height: 24),
+                        // Changed to a 2x2 layout to accommodate Workouts
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: Row(
+                          child: Column(
                             children: [
-                              Expanded(
-                                child: _buildStatCard(
-                                  strings['clients'] ?? 'Clients',
-                                  _clientCount.toString(),
-                                ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      strings['clients'] ?? 'Clients',
+                                      _clientCount.toString(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      strings['sessions'] ?? 'Sessions',
+                                      _totalSessions.toString(),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildStatCard(
-                                  strings['sessions'] ?? 'Sessions',
-                                  _totalSessions.toString(),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildStatCard(
-                                  strings['rate'] ?? 'Rate',
-                                  _successRate,
-                                ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      strings['workouts'] ?? 'Workouts',
+                                      _totalWorkouts.toString(),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildStatCard(
+                                      strings['rating'] ?? 'Rating',
+                                      _rating,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -338,6 +432,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
       initials = parts.first[0].toUpperCase();
       if (parts.length > 1) initials += parts.last[0].toUpperCase();
     }
+
     return Column(
       children: [
         Stack(
@@ -383,32 +478,36 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          _fullName,
+          _fullName.isNotEmpty ? _fullName : 'Trainer Profile',
           style: GoogleFonts.workSans(
             fontSize: 24,
             fontWeight: FontWeight.w800,
             color: textColor,
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          _designation,
-          style: GoogleFonts.workSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            color: subTextColor,
-            letterSpacing: 1.0,
+        if (_designation.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            _designation,
+            style: GoogleFonts.workSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: subTextColor,
+              letterSpacing: 1.0,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '$_yearsExperience Years Professional Experience',
-          style: GoogleFonts.workSans(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: brandBlue,
+        ],
+        if (_yearsExperience != '0' && _yearsExperience.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            '$_yearsExperience Years Professional Experience',
+            style: GoogleFonts.workSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: brandBlue,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -417,7 +516,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
     return Container(
       height: 70,
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor, // Dynamic brand blue
+        color: Theme.of(context).primaryColor,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -448,7 +547,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                 Text(
                   value,
                   style: GoogleFonts.workSans(
-                    color: Colors.white, // Keep white for contrast on blue
+                    color: Colors.white,
                     fontSize: 20,
                     fontWeight: FontWeight.w800,
                   ),
@@ -491,19 +590,19 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
           _buildInfoRow(
             Icons.phone_outlined,
             strings['phone'] ?? 'PHONE',
-            _phone,
+            _phone.isNotEmpty ? _phone : 'Not provided',
           ),
           const SizedBox(height: 20),
           _buildInfoRow(
             Icons.mail_outline_rounded,
             strings['email'] ?? 'EMAIL',
-            _email,
+            _email.isNotEmpty ? _email : 'Not provided',
           ),
           const SizedBox(height: 20),
           _buildInfoRow(
-            Icons.location_on_outlined,
-            strings['primaryArea'] ?? 'PRIMARY AREA',
-            _area,
+            Icons.fitness_center_outlined, // Icon representing specialties
+            strings['specializations'] ?? 'SPECIALIZATIONS',
+            _specializations.isNotEmpty ? _specializations : 'Not provided',
           ),
         ],
       ),
@@ -538,8 +637,12 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                 style: GoogleFonts.workSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: textColor,
+                  color: value == 'Not provided' ? subTextColor : textColor,
+                  fontStyle: value == 'Not provided'
+                      ? FontStyle.italic
+                      : FontStyle.normal,
                 ),
+                maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
             ],
@@ -808,7 +911,7 @@ class _TopHeaderBand extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 45, 20, 15),
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        color: Theme.of(context).primaryColor,
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(24),
           bottomRight: Radius.circular(24),
@@ -898,7 +1001,7 @@ class _TopHeaderBand extends StatelessWidget {
                   children: [
                     const Icon(
                       Icons.notifications_none_rounded,
-                      color: Colors.white, // Fixed to always be white here
+                      color: Colors.white,
                       size: 20,
                     ),
                     if (uid != null)
@@ -964,7 +1067,7 @@ class _BottomNav extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).primaryColor, // Dynamic Brand Blue
+        color: Theme.of(context).primaryColor,
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
@@ -975,9 +1078,7 @@ class _BottomNav extends StatelessWidget {
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: Theme.of(
-          context,
-        ).colorScheme.secondary, // Dynamic cyan
+        selectedItemColor: Theme.of(context).colorScheme.secondary,
         unselectedItemColor: Colors.white,
         selectedLabelStyle: GoogleFonts.workSans(
           fontSize: 11,
