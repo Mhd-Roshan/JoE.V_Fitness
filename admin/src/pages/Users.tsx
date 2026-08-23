@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/users.css";
@@ -15,7 +15,6 @@ interface UserRow {
     status: "Active" | "Due" | "Expired" | "No Subscription";
 }
 
-// Define strict type for Subscription Data to satisfy ESLint
 interface SubData {
     clientId?: string;
     trainerId?: string;
@@ -35,16 +34,14 @@ export default function Users() {
 
         async function loadDataFast() {
             try {
-                // 1. Fetch EVERYTHING at the exact same time (Lightning Fast)
                 const [clientsSnap, trainersSnap, usersSnap, packagesSnap, subsSnap] = await Promise.all([
                     getDocs(query(collection(db, "users"), where("role", "==", "client"))),
                     getDocs(collection(db, "trainers")),
-                    getDocs(query(collection(db, "users"), where("role", "==", "trainer"))), // Just in case trainers are in users
+                    getDocs(query(collection(db, "users"), where("role", "==", "trainer"))),
                     getDocs(collection(db, "packages")),
                     getDocs(collection(db, "subscriptions"))
                 ]);
 
-                // 2. Build Memory Maps for Instant O(1) Lookups (Removes the lag!)
                 const trainersMap: Record<string, string> = {};
                 trainersSnap.forEach(doc => { trainersMap[doc.id] = doc.data().fullName || doc.data().name; });
                 usersSnap.forEach(doc => { trainersMap[doc.id] = doc.data().fullName || doc.data().name; });
@@ -52,19 +49,17 @@ export default function Users() {
                 const packagesMap: Record<string, string> = {};
                 packagesSnap.forEach(doc => { packagesMap[doc.id] = doc.data().name || doc.data().title; });
 
-                // Use the strict SubData interface here instead of "any"
                 const subsMap: Record<string, SubData> = {};
                 subsSnap.forEach(doc => {
                     const data = doc.data() as SubData;
-                    if (data.clientId) subsMap[data.clientId] = data; // Link sub to client
+                    if (data.clientId) subsMap[data.clientId] = data;
                 });
 
-                // 3. Process clients instantly in memory without waiting for network again
                 const rows: UserRow[] = clientsSnap.docs.map(clientDoc => {
                     const clientData = clientDoc.data();
-                    const subData = subsMap[clientDoc.id]; // Instant lookup
+                    const subData = subsMap[clientDoc.id];
 
-                    // --- TRAINER LOGIC ---
+                    // TRAINER LOGIC
                     const targetTrainerId = clientData.assignedTrainerId || clientData.trainerId || subData?.trainerId;
                     let finalTrainerName = "—";
                     if (targetTrainerId && trainersMap[targetTrainerId]) {
@@ -73,7 +68,7 @@ export default function Users() {
                         finalTrainerName = clientData.trainerName;
                     }
 
-                    // --- PACKAGE LOGIC (Aggressive Fallbacks) ---
+                    // PACKAGE LOGIC 
                     const targetPackageId = clientData.packageId || clientData.planId || subData?.packageId;
                     let finalPackageName = "—";
                     if (targetPackageId && packagesMap[targetPackageId]) {
@@ -84,28 +79,21 @@ export default function Users() {
                         finalPackageName = subData.packageName;
                     }
 
-                    // --- STATUS LOGIC (Aggressive Fallbacks) ---
+                    // STATUS LOGIC 
                     let finalStatus: UserRow["status"] = "No Subscription";
-
-                    // Check subscription doc first
                     if (subData?.status) {
                         const s = subData.status.toLowerCase();
                         finalStatus = s === "active" ? "Active" : s === "due" ? "Due" : "Expired";
-                    }
-                    // Fallback to user doc directly
-                    else if (clientData.subscriptionStatus || clientData.status) {
+                    } else if (clientData.subscriptionStatus || clientData.status) {
                         const s = (clientData.subscriptionStatus || clientData.status).toLowerCase();
                         finalStatus = s === "active" ? "Active" : s === "due" ? "Due" : "Expired";
-                    }
-                    // Boolean fallback
-                    else if (clientData.isActive === true) {
+                    } else if (clientData.isActive === true) {
                         finalStatus = "Active";
                     } else if (finalPackageName !== "—") {
-                        // If they have a package but no clear status, assume Active
                         finalStatus = "Active";
                     }
 
-                    // --- DATE LOGIC ---
+                    // DATE LOGIC
                     let joinedDate = "—";
                     if (clientData.createdAt) {
                         const dateObj = typeof clientData.createdAt.toDate === "function"
@@ -141,109 +129,147 @@ export default function Users() {
         return () => { isMounted = false; };
     }, []);
 
+    const handleDeleteUser = async (userId: string) => {
+        const confirmDelete = window.confirm(
+            "Are you sure you want to delete this client? This action cannot be undone."
+        );
+        if (!confirmDelete) return;
+
+        try {
+            await deleteDoc(doc(db, "users", userId));
+            setUsers((prev) => prev.filter((u) => u.id !== userId));
+            alert("Client deleted successfully.");
+        } catch (error) {
+            console.error("Error deleting user:", error);
+            alert("An error occurred while trying to delete the client.");
+        }
+    };
+
     const filteredRows = users.filter((u) =>
         u.name.toLowerCase().includes(search.toLowerCase())
     );
 
     return (
         <Layout title="Users Managements">
-            <div className="users-header">
-                <div className="users-title">Users</div>
-                <div className="users-subtitle">
-                    All registered customers and their current subscription.
+            <div className="users-page-wrapper">
+
+                {/* HEADER */}
+                <div className="users-header">
+                    <h1 className="users-title">Users</h1>
+                    <p className="users-subtitle">
+                        All registered customers and their current subscription.
+                    </p>
                 </div>
-            </div>
 
-            <div className="users-toolbar">
-                <input
-                    className="users-search-input"
-                    placeholder="Search clients..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
-                <select className="users-filter-select" defaultValue="">
-                    <option value="">All Package</option>
-                    <option value="1">Package 1</option>
-                    <option value="2">Package 2</option>
-                    <option value="3">Package 3</option>
-                </select>
-                <select className="users-filter-select" defaultValue="">
-                    <option value="">All Statuses</option>
-                    <option value="active">Active</option>
-                    <option value="due">Due</option>
-                </select>
-            </div>
+                {/* TOOLBAR (Matches image perfectly) */}
+                <div className="users-toolbar">
+                    <div className="users-search-container">
+                        <i className="bx bx-search users-search-icon"></i>
+                        <input
+                            className="users-search-input"
+                            placeholder="Search clients..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <div className="users-filters-container">
+                        <select className="users-filter-select" defaultValue="">
+                            <option value="">All Package</option>
+                            <option value="1">Package 1</option>
+                            <option value="2">Package 2</option>
+                            <option value="3">Package 3</option>
+                        </select>
+                        <select className="users-filter-select" defaultValue="">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="due">Due</option>
+                        </select>
+                    </div>
+                </div>
 
-            <div className="users-table-card">
-                <table className="users-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Phone</th>
-                            <th>Packages</th>
-                            <th>Trainer</th>
-                            <th>Joined</th>
-                            <th>Status</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading && (
-                            <tr>
-                                <td colSpan={7} className="users-empty-state">
-                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
-                                        <i className='bx bx-loader-alt bx-spin' style={{ fontSize: "20px", color: "#003AA3" }}></i>
-                                        Loading clients...
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
-
-                        {!loading && filteredRows.length === 0 && (
-                            <tr>
-                                <td colSpan={7} className="users-empty-state">
-                                    No clients found.
-                                </td>
-                            </tr>
-                        )}
-
-                        {!loading &&
-                            filteredRows.map((user) => (
-                                <tr key={user.id}>
-                                    <td className="users-name-cell">{user.name}</td>
-                                    <td>{user.phone}</td>
-                                    <td>
-                                        <span className="users-package-pill" style={{ opacity: user.packageName === "—" ? 0.5 : 1 }}>
-                                            {user.packageName}
-                                        </span>
-                                    </td>
-                                    <td>{user.trainerName}</td>
-                                    <td>{user.joined}</td>
-                                    <td>
-                                        <span
-                                            className={`users-status-pill ${user.status === "Active"
-                                                ? "active"
-                                                : user.status === "No Subscription"
-                                                    ? "expired"
-                                                    : "due"
-                                                }`}
-                                        >
-                                            {user.status}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button
-                                            className="users-view-btn"
-                                            title="View profile"
-                                            onClick={() => navigate(`/users/${user.id}`)}
-                                        >
-                                            <i className="bx bx-show" />
-                                        </button>
-                                    </td>
+                {/* TABLE CARD */}
+                <div className="users-table-card">
+                    <div className="table-responsive">
+                        <table className="users-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Phone</th>
+                                    <th>Packages</th>
+                                    <th>Trainer</th>
+                                    <th>Joined</th>
+                                    <th>Status</th>
+                                    <th></th> {/* Actions Column */}
                                 </tr>
-                            ))}
-                    </tbody>
-                </table>
+                            </thead>
+                            <tbody>
+                                {loading && (
+                                    <tr>
+                                        <td colSpan={7} className="users-empty-state">
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px" }}>
+                                                <i className='bx bx-loader-alt bx-spin' style={{ fontSize: "20px", color: "#00225d" }}></i>
+                                                Loading clients...
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+
+                                {!loading && filteredRows.length === 0 && (
+                                    <tr>
+                                        <td colSpan={7} className="users-empty-state">
+                                            No clients found.
+                                        </td>
+                                    </tr>
+                                )}
+
+                                {!loading &&
+                                    filteredRows.map((user) => (
+                                        <tr key={user.id}>
+                                            <td className="fw-700 text-dark">{user.name}</td>
+                                            <td className="text-normal">{user.phone}</td>
+                                            <td>
+                                                <span className="users-package-badge" style={{ opacity: user.packageName === "—" ? 0.5 : 1 }}>
+                                                    {user.packageName}
+                                                </span>
+                                            </td>
+                                            <td className="fw-700 text-dark">{user.trainerName}</td>
+                                            <td className="text-normal">{user.joined}</td>
+                                            <td>
+                                                <span
+                                                    className={`users-status-badge ${user.status === "Active"
+                                                        ? "status-active"
+                                                        : user.status === "Due"
+                                                            ? "status-due"
+                                                            : "status-expired"
+                                                        }`}
+                                                >
+                                                    {user.status}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div className="users-actions-group">
+                                                    <button
+                                                        className="users-action-btn"
+                                                        title="View profile"
+                                                        onClick={() => navigate(`/users/${user.id}`)}
+                                                    >
+                                                        <i className="bx bx-show" />
+                                                    </button>
+                                                    <button
+                                                        className="users-action-btn delete-btn"
+                                                        title="Delete User"
+                                                        onClick={() => handleDeleteUser(user.id)}
+                                                    >
+                                                        <i className="bx bx-trash" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </Layout>
     );

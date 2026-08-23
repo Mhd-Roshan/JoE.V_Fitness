@@ -189,20 +189,30 @@
     border-radius: 4px;
 }
 
-/* Card Bottom: Action Buttons */
+/* =========================================
+   UPDATED: Card Bottom Action Buttons
+========================================= */
 .trainer-card-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    margin-top: auto;
+    /* Pushes buttons to bottom of card */
+    padding-top: 16px;
+    align-items: center;
 }
 
 .trainer-action-btn-outline {
     flex: 1;
+    /* Makes "View Schedule" and "Assign" share space equally */
     background-color: #ffffff;
     border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    padding: 8px 0;
+    border-radius: 8px;
+    /* Modern rounded corners */
+    padding: 10px 8px;
+    /* Proper padding for touch targets */
     font-family: "Work Sans", sans-serif;
     font-size: 12px;
+    /* Slightly smaller text to fit nicely */
     font-weight: 600;
     color: #00225d;
     cursor: pointer;
@@ -211,15 +221,24 @@
     justify-content: center;
     gap: 6px;
     transition: all 0.2s;
+    white-space: nowrap;
+    /* THIS IS THE FIX: Prevents text from breaking to next line */
 }
 
 .trainer-action-btn-outline i {
-    font-size: 15px;
+    font-size: 16px;
 }
 
 .trainer-action-btn-outline:hover {
     border-color: #cbd5e1;
     background-color: #f8fafc;
+}
+
+/* Delete Button specific hover states (Works with your inline TSX styles) */
+.trainer-action-btn-outline[title="Delete Trainer"]:hover {
+    background-color: #fee2e2 !important;
+    border-color: #ef4444 !important;
+    color: #b91c1c !important;
 }
 
 /* =========================================

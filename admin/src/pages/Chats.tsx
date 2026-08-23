@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     collection,
     query,
@@ -11,11 +12,16 @@ import {
     limit,
     where,
     getDocs,
+    getDoc
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
 import Layout from "../components/Layout";
+import EmojiPicker, { Theme } from "emoji-picker-react"; // Import Theme for cleaner UI
 import "../styles/chats.css";
 
+// ------------------------------------------------------------------
+// Types
+// ------------------------------------------------------------------
 interface ThreadRow {
     id: string; // clientId
     clientName: string;
@@ -29,7 +35,13 @@ interface MessageRow {
     id: string;
     senderRole: "client" | "admin";
     text: string;
-    attachmentName?: string;
+    type?: "text" | "diet_plan" | "file";
+    attachment?: {
+        templateId?: string;
+        name?: string;
+        subtitle?: string;
+        url?: string;
+    };
     createdAt: string;
 }
 
@@ -38,10 +50,56 @@ interface ClientPanelData {
     photoURL: string | null;
     primaryGoal: string | null;
     dietPlanName: string | null;
-    sharedFiles: string[];
+    weight: string;
+    bodyFat: string;
+    initials: string;
 }
 
+interface DietTemplate {
+    id: string;
+    name: string;
+    subtitle: string;
+}
+
+// ------------------------------------------------------------------
+// Helper functions
+// ------------------------------------------------------------------
+const extractDataAggressively = (sources: unknown[], keys: string[]): string | undefined => {
+    for (const source of sources) {
+        if (!source || typeof source !== 'object') continue;
+        const srcObj = source as Record<string, unknown>;
+        for (const key of keys) {
+            const val = srcObj[key];
+            if (typeof val === 'string' && val.trim() !== '') return val.trim();
+            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') return val[0].trim();
+            if (typeof val === 'object' && val !== null) {
+                const obj = val as Record<string, unknown>;
+                if (typeof obj.value === 'string') return obj.value.trim();
+                if (typeof obj.name === 'string') return obj.name.trim();
+                if (typeof obj.title === 'string') return obj.title.trim();
+            }
+        }
+    }
+    return undefined;
+};
+
+const SkeletonThread = () => (
+    <div className="thread-item skeleton-mode">
+        <div className="skeleton-avatar"></div>
+        <div className="thread-content" style={{ gap: '8px', display: 'flex', flexDirection: 'column' }}>
+            <div className="skeleton-line" style={{ width: '60%' }}></div>
+            <div className="skeleton-line" style={{ width: '90%', height: '12px' }}></div>
+        </div>
+    </div>
+);
+
+// ------------------------------------------------------------------
+// Main Component
+// ------------------------------------------------------------------
 export default function Chats() {
+    const navigate = useNavigate();
+
+    // Core States
     const [threads, setThreads] = useState<ThreadRow[]>([]);
     const [threadSearch, setThreadSearch] = useState("");
     const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -49,9 +107,44 @@ export default function Chats() {
     const [clientPanel, setClientPanel] = useState<ClientPanelData | null>(null);
     const [draft, setDraft] = useState("");
     const [loadingThreads, setLoadingThreads] = useState(true);
-    const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Live thread list
+    // UI & Modal States
+    const [showMobileChat, setShowMobileChat] = useState(false);
+    const [showAttachMenu, setShowAttachMenu] = useState(false);
+    const [showDietModal, setShowDietModal] = useState(false);
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [dietTemplates, setDietTemplates] = useState<DietTemplate[]>([]);
+
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const attachMenuRef = useRef<HTMLDivElement>(null);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+    // Dynamic extraction of shared files
+    const sharedFiles = messages
+        .filter(m => m.attachment && m.attachment.name)
+        .map(m => ({
+            id: m.id,
+            name: m.attachment!.name,
+            type: m.type,
+            templateId: m.attachment!.templateId
+        }))
+        .reverse();
+
+    // Close menus on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (attachMenuRef.current && !attachMenuRef.current.contains(e.target as Node)) {
+                setShowAttachMenu(false);
+            }
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // 1. Fetch Live Threads
     useEffect(() => {
         const q = query(collection(db, "chatThreads"), orderBy("lastMessageAt", "desc"));
         const unsub = onSnapshot(q, (snap) => {
@@ -64,23 +157,21 @@ export default function Chats() {
                         photoURL: data.clientPhotoURL ?? null,
                         lastMessage: data.lastMessage ?? "",
                         lastMessageAt: data.lastMessageAt?.toDate
-                            ? data.lastMessageAt.toDate().toLocaleString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                            })
+                            ? data.lastMessageAt.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                             : "",
                         unreadCount: data.unreadCount ?? 0,
                     };
                 })
             );
             setLoadingThreads(false);
-            if (!selectedId && snap.docs.length > 0) setSelectedId(snap.docs[0].id);
+            if (!selectedId && snap.docs.length > 0 && window.innerWidth > 768) {
+                setSelectedId(snap.docs[0].id);
+            }
         });
         return () => unsub();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [selectedId]);
 
-    // Live messages for selected thread
+    // 2. Fetch Live Messages
     useEffect(() => {
         if (!selectedId) return;
         const q = query(
@@ -96,92 +187,106 @@ export default function Chats() {
                         id: d.id,
                         senderRole: data.senderRole ?? "client",
                         text: data.text ?? "",
-                        attachmentName: data.attachmentName,
+                        type: data.type ?? "text",
+                        attachment: data.attachment,
                         createdAt: data.createdAt?.toDate
-                            ? data.createdAt.toDate().toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                            })
+                            ? data.createdAt.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                             : "",
                     };
                 })
             );
             setTimeout(() => {
-                scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-            }, 50);
+                scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+            }, 100);
         });
+
+        updateDoc(doc(db, "chatThreads", selectedId), { unreadCount: 0 }).catch(console.error);
+
         return () => unsub();
     }, [selectedId]);
 
-    // Client info panel for selected thread
+    // 3. Fetch Advanced Client Panel Data
     useEffect(() => {
         if (!selectedId) return;
-
-        let cancelled = false;
+        let isMounted = true;
 
         async function loadPanel() {
             try {
-                const userSnap = await getDocs(
-                    query(collection(db, "users"), where("__name__", "==", selectedId))
-                );
-                const userData = userSnap.docs[0]?.data();
+                const [userSnap, profileSnapQuery, assessDocSnap, assessUserSnap, dietSnap, progressSnap] = await Promise.all([
+                    getDoc(doc(db, "users", selectedId!)),
+                    getDocs(collection(db, "users", selectedId!, "clientProfile")),
+                    getDoc(doc(db, "assessments", selectedId!)),
+                    getDocs(query(collection(db, "assessments"), where("userId", "==", selectedId!))),
+                    getDocs(query(collection(db, "clientDietPlans"), where("clientId", "==", selectedId!), where("status", "==", "active"), limit(1))),
+                    getDocs(query(collection(db, "users", selectedId!, "progress_history"), limit(1)))
+                ]);
 
-                const profileSnap = await getDocs(
-                    collection(db, "users", selectedId!, "clientProfile")
-                );
-                const profileData = profileSnap.docs[0]?.data();
+                if (!isMounted) return;
 
-                const dietSnap = await getDocs(
-                    query(
-                        collection(db, "clientDietPlans"),
-                        where("clientId", "==", selectedId),
-                        where("status", "==", "active"),
-                        limit(1)
-                    )
-                );
-                const dietName = dietSnap.docs[0]?.data()?.templateName ?? null;
+                const userData = (userSnap.data() || {}) as Record<string, unknown>;
+                const profileData = (profileSnapQuery.docs[0]?.data() || {}) as Record<string, unknown>;
+                let assessData: Record<string, unknown> = {};
+                if (assessDocSnap.exists()) assessData = assessDocSnap.data();
+                else if (!assessUserSnap.empty) assessData = assessUserSnap.docs[0].data();
 
-                const filesSnap = await getDocs(
-                    query(
-                        collection(db, "chatThreads", selectedId!, "messages"),
-                        where("attachmentName", "!=", null)
-                    )
-                );
-                const sharedFiles = filesSnap.docs
-                    .map((d) => d.data().attachmentName)
-                    .filter(Boolean);
+                const possibleSources = [
+                    userData, profileData, assessData,
+                    userData.personalInfo, assessData.fitnessGoals, profileData.personalInfo
+                ];
 
-                if (!cancelled) {
-                    setClientPanel({
-                        fullName: userData?.fullName ?? "Unknown Client",
-                        photoURL: userData?.photoURL ?? null,
-                        primaryGoal: profileData?.primaryGoal ?? null,
-                        dietPlanName: dietName,
-                        sharedFiles,
-                    });
+                const goal = extractDataAggressively(possibleSources, ['primaryGoal', 'goal', 'fitnessGoal', 'goals']) || "Not Set";
+
+                let currentWeight = "—";
+                let currentBf = "—";
+
+                if (!progressSnap.empty) {
+                    const prog = progressSnap.docs[0].data();
+                    if (prog.weight) currentWeight = String(prog.weight);
+                    if (prog.bodyFat) currentBf = String(prog.bodyFat);
                 }
+                if (currentWeight === "—") currentWeight = extractDataAggressively(possibleSources, ['weight', 'currentWeight']) || "—";
+                if (currentBf === "—") currentBf = extractDataAggressively(possibleSources, ['bodyFat', 'bf', 'bodyFatPercentage']) || "—";
+
+                const threadFallback = threads.find(t => t.id === selectedId);
+                const fullName = (userData.fullName || userData.name || threadFallback?.clientName || "Unknown Client") as string;
+
+                const initials = fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
+                const dietName = dietSnap.empty ? null : (dietSnap.docs[0].data().templateName as string);
+
+                setClientPanel({
+                    fullName,
+                    initials,
+                    photoURL: (userData.photoURL as string) || null,
+                    primaryGoal: goal,
+                    dietPlanName: dietName,
+                    weight: currentWeight,
+                    bodyFat: currentBf,
+                });
+
             } catch (err) {
                 console.error("Client panel load error:", err);
-                if (!cancelled) setClientPanel(null);
             }
         }
 
         loadPanel();
+        return () => { isMounted = false; };
+    }, [selectedId, threads]);
 
-        return () => {
-            cancelled = true;
-        };
-    }, [selectedId]);
-
-    async function handleSend() {
+    // ------------------------------------------------------------------
+    // Actions
+    // ------------------------------------------------------------------
+    async function handleSendText() {
         if (!draft.trim() || !selectedId) return;
         const text = draft.trim();
         setDraft("");
+        setShowEmojiPicker(false);
+
         try {
             await addDoc(collection(db, "chatThreads", selectedId, "messages"), {
                 senderRole: "admin",
                 senderId: auth.currentUser?.uid ?? null,
                 text,
+                type: "text",
                 createdAt: serverTimestamp(),
             });
             await updateDoc(doc(db, "chatThreads", selectedId), {
@@ -193,189 +298,388 @@ export default function Chats() {
         }
     }
 
-    const filteredThreads = threads.filter((t) =>
-        t.clientName.toLowerCase().includes(threadSearch.toLowerCase())
-    );
+    async function handleOpenDietModal() {
+        setShowAttachMenu(false);
+        try {
+            const snap = await getDocs(collection(db, "dietPlanTemplates"));
+            setDietTemplates(snap.docs.map(d => ({
+                id: d.id,
+                name: d.data().name || "Untitled",
+                subtitle: d.data().subtitle || "Custom Diet Plan"
+            })));
+            setShowDietModal(true);
+        } catch (error) {
+            console.error("Failed to load templates:", error);
+        }
+    }
+
+    async function handleSendDietPlan(template: DietTemplate) {
+        if (!selectedId) return;
+        setShowDietModal(false);
+
+        try {
+            await addDoc(collection(db, "chatThreads", selectedId, "messages"), {
+                senderRole: "admin",
+                senderId: auth.currentUser?.uid ?? null,
+                text: "",
+                type: "diet_plan",
+                attachment: {
+                    templateId: template.id,
+                    name: template.name,
+                    subtitle: template.subtitle
+                },
+                createdAt: serverTimestamp(),
+            });
+            await updateDoc(doc(db, "chatThreads", selectedId), {
+                lastMessage: `Shared Diet Plan: ${template.name}`,
+                lastMessageAt: serverTimestamp(),
+            });
+        } catch (err) {
+            console.error("Send diet failed:", err);
+        }
+    }
+
+    const filteredThreads = threads.filter((t) => t.clientName.toLowerCase().includes(threadSearch.toLowerCase()));
     const selectedThread = threads.find((t) => t.id === selectedId);
 
     return (
         <Layout title="Chats">
-            <div className="chats-layout">
-                <div className="chats-list-panel">
-                    <div className="chats-list-header">Messages</div>
-                    <div className="chats-search-box">
-                        <i className="bx bx-search" />
-                        <input
-                            placeholder="Search clients, sessions..."
-                            value={threadSearch}
-                            onChange={(e) => setThreadSearch(e.target.value)}
-                        />
+            <div className={`chats-wrapper ${showMobileChat ? 'mobile-chat-active' : ''}`}>
+
+                {/* LEFT PANEL */}
+                <div className="chats-left-panel">
+                    <div className="chats-left-header">
+                        <h2>Messages</h2>
+                        <div className="chats-search">
+                            <i className="bx bx-search"></i>
+                            <input
+                                type="text"
+                                placeholder="Search clients..."
+                                value={threadSearch}
+                                onChange={(e) => setThreadSearch(e.target.value)}
+                            />
+                        </div>
                     </div>
 
-                    {loadingThreads ? (
-                        <p style={{ color: "#999", padding: 16 }}>Loading...</p>
-                    ) : filteredThreads.length === 0 ? (
-                        <div className="profile-empty" style={{ padding: 16 }}>
-                            No conversations yet.
-                        </div>
-                    ) : (
-                        filteredThreads.map((t) => (
-                            <button
-                                key={t.id}
-                                className={`chat-thread-item ${t.id === selectedId ? "active" : ""}`}
-                                onClick={() => setSelectedId(t.id)}
-                            >
-                                <div className="chat-thread-avatar">
-                                    {t.photoURL ? (
-                                        <img src={t.photoURL} alt={t.clientName} />
-                                    ) : (
-                                        t.clientName
-                                            .split(" ")
-                                            .map((p) => p[0])
-                                            .join("")
-                                            .slice(0, 2)
-                                            .toUpperCase()
+                    <div className="chats-thread-list custom-scrollbar">
+                        {loadingThreads ? (
+                            <>
+                                <SkeletonThread />
+                                <SkeletonThread />
+                                <SkeletonThread />
+                            </>
+                        ) : filteredThreads.length === 0 ? (
+                            <div className="empty-state">
+                                <div className="empty-icon"><i className="bx bx-ghost"></i></div>
+                                <p>No conversations found.</p>
+                            </div>
+                        ) : (
+                            filteredThreads.map((t) => (
+                                <button
+                                    key={t.id}
+                                    className={`thread-item ${t.id === selectedId ? "active" : ""}`}
+                                    onClick={() => {
+                                        setSelectedId(t.id);
+                                        setShowMobileChat(true);
+                                    }}
+                                >
+                                    <div className="thread-avatar-wrapper">
+                                        {t.photoURL ? (
+                                            <img src={t.photoURL} alt={t.clientName} className="thread-avatar" />
+                                        ) : (
+                                            <div className="thread-avatar">
+                                                {t.clientName.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div className="online-dot"></div>
+                                    </div>
+
+                                    <div className="thread-content">
+                                        <div className="thread-top-row">
+                                            <span className="thread-name">{t.clientName}</span>
+                                            <span className="thread-time">{t.lastMessageAt}</span>
+                                        </div>
+                                        <div className={`thread-message ${t.unreadCount > 0 ? 'unread-text' : ''}`}>
+                                            {t.lastMessage || "No messages yet"}
+                                        </div>
+                                    </div>
+
+                                    {t.unreadCount > 0 && (
+                                        <div className="thread-badges">
+                                            <span className="unread-badge">{t.unreadCount}</span>
+                                        </div>
                                     )}
-                                </div>
-                                <div className="chat-thread-body">
-                                    <div className="chat-thread-name-row">
-                                        <span className="chat-thread-name">{t.clientName}</span>
-                                        <span className="chat-thread-time">{t.lastMessageAt}</span>
-                                    </div>
-                                    <div className="chat-thread-preview">
-                                        {t.lastMessage || "No messages yet"}
-                                    </div>
-                                </div>
-                                {t.unreadCount > 0 && (
-                                    <span className="chat-thread-unread">{t.unreadCount}</span>
-                                )}
-                            </button>
-                        ))
-                    )}
+                                </button>
+                            ))
+                        )}
+                    </div>
                 </div>
 
-                <div className="chats-thread-panel">
+                {/* CENTER PANEL */}
+                <div className="chats-center-panel">
                     {!selectedThread ? (
-                        <div className="chats-empty-state">Select a conversation to view messages.</div>
+                        <div className="empty-state chat-empty">
+                            <div className="empty-icon"><i className="bx bx-message-square-dots"></i></div>
+                            <h3>Your Messages</h3>
+                            <p>Select a client from the list to start chatting.</p>
+                        </div>
                     ) : (
                         <>
-                            <div className="chats-thread-header">
-                                <div className="chat-thread-avatar">
+                            {/* Chat Header */}
+                            <div className="chat-header">
+                                <button
+                                    className="mobile-back-btn"
+                                    onClick={() => setShowMobileChat(false)}
+                                >
+                                    <i className="bx bx-chevron-left"></i>
+                                </button>
+                                <div className="thread-avatar-wrapper" style={{ width: 42, height: 42 }}>
                                     {selectedThread.photoURL ? (
-                                        <img src={selectedThread.photoURL} alt={selectedThread.clientName} />
+                                        <img src={selectedThread.photoURL} alt="Client" className="thread-avatar" />
                                     ) : (
-                                        selectedThread.clientName
-                                            .split(" ")
-                                            .map((p) => p[0])
-                                            .join("")
-                                            .slice(0, 2)
-                                            .toUpperCase()
+                                        <div className="thread-avatar">
+                                            {selectedThread.clientName.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()}
+                                        </div>
                                     )}
                                 </div>
-                                <div>
-                                    <div className="chats-thread-header-name">
-                                        {selectedThread.clientName}
+                                <div className="chat-header-info">
+                                    <div className="chat-header-name">{selectedThread.clientName}</div>
+                                    <div className="chat-header-status">
+                                        <i className="bx bxs-circle"></i> Active Now
                                     </div>
+                                </div>
+                                <div className="chat-header-actions">
+                                    <button title="View Profile" onClick={() => navigate(`/users/${selectedId}`)}>
+                                        <i className="bx bx-user-circle"></i>
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="chats-messages" ref={scrollRef}>
-                                {messages.length === 0 ? (
-                                    <div className="profile-empty">No messages yet.</div>
-                                ) : (
-                                    messages.map((m) => (
+                            {/* Chat Messages */}
+                            <div className="chat-messages-area custom-scrollbar" ref={scrollRef}>
+                                <div className="chat-date-divider"><span>Conversation Started</span></div>
+
+                                {messages.map((m, index) => {
+                                    const isLast = index === messages.length - 1 || messages[index + 1].senderRole !== m.senderRole;
+                                    return (
                                         <div
                                             key={m.id}
-                                            className={`chat-bubble-row ${m.senderRole === "admin" ? "sent" : "received"
-                                                }`}
+                                            className={`message-row ${m.senderRole === "admin" ? "sent" : "received"} ${isLast ? 'last-in-group' : ''}`}
                                         >
-                                            <div className="chat-bubble">
-                                                {m.attachmentName && (
-                                                    <div className="chat-bubble-attachment">
-                                                        <i className="bx bx-file" /> {m.attachmentName}
+                                            {m.type === "text" && (
+                                                <div className="message-bubble-wrapper">
+                                                    <div className="message-bubble">{m.text}</div>
+                                                    {isLast && <div className="message-time">{m.createdAt}</div>}
+                                                </div>
+                                            )}
+
+                                            {m.type === "diet_plan" && m.attachment && (
+                                                <div className="message-bubble-wrapper">
+                                                    <div className="diet-attachment-card">
+                                                        <div className="diet-att-icon"><i className="bx bx-restaurant"></i></div>
+                                                        <div className="diet-att-info">
+                                                            <div className="diet-att-label">NEW DIET SHARED</div>
+                                                            <h4 className="diet-att-title">{m.attachment.name}</h4>
+                                                            <div className="diet-att-sub">{m.attachment.subtitle}</div>
+                                                        </div>
+                                                        <button
+                                                            className="diet-att-btn"
+                                                            title="View Plan"
+                                                            onClick={() => navigate(`/diet-plans/view/${m.attachment?.templateId}`)}
+                                                        >
+                                                            <i className="bx bx-right-arrow-alt"></i>
+                                                        </button>
                                                     </div>
-                                                )}
-                                                {m.text && <div>{m.text}</div>}
-                                                <div className="chat-bubble-time">{m.createdAt}</div>
-                                            </div>
+                                                    {isLast && <div className="message-time">{m.createdAt} • Delivered</div>}
+                                                </div>
+                                            )}
                                         </div>
-                                    ))
-                                )}
+                                    );
+                                })}
                             </div>
 
-                            <div className="chats-input-row">
-                                <button className="chats-attach-btn" title="Attach diet plan or file">
-                                    <i className="bx bx-paperclip" />
-                                </button>
-                                <input
-                                    className="chats-input"
-                                    placeholder="Type a message..."
-                                    value={draft}
-                                    onChange={(e) => setDraft(e.target.value)}
-                                    onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                                />
-                                <button className="chats-send-btn" onClick={handleSend}>
-                                    <i className="bx bx-send" />
+                            {/* Chat Input Area */}
+                            <div className="chat-input-container">
+                                <div className="attachment-wrapper" ref={attachMenuRef}>
+                                    <button
+                                        className={`chat-action-btn ${showAttachMenu ? 'active' : ''}`}
+                                        onClick={() => setShowAttachMenu(!showAttachMenu)}
+                                    >
+                                        <i className="bx bx-plus-circle"></i>
+                                    </button>
+
+                                    {showAttachMenu && (
+                                        <div className="attach-popover">
+                                            <button onClick={handleOpenDietModal}>
+                                                <div className="pop-icon diet"><i className="bx bx-food-menu"></i></div>
+                                                <span>Share Diet Plan</span>
+                                            </button>
+                                            <button onClick={() => setShowAttachMenu(false)}>
+                                                <div className="pop-icon doc"><i className="bx bx-file"></i></div>
+                                                <span>Share Document</span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="chat-input-wrapper">
+                                    <input
+                                        type="text"
+                                        className="chat-input-box"
+                                        placeholder="Type a message..."
+                                        value={draft}
+                                        onChange={(e) => setDraft(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleSendText()}
+                                        onClick={() => { setShowAttachMenu(false); setShowEmojiPicker(false); }}
+                                    />
+
+                                    {/* Cleaner Emoji Picker */}
+                                    <div className="emoji-picker-container" ref={emojiPickerRef}>
+                                        <button
+                                            className="chat-emoji-btn"
+                                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                        >
+                                            <i className="bx bx-smile"></i>
+                                        </button>
+
+                                        {showEmojiPicker && (
+                                            <div className="emoji-picker-popover">
+                                                <EmojiPicker
+                                                    onEmojiClick={(e) => setDraft(prev => prev + e.emoji)}
+                                                    theme={Theme.LIGHT}
+                                                    searchDisabled={true}
+                                                    skinTonesDisabled={true}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <button
+                                    className={`chat-send-btn ${draft.trim() ? 'active' : ''}`}
+                                    onClick={handleSendText}
+                                    disabled={!draft.trim()}
+                                >
+                                    <i className="bx bxs-send"></i>
                                 </button>
                             </div>
                         </>
                     )}
                 </div>
 
-                <div className="chats-client-panel">
-                    {!selectedId ? (
-                        <div className="profile-empty" style={{ padding: 16 }}>
-                            Select a conversation to see client details.
+                {/* RIGHT PANEL */}
+                <div className="chats-right-panel custom-scrollbar">
+                    {!clientPanel ? (
+                        <div className="empty-state">
+                            <i className="bx bx-id-card" style={{ fontSize: '48px', color: '#cbd5e1', margin: '0 0 16px 0' }}></i>
+                            <p>Loading details...</p>
                         </div>
-                    ) : !clientPanel ? (
-                        <p style={{ color: "#999", padding: 16 }}>Loading...</p>
                     ) : (
                         <>
-                            <div className="client-panel-photo">
+                            <div className="cp-header">
                                 {clientPanel.photoURL ? (
-                                    <img src={clientPanel.photoURL} alt={clientPanel.fullName} />
+                                    <img src={clientPanel.photoURL} alt="Client" className="cp-avatar" />
                                 ) : (
-                                    <div className="client-panel-photo-fallback">
-                                        {clientPanel.fullName
-                                            .split(" ")
-                                            .map((p) => p[0])
-                                            .join("")
-                                            .slice(0, 2)
-                                            .toUpperCase()}
-                                    </div>
+                                    <div className="cp-avatar">{clientPanel.initials}</div>
                                 )}
+                                <h3 className="cp-name">{clientPanel.fullName}</h3>
+                                <div className="cp-subtitle">CLIENT DASHBOARD</div>
+                                <div className="cp-view-link" onClick={() => navigate(`/users/${selectedId}`)}>
+                                    View Full Profile <i className="bx bx-right-arrow-alt"></i>
+                                </div>
                             </div>
-                            <div className="client-panel-name">{clientPanel.fullName}</div>
-                            <button className="client-panel-view-btn">View Full Profile</button>
 
-                            <div className="client-panel-section-title">Active Diet Plan</div>
-                            {clientPanel.primaryGoal && (
-                                <span className="client-panel-tag">{clientPanel.primaryGoal}</span>
-                            )}
-                            {clientPanel.dietPlanName ? (
-                                <span className="client-panel-tag">{clientPanel.dietPlanName}</span>
-                            ) : (
-                                <div className="profile-empty">No active plan assigned.</div>
-                            )}
-
-                            <div className="client-panel-section-title">
-                                Shared Files ({clientPanel.sharedFiles.length})
-                            </div>
-                            {clientPanel.sharedFiles.length === 0 ? (
-                                <div className="profile-empty">No files shared yet.</div>
-                            ) : (
-                                clientPanel.sharedFiles.map((f, i) => (
-                                    <div key={i} className="client-panel-file-pill">
-                                        <i className="bx bx-file" /> {f}
+                            <div className="cp-body">
+                                <div className="cp-section-title">QUICK STATS</div>
+                                <div className="cp-stats-grid">
+                                    <div className="cp-stat-card">
+                                        <div className="cp-stat-label">WEIGHT</div>
+                                        <div className="cp-stat-value">{clientPanel.weight} <small>kg</small></div>
                                     </div>
-                                ))
-                            )}
+                                    <div className="cp-stat-card">
+                                        <div className="cp-stat-label">BF %</div>
+                                        <div className="cp-stat-value">{clientPanel.bodyFat} <small>%</small></div>
+                                    </div>
+                                </div>
 
-                            <button className="client-panel-note-btn">Private Trainer Note</button>
+                                <div className="cp-data-card">
+                                    <div className="cp-data-icon"><i className="bx bx-target-lock"></i></div>
+                                    <div className="cp-data-info">
+                                        <div className="cp-data-label">PRIMARY GOAL</div>
+                                        <div className="cp-data-value">{clientPanel.primaryGoal}</div>
+                                    </div>
+                                </div>
+
+                                <div className="cp-data-card">
+                                    <div className="cp-data-icon"><i className="bx bx-food-menu"></i></div>
+                                    <div className="cp-data-info">
+                                        <div className="cp-data-label">ACTIVE DIET PLAN</div>
+                                        <div className="cp-data-value">{clientPanel.dietPlanName || "None Assigned"}</div>
+                                    </div>
+                                </div>
+
+                                <div className="cp-section-title" style={{ marginTop: '32px' }}>
+                                    SHARED FILES ({sharedFiles.length})
+                                </div>
+                                <div className="cp-files-list">
+                                    {sharedFiles.length === 0 ? (
+                                        <div className="empty-state" style={{ padding: '10px 0' }}>
+                                            <p style={{ fontSize: '12px' }}>No files shared yet.</p>
+                                        </div>
+                                    ) : (
+                                        sharedFiles.map((f) => (
+                                            <div
+                                                key={f.id}
+                                                className="cp-file-item"
+                                                onClick={() => f.templateId && navigate(`/diet-plans/view/${f.templateId}`)}
+                                            >
+                                                <div className="file-icon">
+                                                    <i className={f.type === "diet_plan" ? "bx bx-restaurant" : "bx bx-file-blank"}></i>
+                                                </div>
+                                                <span className="file-name">{f.name}</span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
                         </>
                     )}
                 </div>
             </div>
+
+            {/* SEND DIET PLAN MODAL */}
+            {showDietModal && (
+                <div className="diet-modal-overlay" onClick={() => setShowDietModal(false)}>
+                    <div className="diet-modal" onClick={e => e.stopPropagation()}>
+                        <div className="diet-modal-header">
+                            <h2>Share Diet Plan</h2>
+                            <button className="diet-modal-close" onClick={() => setShowDietModal(false)}>
+                                <i className="bx bx-x"></i>
+                            </button>
+                        </div>
+                        <div className="diet-modal-list custom-scrollbar">
+                            {dietTemplates.length === 0 ? (
+                                <div className="empty-state">No templates found.</div>
+                            ) : (
+                                dietTemplates.map(t => (
+                                    <div key={t.id} className="diet-modal-item">
+                                        <div className="diet-modal-icon">
+                                            <i className="bx bx-restaurant"></i>
+                                        </div>
+                                        <div className="diet-modal-info">
+                                            <h4>{t.name}</h4>
+                                            <p>{t.subtitle}</p>
+                                        </div>
+                                        <button className="diet-modal-send-btn" onClick={() => handleSendDietPlan(t)}>
+                                            Send
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </Layout>
     );
 }

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/trainers.css";
+import "../styles/sessions.css";
 
 // ----------------------------------------------------
 // TypeScript Interfaces
@@ -63,6 +64,7 @@ interface SessionData {
     time?: string;
     scheduledTime?: string;
     notes?: string;
+    sessionNotes?: string;
 }
 
 interface SubscriptionData {
@@ -112,15 +114,14 @@ export default function Trainers() {
 
         async function loadData() {
             try {
-                // 1. Fetch EVERYTHING we need first (Users, Trainers, Sessions, AND Subscriptions)
+                // 1. Fetch EVERYTHING we need first 
                 const [usersSnap, trainersSnap, sessionsSnap, subsSnap] = await Promise.all([
                     getDocs(collection(db, "users")),
                     getDocs(collection(db, "trainers")),
                     getDocs(collection(db, "sessions")),
-                    getDocs(collection(db, "subscriptions")) // Fetching subscriptions for accurate client count!
+                    getDocs(collection(db, "subscriptions"))
                 ]);
 
-                // Map docs cleanly using the strict TypeScript interfaces
                 const allUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserData));
                 const allTrainerProfiles = trainersSnap.docs.map(doc => doc.data() as TrainerProfileData);
                 const allSessions = sessionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SessionData));
@@ -134,10 +135,10 @@ export default function Trainers() {
                 const trainerRows = trainersList.map((trainer) => {
                     const tProfile = allTrainerProfiles.find(tp => tp.trainerId === trainer.id) || {};
 
-                    // COUNT CLIENTS (Check both Subscriptions and Users collection to be 100% sure)
+                    // COUNT CLIENTS
                     const clientSubs = allSubs.filter(sub =>
                         (sub.trainerId === trainer.id || sub.assignedTrainer === trainer.id || sub.trainerName === trainer.fullName) &&
-                        (!sub.status || sub.status.toLowerCase() === 'active') // Only count active subscriptions
+                        (!sub.status || sub.status.toLowerCase() === 'active')
                     );
 
                     const clientUsers = clientsList.filter(c =>
@@ -146,7 +147,6 @@ export default function Trainers() {
                         c.assignedTrainerId === trainer.id
                     );
 
-                    // Use whichever number is higher to ensure we don't show 0 if data is stored in the other collection
                     const totalClients = Math.max(clientSubs.length, clientUsers.length);
 
                     // TODAY'S SESSIONS
@@ -201,9 +201,9 @@ export default function Trainers() {
                         clientName: clientName ?? "Unknown Client",
                         area: data.area ?? "—",
                         service: (data.serviceType || data.service) ?? "—",
-                        notes: data.notes ?? "",
+                        notes: data.notes ?? data.sessionNotes ?? "",
                         trainerName: trainerName ?? "Unknown Trainer",
-                        status: data.status ?? "scheduled",
+                        status: data.status ?? "Scheduled",
                     };
                 });
 
@@ -223,6 +223,30 @@ export default function Trainers() {
 
         return () => { isMounted = false; };
     }, []);
+
+    // ----------------------------------------------------
+    // Delete Trainer Function
+    // ----------------------------------------------------
+    const handleDeleteTrainer = async (trainerId: string) => {
+        const confirmDelete = window.confirm(
+            "Are you sure you want to delete this trainer? This action cannot be undone."
+        );
+        if (!confirmDelete) return;
+
+        try {
+            // Delete from both users and trainers collections
+            await deleteDoc(doc(db, "trainers", trainerId));
+            await deleteDoc(doc(db, "users", trainerId));
+
+            // Remove from UI immediately without refreshing
+            setTrainers((prev) => prev.filter((t) => t.id !== trainerId));
+
+            alert("Trainer deleted successfully.");
+        } catch (error) {
+            console.error("Error deleting trainer:", error);
+            alert("An error occurred while trying to delete the trainer.");
+        }
+    };
 
     const formattedDate = new Date().toLocaleDateString("en-US", {
         month: "long",
@@ -252,6 +276,7 @@ export default function Trainers() {
                 </button>
             </div>
 
+            {/* TRAINERS CARDS GRID */}
             {trainers.length === 0 ? (
                 <div className="profile-empty" style={{ background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
                     No trainers added yet.
@@ -298,18 +323,36 @@ export default function Trainers() {
                                 </div>
                             </div>
 
-                            <div className="trainer-card-actions">
+                            {/* UPDATED ACTION BUTTONS */}
+                            <div className="trainer-card-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                 <button
                                     className="trainer-action-btn-outline"
                                     onClick={() => navigate(`/trainers/${t.id}`)}
+                                    style={{ flex: 1 }}
                                 >
                                     <i className="bx bx-calendar"></i> View Schedule
                                 </button>
                                 <button
                                     className="trainer-action-btn-outline"
                                     onClick={() => navigate("/trainers/assign")}
+                                    style={{ flex: 1 }}
                                 >
                                     <i className="bx bx-user-plus"></i> Assign
+                                </button>
+
+                                {/* DELETE BUTTON */}
+                                <button
+                                    className="trainer-action-btn-outline"
+                                    onClick={() => handleDeleteTrainer(t.id)}
+                                    title="Delete Trainer"
+                                    style={{
+                                        padding: '8px 12px',
+                                        color: '#d20015',
+                                        borderColor: '#ffcdd2',
+                                        backgroundColor: '#fef2f2'
+                                    }}
+                                >
+                                    <i className="bx bx-trash" style={{ fontSize: '18px' }}></i>
                                 </button>
                             </div>
                         </div>
@@ -317,63 +360,78 @@ export default function Trainers() {
                 </div>
             )}
 
-            <div className="schedule-section">
-                <div className="schedule-header">
-                    <h2 className="schedule-title">
-                        Full Schedule - Today, {formattedDate}
-                    </h2>
-                    <button className="schedule-all-btn">
-                        <i className="bx bx-calendar"></i> All Sessions
+            {/* SESSIONS TABLE */}
+            <div className="sessions-table-card" style={{ marginTop: "32px" }}>
+
+                {/* TABLE HEADER */}
+                <div className="sessions-table-header">
+                    <h3 className="sessions-table-title">Full Schedule - Today, {formattedDate}</h3>
+                    <button
+                        className="sessions-action-btn"
+                        onClick={() => navigate('/sessions')}
+                        style={{ border: "none", color: "#00225d", display: "flex", alignItems: "center", gap: "6px", fontWeight: "700" }}
+                    >
+                        <i className="bx bx-calendar" /> All Sessions
                     </button>
                 </div>
 
-                {schedule.length === 0 ? (
-                    <div className="profile-empty" style={{ background: '#fff', padding: '30px', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
-                        No sessions scheduled for today. Make sure sessions in Firebase have today's date assigned!
-                    </div>
-                ) : (
-                    <div className="schedule-table-container">
-                        <table className="schedule-table">
-                            <thead>
+                {/* TABLE */}
+                <div style={{ overflowX: "auto" }}>
+                    <table className="sessions-table">
+                        <thead>
+                            <tr>
+                                <th>TIME</th>
+                                <th>TRAINER</th>
+                                <th>CLIENT</th>
+                                <th>SERVICE</th>
+                                <th>STATUS</th>
+                                <th>NOTES</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {schedule.length === 0 ? (
                                 <tr>
-                                    <th>Time</th>
-                                    <th>Trainer</th>
-                                    <th>Client</th>
-                                    <th>Area</th>
-                                    <th>Service</th>
-                                    <th>Status</th>
-                                    <th>Notes</th>
+                                    <td colSpan={6} style={{ textAlign: "center", color: "#94a3b8", padding: "32px" }}>
+                                        No sessions scheduled for today.
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {schedule.map((s) => {
-                                    const isDone = s.status.toLowerCase() === "completed" || s.status.toLowerCase() === "done";
+                            ) : (
+                                schedule.map((row) => {
+                                    const statusLower = row.status.toLowerCase();
+                                    const statusClass =
+                                        statusLower === "done" || statusLower === "completed" ? "done" :
+                                            statusLower === "live" ? "live" : "upcoming";
 
                                     return (
-                                        <tr key={s.id}>
-                                            <td className="fw-500">{s.time}</td>
-                                            <td className="fw-800 text-dark">{s.trainerName}</td>
-                                            <td className="text-dark">{s.clientName}</td>
-                                            <td className="text-dark">{s.area}</td>
-                                            <td className="text-dark">{s.service}</td>
-                                            <td>
-                                                {isDone ? (
-                                                    <span className="table-status-pill status-done">Done</span>
-                                                ) : (
-                                                    <span className="table-status-pill">{s.status}</span>
-                                                )}
+                                        <tr key={row.id}>
+                                            <td className="sessions-mono" style={{ color: statusLower === 'live' || row.time.includes('10:00') ? '#bb0013' : 'inherit' }}>
+                                                {row.time}
                                             </td>
-                                            <td className="schedule-notes-text">
-                                                {s.notes ? s.notes : ""}
+                                            <td>{row.trainerName}</td>
+                                            <td className="sessions-bold">{row.clientName}</td>
+                                            <td>
+                                                <span className="sessions-service-pill">
+                                                    {row.service}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`sessions-status-pill ${statusClass}`}>
+                                                    {statusLower === "live" && <div className="live-dot"></div>}
+                                                    {row.status}
+                                                </span>
+                                            </td>
+                                            <td style={{ color: "#808080", fontSize: "13px" }}>
+                                                {row.notes}
                                             </td>
                                         </tr>
                                     );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
+
         </Layout>
     );
 }

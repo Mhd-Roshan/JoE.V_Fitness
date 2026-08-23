@@ -13,13 +13,15 @@ import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/dietPlans.css";
 
+// --- TYPES ---
 interface TemplateCard {
     id: string;
     name: string;
     description: string;
     imageURL: string | null;
-    calories: number;
+    tag: string;
     protein: number;
+    fat: number;
     carbs: number;
     createdAt: Date | null;
     assignedCount: number;
@@ -28,10 +30,19 @@ interface TemplateCard {
 interface AssignmentRow {
     id: string;
     clientName: string;
+    clientPhoto: string | null;
+    clientInitials: string;
     templateName: string;
     assignedDate: string;
     duration: string;
     status: string;
+}
+
+// Replaces the "any" type to fix the ESLint error
+interface UserData {
+    fullName?: string;
+    name?: string;
+    photoURL?: string | null;
 }
 
 function startOfMonth() {
@@ -52,11 +63,24 @@ export default function DietPlans() {
 
         async function load() {
             try {
-                const snap = await getDocs(collection(db, "dietPlanTemplates"));
+                // 1. Fetch Templates, Assignments, and Users concurrently
+                const [snap, assignSnap, usersSnap] = await Promise.all([
+                    getDocs(collection(db, "dietPlanTemplates")),
+                    getDocs(query(collection(db, "clientDietPlans"), orderBy("assignedAt", "desc"), limit(5))),
+                    getDocs(collection(db, "users"))
+                ]);
+
                 if (cancelled) return;
+
+                // 2. Build User Map for Avatars (Using strict UserData type)
+                const userMap: Record<string, UserData> = {};
+                usersSnap.docs.forEach((doc) => {
+                    userMap[doc.id] = doc.data() as UserData;
+                });
 
                 const monthStart = startOfMonth();
 
+                // 3. Process Templates
                 const rows = await Promise.all(
                     snap.docs.map(async (d) => {
                         const data = d.data();
@@ -68,44 +92,46 @@ export default function DietPlans() {
                             )
                         );
                         const createdAt = data.createdAt?.toDate ? data.createdAt.toDate() : null;
+
                         return {
                             id: d.id,
                             name: data.name ?? "Untitled Plan",
                             description: data.description ?? "",
                             imageURL: data.imageURL ?? null,
-                            calories: data.calories ?? 0,
+                            tag: data.tag ?? data.category ?? "DIET PLAN",
                             protein: data.protein ?? 0,
+                            fat: data.fat ?? data.fats ?? 0,
                             carbs: data.netCarbsLimit ?? data.carbs ?? 0,
                             createdAt,
                             assignedCount: assignedSnap.data().count,
                         };
                     })
                 );
+
                 if (cancelled) return;
 
                 setTemplates(rows);
                 setTotalAssignedCount(rows.reduce((sum, r) => sum + r.assignedCount, 0));
-                setNewThisMonth(
-                    rows.filter((r) => r.createdAt && r.createdAt >= monthStart).length
-                );
+                setNewThisMonth(rows.filter((r) => r.createdAt && r.createdAt >= monthStart).length);
 
-                const assignSnap = await getDocs(
-                    query(
-                        collection(db, "clientDietPlans"),
-                        orderBy("assignedAt", "desc"),
-                        limit(5)
-                    )
-                );
-                if (cancelled) return;
-
+                // 4. Process Assignments for Table
                 setAssignments(
                     assignSnap.docs.map((d) => {
                         const data = d.data();
                         const assignedAt = data.assignedAt?.toDate ? data.assignedAt.toDate() : null;
+
+                        // Extract Client Data
+                        const userMatch = userMap[data.clientId];
+                        const cName = userMatch?.fullName || userMatch?.name || data.clientName || "Unknown Client";
+                        const cPhoto = userMatch?.photoURL || null;
+                        const cInitials = cName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
+
                         return {
                             id: d.id,
-                            clientName: data.clientName ?? "—",
-                            templateName: data.templateName ?? "—",
+                            clientName: cName,
+                            clientPhoto: cPhoto,
+                            clientInitials: cInitials,
+                            templateName: data.templateName ?? "Custom Plan",
                             assignedDate: assignedAt
                                 ? assignedAt.toLocaleDateString("en-GB", {
                                     day: "2-digit",
@@ -113,9 +139,7 @@ export default function DietPlans() {
                                     year: "numeric",
                                 })
                                 : "—",
-                            duration: data.durationWeeks
-                                ? `${data.durationWeeks} weeks`
-                                : "—",
+                            duration: data.durationWeeks ? `${data.durationWeeks} Weeks` : "—",
                             status: data.status ?? "active",
                         };
                     })
@@ -128,37 +152,33 @@ export default function DietPlans() {
         }
 
         load();
-        return () => {
-            cancelled = true;
-        };
+        return () => { cancelled = true; };
     }, []);
 
     const featured = templates.slice(0, 3);
+    const growthPercent = templates.length > 0 ? Math.round((newThisMonth / templates.length) * 100) : 0;
 
     if (loading) {
         return (
             <Layout title="Diet Plan">
-                <p style={{ color: "#999" }}>Loading diet plans...</p>
+                <div className="empty-state">Loading diet plans...</div>
             </Layout>
         );
     }
 
     return (
         <Layout title="Diet Plan">
+            {/* HEADER */}
             <div className="dm-header">
                 <div>
-                    <div className="dm-title">Diet Manage</div>
-                    <div className="dm-subtitle">
-                        Design, manage, and assign high-performance nutrition protocols for
-                        elite athletes and transformation clients.
-                    </div>
+                    <h1 className="dm-title">Diet Manage</h1>
+                    <p className="dm-subtitle">
+                        Design, manage, and assign high-performance nutrition protocols for elite athletes and transformation clients.
+                    </p>
                 </div>
                 <div className="dm-header-actions">
-                    <button
-                        className="dm-browse-btn"
-                        onClick={() => navigate("/diet-plans/library")}
-                    >
-                        <i className="bx bx-library" /> Browse Library
+                    <button className="dm-browse-btn" onClick={() => navigate("/diet-plans/library")}>
+                        <i className="bx bx-book-bookmark" /> Browse Library
                     </button>
                     <button className="dm-create-btn" onClick={() => navigate("/diet-plans/add")}>
                         <i className="bx bx-plus" /> Create New Template
@@ -166,11 +186,14 @@ export default function DietPlans() {
                 </div>
             </div>
 
+            {/* STATS ROW */}
             <div className="dm-stats-row">
                 <div className="dm-stat-card">
                     <div className="dm-stat-top">
                         <span className="dm-stat-label">TOTAL ITEMS</span>
-                        <i className="bx bx-file dm-stat-icon" />
+                        <div className="dm-stat-icon-wrapper blue">
+                            <i className="bx bx-file" />
+                        </div>
                     </div>
                     <div className="dm-stat-value">{templates.length}</div>
                     <div className="dm-stat-footnote">Active Templates</div>
@@ -179,7 +202,9 @@ export default function DietPlans() {
                 <div className="dm-stat-card">
                     <div className="dm-stat-top">
                         <span className="dm-stat-label">ENGAGEMENT</span>
-                        <i className="bx bx-group dm-stat-icon" />
+                        <div className="dm-stat-icon-wrapper purple">
+                            <i className="bx bx-group" />
+                        </div>
                     </div>
                     <div className="dm-stat-value">{totalAssignedCount}</div>
                     <div className="dm-stat-footnote">Client Assignments</div>
@@ -188,126 +213,146 @@ export default function DietPlans() {
                 <div className="dm-stat-card">
                     <div className="dm-stat-top">
                         <span className="dm-stat-label">GROWTH</span>
-                        <span className="dm-stat-pill">
-                            <i className="bx bx-trending-up" /> +{newThisMonth}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                            <span className="dm-stat-pill-green">+{growthPercent}%</span>
+                            <div className="dm-stat-icon-wrapper light-blue">
+                                <i className="bx bx-trending-up" />
+                            </div>
+                        </div>
                     </div>
-                    <div className="dm-stat-value green">+{newThisMonth}</div>
+                    <div className="dm-stat-value">+{newThisMonth}</div>
                     <div className="dm-stat-footnote">New Plans This Month</div>
                 </div>
             </div>
 
-            <div className="dm-section-title">Featured Protocols</div>
+            {/* FEATURED PROTOCOLS DIVIDER */}
+            <div className="dm-section-divider-container">
+                <h2 className="dm-section-title">Featured Protocols</h2>
+                <div className="dm-divider-line"></div>
+            </div>
 
+            {/* FEATURED PROTOCOLS GRID */}
             {featured.length === 0 ? (
-                <div className="profile-empty" style={{ padding: 24, marginBottom: 24 }}>
-                    No templates created yet.
-                </div>
+                <div className="empty-state">No templates created yet.</div>
             ) : (
                 <div className="dm-featured-grid">
-                    {featured.map((t) => (
-                        <div key={t.id} className="dm-featured-card">
-                            <div className="dm-featured-image">
-                                {t.imageURL ? (
-                                    <img src={t.imageURL} alt={t.name} />
-                                ) : (
-                                    <div className="dm-featured-image-fallback">
-                                        <i className="bx bx-food-menu" />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="dm-featured-body">
-                                <div className="dm-featured-name">{t.name}</div>
-                                {t.description && (
-                                    <p className="dm-featured-desc">{t.description}</p>
-                                )}
+                    {featured.map((t) => {
+                        // Calculate Macro Percentages
+                        const totalMacros = t.protein + t.fat + t.carbs;
+                        const pPct = totalMacros > 0 ? Math.round((t.protein / totalMacros) * 100) : 0;
+                        const fPct = totalMacros > 0 ? Math.round((t.fat / totalMacros) * 100) : 0;
+                        const cPct = totalMacros > 0 ? Math.round((t.carbs / totalMacros) * 100) : 0;
 
-                                <div className="dm-featured-macro-row">
-                                    <div className="dm-featured-macro-cell">
-                                        <div className="dm-featured-macro-value">
-                                            {t.calories}
+                        return (
+                            <div key={t.id} className="dm-featured-card">
+                                <div className="dm-featured-image">
+                                    {t.imageURL ? (
+                                        <img src={t.imageURL} alt={t.name} />
+                                    ) : (
+                                        <div className="dm-featured-image-fallback">
+                                            <i className="bx bx-restaurant" />
                                         </div>
-                                        <div className="dm-featured-macro-label">kcal</div>
-                                    </div>
-                                    <div className="dm-featured-macro-cell">
-                                        <div className="dm-featured-macro-value">
-                                            {t.protein}g
-                                        </div>
-                                        <div className="dm-featured-macro-label">protein</div>
-                                    </div>
-                                    <div className="dm-featured-macro-cell">
-                                        <div className="dm-featured-macro-value">{t.carbs}g</div>
-                                        <div className="dm-featured-macro-label">carbs</div>
+                                    )}
+                                    {/* Tag Badge */}
+                                    <div className={`dm-image-badge ${t.tag.toLowerCase().includes("protein") ? "blue" : "red"}`}>
+                                        {t.tag.toUpperCase()}
                                     </div>
                                 </div>
+                                <div className="dm-featured-body">
+                                    <h3 className="dm-featured-name">{t.name}</h3>
+                                    <p className="dm-featured-desc">{t.description || "Optimized nutritional protocol for peak performance and recovery."}</p>
 
-                                <div className="dm-featured-actions">
-                                    <button
-                                        className="dm-featured-link"
-                                        onClick={() => navigate(`/diet-plans/edit/${t.id}`)}
-                                    >
-                                        Edit Template
-                                    </button>
-                                    <button
-                                        className="dm-featured-link filled"
-                                        onClick={() => navigate(`/diet-plans/view/${t.id}`)}
-                                    >
-                                        View Details
-                                    </button>
+                                    <div className="dm-featured-macro-row">
+                                        <div className="dm-featured-macro-cell">
+                                            <div className="dm-featured-macro-label">P</div>
+                                            <div className="dm-featured-macro-value">{pPct}%</div>
+                                        </div>
+                                        <div className="dm-featured-macro-cell">
+                                            <div className="dm-featured-macro-label">F</div>
+                                            <div className="dm-featured-macro-value">{fPct}%</div>
+                                        </div>
+                                        <div className="dm-featured-macro-cell">
+                                            <div className="dm-featured-macro-label">C</div>
+                                            <div className="dm-featured-macro-value">{cPct}%</div>
+                                        </div>
+                                    </div>
+
+                                    <div className="dm-featured-actions">
+                                        <button className="dm-btn-outline" onClick={() => navigate(`/diet-plans/edit/${t.id}`)}>
+                                            Edit Template
+                                        </button>
+                                        <button className="dm-btn-filled" onClick={() => navigate(`/diet-plans/view/${t.id}`)}>
+                                            View Details
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
+            {/* RECENT ASSIGNMENTS TABLE */}
             <div className="dm-assignments-card">
                 <div className="dm-assignments-header">
-                    <div className="dm-section-title" style={{ marginBottom: 0 }}>
-                        Recent Plan Assignments
-                    </div>
-                    <button
-                        className="dm-view-all-btn"
-                        onClick={() => navigate("/diet-plans/activity")}
-                    >
-                        View All Activity <i className="bx bx-right-arrow-alt" />
+                    <h3 className="dm-table-title">Recent Plan Assignments</h3>
+                    <button className="dm-view-all-btn" onClick={() => navigate("/diet-plans/activity")}>
+                        View All Activity
                     </button>
                 </div>
 
-                {assignments.length === 0 ? (
-                    <div className="profile-empty" style={{ padding: 24 }}>
-                        No plans assigned yet.
-                    </div>
-                ) : (
+                <div className="table-responsive">
                     <table className="dm-assignments-table">
                         <thead>
                             <tr>
-                                <th>Client Name</th>
-                                <th>Assigned Protocol</th>
-                                <th>Assigned Date</th>
-                                <th>Duration</th>
-                                <th>Status</th>
+                                <th>CLIENT NAME</th>
+                                <th>ASSIGNED PROTOCOL</th>
+                                <th>ASSIGNED DATE</th>
+                                <th>DURATION</th>
+                                <th>STATUS</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {assignments.map((a) => (
-                                <tr key={a.id}>
-                                    <td className="dm-client-name">{a.clientName}</td>
-                                    <td>
-                                        <span className="dm-protocol-pill">{a.templateName}</span>
-                                    </td>
-                                    <td className="dm-mono">{a.assignedDate}</td>
-                                    <td>{a.duration}</td>
-                                    <td>
-                                        <span className={`dm-status-pill status-${a.status}`}>
-                                            {a.status.toUpperCase()}
-                                        </span>
+                            {assignments.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="empty-state" style={{ padding: "32px" }}>
+                                        No plans assigned yet.
                                     </td>
                                 </tr>
-                            ))}
+                            ) : (
+                                assignments.map((a) => (
+                                    <tr key={a.id}>
+                                        <td>
+                                            <div className="dm-client-cell">
+                                                <div className="dm-client-avatar">
+                                                    {a.clientPhoto ? (
+                                                        <img src={a.clientPhoto} alt={a.clientName} />
+                                                    ) : (
+                                                        a.clientInitials
+                                                    )}
+                                                </div>
+                                                <span className="dm-client-name">{a.clientName}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="dm-protocol-cell">
+                                                <i className="bx bxs-flame dm-protocol-icon" />
+                                                <span className="dm-protocol-name">{a.templateName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="dm-text-gray">{a.assignedDate}</td>
+                                        <td className="dm-text-gray">{a.duration}</td>
+                                        <td>
+                                            <span className={`dm-status-pill ${a.status.toLowerCase() === "active" ? "active" : ""}`}>
+                                                {a.status.toUpperCase()}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
-                )}
+                </div>
             </div>
         </Layout>
     );
