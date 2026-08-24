@@ -1,27 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
-// --- ADDED THIS IMPORT FOR LOCALIZATION ---
 import 'package:flutter_localizations/flutter_localizations.dart';
-
-// --- ADDED THESE IMPORTS FOR DARK MODE ---
 import 'package:provider/provider.dart';
+
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
-
 import 'firebase_options.dart';
+import 'services/notification_service.dart';
 import 'screens/splash_screen.dart';
-
-// --- IMPORT YOUR LOGIN AND HOME SCREENS ---
-import 'screens/home/trainer_home_screen.dart';
+import 'screens/home/trainer_main_screen.dart';
 import 'screens/auth/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService().initialize();
 
-  // ---> WRAPPED APP IN MULTIPROVIDER FOR THEME STATE <---
   runApp(
     MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => ThemeProvider())],
@@ -30,11 +25,10 @@ Future<void> main() async {
   );
 }
 
-// 1. STATEFUL WIDGET TO SUPPORT APP RESTART
 class JoveTrainerApp extends StatefulWidget {
   const JoveTrainerApp({super.key});
 
-  // 2. MAGIC RESTART FUNCTION
+  /// Restart function to rebuild language/theme on the fly
   static void restartApp(BuildContext context) {
     context.findAncestorStateOfType<_JoveTrainerAppState>()?.restartApp();
   }
@@ -44,23 +38,16 @@ class JoveTrainerApp extends StatefulWidget {
 }
 
 class _JoveTrainerAppState extends State<JoveTrainerApp> {
-  // 3. CREATE A UNIQUE KEY FOR THE APP
   Key _appKey = UniqueKey();
 
-  // 4. TRACK IF THIS IS THE FIRST OPEN
-  bool _isInitialLoad = true;
-
-  // 5. METHOD TO RESTART THE APP (Changes language instantly)
   void restartApp() {
     setState(() {
-      _appKey = UniqueKey(); // Destroys and rebuilds the app
-      _isInitialLoad = false; // Skips the splash screen so it feels seamless!
+      _appKey = UniqueKey(); // Destroys and rebuilds widget tree cleanly
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // ---> LISTEN TO THEME CHANGES <---
     final themeProvider = Provider.of<ThemeProvider>(context);
 
     return MaterialApp(
@@ -68,7 +55,7 @@ class _JoveTrainerAppState extends State<JoveTrainerApp> {
       title: 'JoE.V Trainer',
       debugShowCheckedModeBanner: false,
 
-      // --- ADDED THESE LINES FOR FLUTTER LOCALIZATION ---
+      // --- LOCALIZATION SETTINGS ---
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -81,22 +68,19 @@ class _JoveTrainerAppState extends State<JoveTrainerApp> {
         Locale('ta', ''), // Tamil
       ],
 
-      // ------------------------------------------------
-      // ---> NEW DYNAMIC THEME SETTINGS <---
-      // ------------------------------------------------
+      // --- DYNAMIC THEME SETTINGS ---
       themeMode: themeProvider.themeMode,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
 
-      // 6. IF IT IS THE FIRST OPEN, SHOW SPLASH. OTHERWISE, GO STRAIGHT TO AUTH
-      home: _isInitialLoad ? const SplashScreen() : const AuthWrapper(),
+      // Clean splash transition on app startup
+      home: const SplashScreen(),
     );
   }
 }
 
 // -------------------------------------------------------------
-// ADD THIS AUTH WRAPPER
-// This acts as a "traffic cop" to decide where the user goes
+// PERSISTENT AUTH GATEKEEPER
 // -------------------------------------------------------------
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -104,23 +88,20 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      // Listens to Firebase to see if a user session is saved on the device
+      // Listens directly to Firebase Auth persistence state
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
+        // 1. While reading the saved session token from device storage:
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFF00225D)),
-            ),
-          );
+          return const SplashScreen();
         }
 
-        // If Firebase finds a saved login session, send them straight to Home!
+        // 2. If a valid saved login session is found -> Go to TrainerMainScreen!
         if (snapshot.hasData && snapshot.data != null) {
-          return const TrainerHomeScreen();
+          return const TrainerMainScreen();
         }
 
-        // If NO saved session is found, send them to Login.
+        // 3. If NO active session -> Go to Login.
         return const LoginScreen();
       },
     );

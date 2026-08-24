@@ -48,10 +48,51 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFBA0C19)),
         useMaterial3: true,
+        pageTransitionsTheme: const PageTransitionsTheme(
+          builders: {
+            TargetPlatform.android: _FastFadeSlidePageTransitionsBuilder(),
+            TargetPlatform.iOS: _FastFadeSlidePageTransitionsBuilder(),
+            TargetPlatform.windows: _FastFadeSlidePageTransitionsBuilder(),
+            TargetPlatform.macOS: _FastFadeSlidePageTransitionsBuilder(),
+            TargetPlatform.linux: _FastFadeSlidePageTransitionsBuilder(),
+          },
+        ),
       ),
 
       // 4. Set the Splash Screen as the VERY FIRST thing the app sees
       home: const SplashScreen(),
+    );
+  }
+}
+
+class _FastFadeSlidePageTransitionsBuilder extends PageTransitionsBuilder {
+  const _FastFadeSlidePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    final slideAnimation = Tween<Offset>(
+      begin: const Offset(0.06, 0.0),
+      end: Offset.zero,
+    ).animate(curvedAnimation);
+
+    return SlideTransition(
+      position: slideAnimation,
+      child: FadeTransition(
+        opacity: curvedAnimation,
+        child: child,
+      ),
     );
   }
 }

@@ -68,11 +68,13 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final user = FirebaseAuth.instance.currentUser;
+      final uid = user?.uid;
+      final trainerName = user?.displayName ?? user?.email ?? 'Trainer';
 
-      // Save to a 'visit_notes' collection in Firestore
-      await FirebaseFirestore.instance.collection('visit_notes').add({
+      final noteMap = {
         'trainerId': uid,
+        'trainerName': trainerName,
         'clientId': widget.clientId,
         'clientName': widget.clientName,
         'sessionTime': _selectedTime.format(context),
@@ -81,7 +83,22 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
         'observation': _observationController.text.trim(),
         'nextFocus': _nextFocusController.text.trim(),
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // Save to 'visit_notes' collection in Firestore
+      final docRef = await FirebaseFirestore.instance
+          .collection('visit_notes')
+          .add(noteMap);
+
+      // Also mirror to client's subcollection
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(widget.clientId)
+            .collection('visit_notes')
+            .doc(docRef.id)
+            .set(noteMap);
+      } catch (_) {}
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -144,7 +161,10 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Title showing who the note is for
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       Text(
                         strings['newNoteFor'] ?? 'New Note for ',
@@ -187,12 +207,17 @@ class _AddVisitNoteScreenState extends State<AddVisitNoteScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              widget.clientName,
-                              style: GoogleFonts.workSans(
-                                color: widget.textColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 160),
+                              child: Text(
+                                widget.clientName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.workSans(
+                                  color: widget.textColor,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ],

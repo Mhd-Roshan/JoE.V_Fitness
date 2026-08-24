@@ -4,14 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'session_history_tab.dart';
 import 'health_info_tab.dart';
-import '../home/trainer_home_screen.dart';
-import '../schedules/trainer_schedules_screen.dart';
-import 'trainer_users_screen.dart';
-import '../notes/trainer_notes_screen.dart';
-import '../profile/trainer_profile_screen.dart';
-
-// ---> IMPORT LANGUAGE SERVICE <---
+import '../home/trainer_main_screen.dart';
 import '../../services/language_service.dart';
+import '../../services/trainer_data_service.dart';
 
 class TrainerUserProfileScreen extends StatefulWidget {
   final String clientId;
@@ -43,6 +38,7 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   String _goal = '—';
   String _area = '—';
   int _totalSessions = 0;
+  int _completedSessions = 0;
 
   // Semantic Colors (Stay the same across themes)
   static const Color cyanAccent = Color(0xFF01BCE3);
@@ -54,87 +50,374 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _checkCache();
     _loadData();
+  }
+
+  void _checkCache() {
+    final cached = TrainerDataService().getCachedClientProfile(widget.clientId);
+    if (cached != null) {
+      _fullName = cached['fullName'] ?? 'Client';
+      _photoUrl = cached['photoUrl'];
+      _status = cached['status'] ?? 'active';
+      _packageName = cached['packageName'] ?? 'Standard';
+      _currentWeightKg = cached['currentWeightKg'];
+      _startWeightKg = cached['startWeightKg'];
+      _heightCm = cached['heightCm'];
+      _dailySteps = cached['dailySteps'];
+      _waterL = cached['waterL'];
+      _sleepHours = cached['sleepHours'];
+      _age = cached['age'];
+      _goal = cached['goal'] ?? '—';
+      _area = cached['area'] ?? '—';
+      _totalSessions = cached['totalSessions'] ?? 0;
+      _completedSessions = cached['completedSessions'] ?? 0;
+      _loading = false;
+    }
+  }
+
+  static int _sessionsFromDurationString(String str) {
+    if (str.isEmpty) return 26;
+    final sessMatch = RegExp(r'(\d+)\s*(?:sessions?|class(?:es)?)', caseSensitive: false).firstMatch(str);
+    if (sessMatch != null) {
+      final s = int.tryParse(sessMatch.group(1) ?? '0') ?? 0;
+      if (s > 0) return s;
+    }
+
+    if (str.contains('12 month') || str.contains('1 year') || str.contains('annual') || str.contains('12m') || str.contains('1y')) {
+      return 312; // 12 months * 26 workout days (all Sundays rest)
+    }
+    if (str.contains('6 month') || str.contains('6m') || str.contains('half year')) {
+      return 156; // 6 months * 26 workout days (all Sundays rest)
+    }
+    if (str.contains('3 month') || str.contains('3m') || str.contains('quarter')) {
+      return 78; // 3 months * 26 workout days (all Sundays rest)
+    }
+    if (str.contains('2 month') || str.contains('2m')) {
+      return 52; // 2 months * 26 workout days (all Sundays rest)
+    }
+    if (str.contains('1 month') || str.contains('1m') || str.contains('monthly') || str.contains('standard')) {
+      return 26; // 1 month * 26 workout days (all Sundays rest)
+    }
+    if (str.contains('month')) {
+      final mMatch = RegExp(r'(\d+)\s*month').firstMatch(str);
+      final months = int.tryParse(mMatch?.group(1) ?? '1') ?? 1;
+      return months * 26;
+    }
+    if (str.contains('day')) {
+      final dMatch = RegExp(r'(\d+)\s*day').firstMatch(str);
+      final days = int.tryParse(dMatch?.group(1) ?? '30') ?? 30;
+      final sundays = (days / 7).floor();
+      return days - sundays;
+    }
+    if (str.contains('week')) {
+      final wMatch = RegExp(r'(\d+)\s*week').firstMatch(str);
+      final weeks = int.tryParse(wMatch?.group(1) ?? '1') ?? 1;
+      return weeks * 6; // 6 workout days per week (Sunday rest)
+    }
+    final numMatch = RegExp(r'(\d+)').firstMatch(str);
+    if (numMatch != null) {
+      final n = int.tryParse(numMatch.group(1) ?? '0') ?? 0;
+      if (n > 0 && n <= 365) return n;
+    }
+    return 26;
+  }
+
+  static int _calculatePackageTotalSessions(Map<String, dynamic> data, int totalBookingsCount) {
+    for (final key in [
+      'totalSessions',
+      'totalCount',
+      'packageSessions',
+      'sessionsCount',
+      'sessionCount',
+      'maxSessions',
+      'totalPackageSessions',
+    ]) {
+      if (data[key] != null) {
+        final val = int.tryParse(data[key].toString());
+        if (val != null && val > 0) return val;
+      }
+    }
+
+    for (final key in ['subscription', 'package', 'membership', 'activePlan', 'planDetails']) {
+      if (data[key] is Map) {
+        final map = data[key] as Map;
+        for (final subKey in ['totalSessions', 'sessions', 'sessionsCount', 'count']) {
+          if (map[subKey] != null) {
+            final val = int.tryParse(map[subKey].toString());
+            if (val != null && val > 0) return val;
+          }
+        }
+        final durationStr = (map['duration'] ?? map['packageDuration'] ?? map['name'] ?? map['title'] ?? '').toString().toLowerCase();
+        final fromDuration = _sessionsFromDurationString(durationStr);
+        if (fromDuration > 0) return fromDuration;
+      }
+    }
+
+    final durationStr = (data['packageDuration'] ?? data['duration'] ?? data['package'] ?? data['plan'] ?? data['packageName'] ?? data['subscriptionPlan'] ?? '').toString().toLowerCase();
+    final fromDuration = _sessionsFromDurationString(durationStr);
+    if (fromDuration > 0) return fromDuration;
+
+    if (totalBookingsCount > 26) return totalBookingsCount;
+    return 26;
+  }
+
+  double? _toDouble(dynamic val) {
+    if (val == null) return null;
+    if (val is num) return val.toDouble();
+    if (val is String) {
+      final cleaned = val.replaceAll(RegExp(r'[^0-9.]'), '');
+      return double.tryParse(cleaned);
+    }
+    if (val is Map && val.isNotEmpty) {
+      return _toDouble(val.values.last);
+    }
+    return null;
+  }
+
+  int? _toInt(dynamic val) {
+    if (val == null) return null;
+    if (val is int) return val;
+    if (val is num) return val.toInt();
+    if (val is String) {
+      final cleaned = val.replaceAll(RegExp(r'[^0-9]'), '');
+      return int.tryParse(cleaned);
+    }
+    if (val is Map && val.isNotEmpty) {
+      return _toInt(val.values.last);
+    }
+    return null;
+  }
+
+  double? _extractWeight(
+    Map<String, dynamic> p,
+    Map<String, dynamic> h,
+    Map<String, dynamic> u,
+    Map<String, dynamic> prof,
+  ) {
+    for (final source in [p, h, u, prof]) {
+      for (final key in [
+        'weight',
+        'weightKg',
+        'currentWeight',
+        'currentWeightKg',
+        'weight_kg',
+      ]) {
+        final val = _toDouble(source[key]);
+        if (val != null && val > 0) return val;
+      }
+    }
+    if (u['dailyWeight'] is Map && (u['dailyWeight'] as Map).isNotEmpty) {
+      final map = u['dailyWeight'] as Map;
+      final val = _toDouble(map.values.last);
+      if (val != null && val > 0) return val;
+    }
+    return null;
+  }
+
+  double? _extractWater(
+    Map<String, dynamic> p,
+    Map<String, dynamic> h,
+    Map<String, dynamic> u,
+  ) {
+    for (final source in [p, h, u]) {
+      for (final key in [
+        'water',
+        'waterL',
+        'water_l',
+        'hydration',
+        'dailyWater',
+        'waterIntake',
+        'currentWater',
+      ]) {
+        final val = _toDouble(source[key]);
+        if (val != null && val > 0) {
+          if (val > 20) return double.parse((val / 1000.0).toStringAsFixed(1));
+          return double.parse(val.toStringAsFixed(1));
+        }
+      }
+    }
+    if (u['dailyHydration'] is Map && (u['dailyHydration'] as Map).isNotEmpty) {
+      final map = u['dailyHydration'] as Map;
+      final val = _toDouble(map.values.last);
+      if (val != null && val > 0) {
+        if (val > 20) return double.parse((val / 1000.0).toStringAsFixed(1));
+        return double.parse(val.toStringAsFixed(1));
+      }
+    }
+    return null;
+  }
+
+  int? _extractSteps(
+    Map<String, dynamic> p,
+    Map<String, dynamic> h,
+    Map<String, dynamic> u,
+  ) {
+    for (final source in [p, h, u]) {
+      for (final key in ['steps', 'dailySteps', 'stepCount', 'stepsGoal']) {
+        final val = _toInt(source[key]);
+        if (val != null && val > 0) return val;
+      }
+    }
+    if (u['dailySteps'] is Map && (u['dailySteps'] as Map).isNotEmpty) {
+      final map = u['dailySteps'] as Map;
+      final val = _toInt(map.values.last);
+      if (val != null && val > 0) return val;
+    }
+    return null;
+  }
+
+  double? _extractSleep(
+    Map<String, dynamic> p,
+    Map<String, dynamic> h,
+    Map<String, dynamic> u,
+  ) {
+    for (final source in [p, h, u]) {
+      for (final key in ['sleep', 'sleepHours', 'dailySleep', 'sleep_hours']) {
+        final val = _toDouble(source[key]);
+        if (val != null && val > 0) return double.parse(val.toStringAsFixed(1));
+      }
+    }
+    if (u['dailySleep'] is Map && (u['dailySleep'] as Map).isNotEmpty) {
+      final map = u['dailySleep'] as Map;
+      final val = _toDouble(map.values.last);
+      if (val != null && val > 0) return double.parse(val.toStringAsFixed(1));
+    }
+    return null;
+  }
+
+  String _extractArea(
+    Map<String, dynamic> prof,
+    Map<String, dynamic> u,
+    String? fallbackArea,
+  ) {
+    for (final source in [prof, u]) {
+      for (final key in [
+        'area',
+        'location',
+        'city',
+        'address',
+        'preferredLocation',
+        'gymLocation',
+        'place',
+      ]) {
+        final val = source[key];
+        if (val is String && val.trim().isNotEmpty && val != '—') {
+          return val.trim();
+        } else if (val is Map) {
+          final title = val['title'] ?? val['address'] ?? val['city'] ?? val['area'];
+          if (title != null && title.toString().trim().isNotEmpty) {
+            return title.toString().trim();
+          }
+        }
+      }
+    }
+    if (fallbackArea != null && fallbackArea.trim().isNotEmpty && fallbackArea != '—') {
+      return fallbackArea.trim();
+    }
+    return 'Location';
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>?> _safeDoc(
+    DocumentReference<Map<String, dynamic>> ref,
+  ) async {
+    try {
+      return await ref.get();
+    } catch (e) {
+      debugPrint('SafeDoc fetch error on ${ref.path}: $e');
+      return null;
+    }
+  }
+
+  Future<QuerySnapshot<Map<String, dynamic>>?> _safeQuery(
+    Future<QuerySnapshot<Map<String, dynamic>>> query,
+  ) async {
+    try {
+      return await query;
+    } catch (e) {
+      debugPrint('SafeQuery fetch error: $e');
+      return null;
+    }
   }
 
   Future<void> _loadData() async {
     setState(() => _loading = true);
 
     try {
-      final userSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.clientId)
-          .get();
-      final userData = userSnap.data() ?? {};
+      final userRef = FirebaseFirestore.instance.collection('users').doc(widget.clientId);
 
-      final profileSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.clientId)
-          .collection('clientProfile')
-          .doc(widget.clientId)
-          .get();
-      final profileData = profileSnap.data() ?? {};
+      final snaps = await Future.wait([
+        _safeDoc(userRef),
+        _safeDoc(userRef.collection('profile').doc('general')),
+        _safeDoc(userRef.collection('subscription').doc('current')),
+        _safeQuery(userRef.collection('progress').get()),
+        _safeQuery(userRef.collection('progress_history').get()),
+        _safeQuery(FirebaseFirestore.instance.collection('sessions').where('clientId', isEqualTo: widget.clientId).get()),
+        _safeQuery(FirebaseFirestore.instance.collection('sessions').where('userId', isEqualTo: widget.clientId).get()),
+        _safeQuery(FirebaseFirestore.instance.collection('bookings').where('clientId', isEqualTo: widget.clientId).get()),
+        _safeQuery(FirebaseFirestore.instance.collection('bookings').where('userId', isEqualTo: widget.clientId).get()),
+      ]);
 
-      final subsSnap = await FirebaseFirestore.instance
-          .collection('subscriptions')
-          .where('clientId', isEqualTo: widget.clientId)
-          .where('status', isEqualTo: 'active')
-          .limit(1)
-          .get();
-      final subData = subsSnap.docs.isNotEmpty
-          ? subsSnap.docs.first.data()
+      final userDoc = snaps[0] as DocumentSnapshot<Map<String, dynamic>>?;
+      final profileDoc = snaps[1] as DocumentSnapshot<Map<String, dynamic>>?;
+      final subDoc = snaps[2] as DocumentSnapshot<Map<String, dynamic>>?;
+      final progressSnap = snaps[3] as QuerySnapshot<Map<String, dynamic>>?;
+      final histSnap = snaps[4] as QuerySnapshot<Map<String, dynamic>>?;
+
+      final userData = userDoc?.data() ?? {};
+      final profileData = profileDoc?.data() ?? {};
+      final subData = subDoc?.data() ?? {};
+
+      final latestProgress = (progressSnap != null && progressSnap.docs.isNotEmpty)
+          ? progressSnap.docs.last.data()
           : <String, dynamic>{};
 
-      Query progressQuery = FirebaseFirestore.instance
-          .collection('progressLogs')
-          .doc(widget.clientId)
-          .collection('entries')
-          .orderBy('createdAt', descending: true);
-
-      if (_activeFilterKey == 'last7Days') {
-        final cutOff = DateTime.now().subtract(const Duration(days: 7));
-        progressQuery = progressQuery.where(
-          'createdAt',
-          isGreaterThanOrEqualTo: cutOff,
-        );
-      } else if (_activeFilterKey == 'last30Days') {
-        final cutOff = DateTime.now().subtract(const Duration(days: 30));
-        progressQuery = progressQuery.where(
-          'createdAt',
-          isGreaterThanOrEqualTo: cutOff,
-        );
-      }
-
-      final progressSnap = await progressQuery.limit(1).get();
-      final latestProgress = progressSnap.docs.isNotEmpty
-          ? progressSnap.docs.first.data() as Map<String, dynamic>
+      final latestHistory = (histSnap != null && histSnap.docs.isNotEmpty)
+          ? histSnap.docs.last.data()
           : <String, dynamic>{};
 
-      final sessionsSnap = await FirebaseFirestore.instance
-          .collection('sessions')
-          .where('clientId', isEqualTo: widget.clientId)
-          .get();
+      // Multi-collection session query
+      final Set<String> uniqueSessionIds = {};
+      int completedSessionsCount = 0;
+      String? fallbackBookingArea;
 
-      int filteredSessionCount = 0;
-      if (_activeFilterKey == 'allTime') {
-        filteredSessionCount = sessionsSnap.docs.length;
-      } else {
-        DateTime cutOff = _activeFilterKey == 'last7Days'
-            ? DateTime.now().subtract(const Duration(days: 7))
-            : DateTime.now().subtract(const Duration(days: 30));
-
-        for (var doc in sessionsSnap.docs) {
-          final data = doc.data();
-          Timestamp? ts =
-              data['date'] ?? data['createdAt'] ?? data['startTime'];
-          if (ts != null && ts.toDate().isAfter(cutOff)) {
-            filteredSessionCount++;
+      try {
+        final List<QuerySnapshot<Map<String, dynamic>>> sessionsResults = [];
+        for (int i = 5; i <= 8; i++) {
+          if (snaps[i] != null) {
+            sessionsResults.add(snaps[i] as QuerySnapshot<Map<String, dynamic>>);
           }
         }
+
+        for (var snap in sessionsResults) {
+          for (var doc in snap.docs) {
+            final data = doc.data();
+            final uniqueKey = data['bookingId'] ?? data['sessionId'] ?? doc.id;
+            if (uniqueSessionIds.contains(uniqueKey)) continue;
+            uniqueSessionIds.add(uniqueKey);
+
+            if (fallbackBookingArea == null) {
+              if (data['area'] != null && data['area'].toString().isNotEmpty) {
+                fallbackBookingArea = data['area'].toString();
+              } else if (data['location'] != null && data['location'].toString().isNotEmpty) {
+                fallbackBookingArea = data['location'] is Map
+                    ? (data['location']['title'] ?? data['location']['address'] ?? data['location']['city'])?.toString()
+                    : data['location'].toString();
+              }
+            }
+
+            final status = (data['status'] ?? '').toString().toLowerCase().trim();
+            if (status == 'completed' || status == 'done') {
+              completedSessionsCount++;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Sessions count fetch error: $e');
       }
 
       int? age;
-      final dobStr = profileData['dob'] as String?;
+      final dobStr = profileData['dob'] as String? ?? userData['dob'] as String?;
       if (dobStr != null) {
         final dob = DateTime.tryParse(dobStr);
         if (dob != null) {
@@ -147,24 +430,96 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
         }
       }
 
+      final parsedWeight = _extractWeight(latestProgress, latestHistory, userData, profileData);
+      final parsedStartWeight = _toDouble(profileData['startWeightKg']) ??
+          _toDouble(userData['startWeight']) ??
+          _toDouble(userData['startWeightKg']) ??
+          _toDouble(userData['initialWeight']) ??
+          _toDouble(userData['weight']) ??
+          parsedWeight;
+
+      final parsedHeight = _toDouble(profileData['heightCm']) ??
+          _toDouble(profileData['startHeightCm']) ??
+          _toDouble(userData['height']) ??
+          _toDouble(userData['heightCm']);
+
+      final parsedSteps = _extractSteps(latestProgress, latestHistory, userData);
+      final parsedWater = _extractWater(latestProgress, latestHistory, userData);
+      final parsedSleep = _extractSleep(latestProgress, latestHistory, userData);
+      final parsedAge = age ?? _toInt(userData['age']);
+
+      final parsedGoal = profileData['primaryGoal']?.toString() ??
+          profileData['goal']?.toString() ??
+          userData['goal']?.toString() ??
+          userData['fitnessGoal']?.toString() ??
+          userData['primaryGoal']?.toString() ??
+          'Fitness';
+
+      final parsedArea = _extractArea(profileData, userData, fallbackBookingArea);
+
+      final parsedPackage = subData['packageName']?.toString() ??
+          userData['package']?.toString() ??
+          userData['plan']?.toString() ??
+          userData['membership']?.toString() ??
+          'Standard';
+
+      final parsedStatus = subData['status']?.toString() ??
+          userData['status']?.toString() ??
+          'active';
+
+      int docCompleted = 0;
+      if (userData['completedSessions'] is num) {
+        docCompleted = (userData['completedSessions'] as num).toInt();
+      }
+      final finalCompleted = completedSessionsCount > docCompleted ? completedSessionsCount : docCompleted;
+      final finalTotal = _calculatePackageTotalSessions(userData, uniqueSessionIds.length);
+
       if (!mounted) return;
+
+      TrainerDataService().cacheClientProfile(widget.clientId, {
+        'fullName': userData['fullName']?.toString() ??
+            userData['name']?.toString() ??
+            userData['displayName']?.toString() ??
+            'Client',
+        'photoUrl': userData['photoURL']?.toString() ??
+            userData['photoUrl']?.toString() ??
+            userData['profileImage']?.toString(),
+        'status': parsedStatus.toLowerCase(),
+        'packageName': parsedPackage,
+        'currentWeightKg': parsedWeight,
+        'startWeightKg': parsedStartWeight,
+        'heightCm': parsedHeight,
+        'dailySteps': parsedSteps,
+        'waterL': parsedWater,
+        'sleepHours': parsedSleep,
+        'age': parsedAge,
+        'goal': parsedGoal,
+        'area': parsedArea,
+        'totalSessions': finalTotal,
+        'completedSessions': finalCompleted,
+      });
+
       setState(() {
-        _fullName = userData['fullName'] ?? 'Unknown Client';
-        _photoUrl = userData['photoURL'];
-        _status = subData['status'] ?? 'inactive';
-        _packageName = subData['packageName'] ?? '—';
-        _currentWeightKg = (latestProgress['weightKg'] as num?)?.toDouble();
-        _startWeightKg = (profileData['startWeightKg'] as num?)?.toDouble();
-        _heightCm =
-            (profileData['heightCm'] as num?)?.toDouble() ??
-            (profileData['startHeightCm'] as num?)?.toDouble();
-        _dailySteps = (latestProgress['steps'] as num?)?.toInt();
-        _waterL = (latestProgress['waterL'] as num?)?.toDouble();
-        _sleepHours = (latestProgress['sleepHours'] as num?)?.toDouble();
-        _age = age;
-        _goal = profileData['primaryGoal'] ?? '—';
-        _area = profileData['location'] ?? '—';
-        _totalSessions = filteredSessionCount;
+        _fullName = userData['fullName']?.toString() ??
+            userData['name']?.toString() ??
+            userData['displayName']?.toString() ??
+            'Client';
+        _photoUrl = userData['photoURL']?.toString() ??
+            userData['photoUrl']?.toString() ??
+            userData['profileImage']?.toString();
+        _status = parsedStatus.toLowerCase();
+        _packageName = parsedPackage;
+        _currentWeightKg = parsedWeight;
+        _startWeightKg = parsedStartWeight;
+        _heightCm = parsedHeight;
+        _dailySteps = parsedSteps;
+        _waterL = parsedWater;
+        _sleepHours = parsedSleep;
+        _age = parsedAge;
+        _goal = parsedGoal;
+        _area = parsedArea;
+        _totalSessions = finalTotal;
+        _completedSessions = finalCompleted;
         _loading = false;
       });
     } catch (e) {
@@ -257,6 +612,9 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
   double get _stepPercent => ((_dailySteps ?? 0) / 10000).clamp(0.0, 1.0);
   double get _waterPercent => ((_waterL ?? 0) / 4.0).clamp(0.0, 1.0);
   double get _sleepPercent => ((_sleepHours ?? 0) / 8.0).clamp(0.0, 1.0);
+  double get _sessionPercent => _totalSessions > 0
+      ? (_completedSessions / _totalSessions).clamp(0.0, 1.0)
+      : 0.0;
 
   @override
   Widget build(BuildContext context) {
@@ -504,8 +862,8 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                                     title:
                                         strings['sessions']?.toUpperCase() ??
                                         'SESSIONS',
-                                    value: '$_totalSessions',
-                                    unit: strings['total'] ?? 'Total',
+                                    value: '$_completedSessions/$_totalSessions',
+                                    unit: strings['completedWord'] ?? 'Completed',
                                     isHighlighted: false,
                                   ),
                                 ),
@@ -560,12 +918,15 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
 
                           const SizedBox(height: 24),
 
-                          // Tab Content
-                          if (_selectedTab == 0) _buildOverviewTab(strings),
-                          if (_selectedTab == 1)
-                            SessionHistoryTab(clientId: widget.clientId),
-                          if (_selectedTab == 2)
-                            HealthInfoTab(clientId: widget.clientId),
+                          // Tab Content (IndexedStack preserves state for buttery smooth zero-lag switching)
+                          IndexedStack(
+                            index: _selectedTab,
+                            children: [
+                              _buildOverviewTab(strings),
+                              SessionHistoryTab(clientId: widget.clientId),
+                              HealthInfoTab(clientId: widget.clientId),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -695,6 +1056,13 @@ class _TrainerUserProfileScreenState extends State<TrainerUserProfileScreen> {
                   percent: _sleepPercent,
                   color: progressSleep,
                 ),
+                const SizedBox(height: 16),
+                _ProgressBarRow(
+                  label: strings['sessions'] ?? 'Workout Sessions',
+                  value: '$_completedSessions / $_totalSessions',
+                  percent: _sessionPercent,
+                  color: cyanAccent,
+                ),
               ],
             ),
           ),
@@ -806,32 +1174,41 @@ class _StatCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            title,
-            style: GoogleFonts.workSans(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: subTextCol,
-              letterSpacing: 0.5,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              title,
+              style: GoogleFonts.workSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: subTextCol,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.workSans(
-              fontSize: 24,
-              fontWeight: FontWeight.w500,
-              color: textCol,
-              height: 1,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: GoogleFonts.workSans(
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+                color: textCol,
+                height: 1,
+              ),
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            unit,
-            style: GoogleFonts.workSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: subTextCol,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              unit,
+              style: GoogleFonts.workSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: subTextCol,
+              ),
             ),
           ),
         ],
@@ -852,22 +1229,43 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = Theme.of(context).cardColor;
-    final textColor = Theme.of(context).colorScheme.onSurface;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
+    // Light Blue color for selected sliding tab box
+    final lightBlueBg = isDark
+        ? const Color(0xFF01BCE3).withValues(alpha: 0.25)
+        : const Color(0xFFBAE6FD); // Light blue
+
+    final selectedTextColor = isDark
+        ? const Color(0xFF01BCE3)
+        : const Color(0xFF00225D); // High-contrast navy on light blue
 
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isSelected ? cardColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          color: isSelected ? lightBlueBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: isSelected
+              ? Border.all(
+                  color: isDark
+                      ? const Color(0xFF01BCE3).withValues(alpha: 0.5)
+                      : const Color(0xFF7DD3FC),
+                  width: 1,
+                )
+              : null,
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 4,
+                    color: (isDark
+                            ? const Color(0xFF01BCE3)
+                            : const Color(0xFF38BDF8))
+                        .withValues(alpha: 0.2),
+                    blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ]
@@ -878,7 +1276,7 @@ class _TabButton extends StatelessWidget {
           style: GoogleFonts.workSans(
             fontSize: 12,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w700,
-            color: isSelected ? textColor : subTextColor,
+            color: isSelected ? selectedTextColor : subTextColor,
           ),
         ),
       ),
@@ -1160,29 +1558,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          // Properly ordered navigation
-          if (index == 0) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
-              (route) => false,
-            );
-          } else if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
-            );
-          } else if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc, writeBatch } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/trainers.css";
@@ -38,6 +38,8 @@ interface UserData {
     id: string;
     role?: string;
     fullName?: string;
+    name?: string;
+    email?: string;
     trainerId?: string;
     assignedTrainer?: string;
     assignedTrainerId?: string;
@@ -45,7 +47,10 @@ interface UserData {
 }
 
 interface TrainerProfileData {
+    id?: string;
     trainerId?: string;
+    fullName?: string;
+    email?: string;
     designation?: string;
     yearsExperience?: number;
     status?: string;
@@ -126,17 +131,40 @@ export default function Trainers() {
                 ]);
 
                 const allUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserData));
-                const allTrainerProfiles = trainersSnap.docs.map(doc => doc.data() as TrainerProfileData);
+                const allTrainerProfiles = trainersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TrainerProfileData));
                 const allSessions = sessionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SessionData));
                 const allSubs = subsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubscriptionData));
 
                 // 2. Separate users into Trainers and Clients
-                const trainersList = allUsers.filter(u => u.role?.toLowerCase() === "trainer");
+                const rawTrainersList = allUsers.filter(u => u.role?.toLowerCase() === "trainer");
                 const clientsList = allUsers.filter(u => u.role?.toLowerCase() !== "trainer");
+
+                // Filter out and auto-clean phantom/orphan trainer documents that have no valid name or are unnamed
+                const trainersList: UserData[] = [];
+                for (const trainer of rawTrainersList) {
+                    const tProfile = allTrainerProfiles.find(tp => tp.trainerId === trainer.id || tp.id === trainer.id);
+                    const name = (trainer.fullName || tProfile?.fullName || trainer.name || "").trim();
+                    const email = (trainer.email || tProfile?.email || "").trim();
+
+                    // If it's a completely empty or unnamed phantom doc from past incomplete deletions, purge it from Firestore
+                    if (!name && !email) {
+                        deleteDoc(doc(db, "users", trainer.id)).catch(() => {});
+                        deleteDoc(doc(db, "trainers", trainer.id)).catch(() => {});
+                        continue;
+                    }
+
+                    if (name.toLowerCase() === "unnamed trainer" || name.toLowerCase() === "unknown trainer") {
+                        deleteDoc(doc(db, "users", trainer.id)).catch(() => {});
+                        deleteDoc(doc(db, "trainers", trainer.id)).catch(() => {});
+                        continue;
+                    }
+
+                    trainersList.push(trainer);
+                }
 
                 // 3. Build Trainer Cards
                 const trainerRows = trainersList.map((trainer) => {
-                    const tProfile = allTrainerProfiles.find(tp => tp.trainerId === trainer.id) || {};
+                    const tProfile = allTrainerProfiles.find(tp => tp.trainerId === trainer.id || tp.id === trainer.id) || {};
 
                     // COUNT CLIENTS
                     const clientSubs = allSubs.filter(sub =>
@@ -166,7 +194,7 @@ export default function Trainers() {
                         return status === "completed" || status === "done";
                     }).length;
 
-                    const name = trainer.fullName || "Unnamed Trainer";
+                    const name = trainer.fullName || tProfile.fullName || trainer.name || "Trainer";
                     const initials = name.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
 
                     // Get photo URL from either the users doc or trainers doc
@@ -241,9 +269,26 @@ export default function Trainers() {
         if (!confirmDelete) return;
 
         try {
-            // Delete from both users and trainers collections
-            await deleteDoc(doc(db, "trainers", trainerId));
-            await deleteDoc(doc(db, "users", trainerId));
+            const batch = writeBatch(db);
+
+            // 1. Direct doc deletion from both collections
+            batch.delete(doc(db, "trainers", trainerId));
+            batch.delete(doc(db, "users", trainerId));
+
+            // 2. Query any documents in trainers collection matching trainerId
+            const trainersSnap = await getDocs(collection(db, "trainers"));
+            trainersSnap.docs.forEach((d) => {
+                const data = d.data();
+                if (d.id === trainerId || data.trainerId === trainerId || data.userId === trainerId || data.uid === trainerId) {
+                    batch.delete(d.ref);
+                }
+            });
+
+            // 3. Delete availability subcollection
+            const availSnap = await getDocs(collection(db, "trainers", trainerId, "availability")).catch(() => ({ docs: [] }));
+            availSnap.docs.forEach((d) => batch.delete(d.ref));
+
+            await batch.commit();
 
             // Remove from UI immediately without refreshing
             setTrainers((prev) => prev.filter((t) => t.id !== trainerId));

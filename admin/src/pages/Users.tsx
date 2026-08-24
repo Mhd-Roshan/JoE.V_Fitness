@@ -199,7 +199,7 @@ export default function Users() {
                                     <th>Trainer</th>
                                     <th>Joined</th>
                                     <th>Status</th>
-                                    <th></th> {/* Actions Column */}
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>

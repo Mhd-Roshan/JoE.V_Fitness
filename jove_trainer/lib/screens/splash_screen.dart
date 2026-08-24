@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 import 'auth/login_screen.dart';
+import 'home/trainer_main_screen.dart';
+import '../services/trainer_data_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,148 +17,62 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  // The Telegram Animation sequences for Logo (Center)
+  late final Animation<double> _fadeAnimation;
   late final Animation<double> _scaleAnimation;
-  late final Animation<Offset> _positionAnimation;
-  late final Animation<double> _opacityAnimation;
-
-  // The Instagram Animation sequences for Text (Bottom)
-  late final Animation<double> _textOpacityAnimation;
   late final Animation<Offset> _textSlideAnimation;
 
   @override
   void initState() {
     super.initState();
+    // Warm up cache during splash
+    TrainerDataService().preloadAll(notify: false);
 
-    // SPEED UPDATE: Cut from 2200ms to 1500ms (1.5 seconds)
+    // Ultra-optimized, silky-smooth 450ms duration
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 450),
     );
 
-    // ---------------------------------------------------------
-    // 1. CENTER LOGO: TELEGRAM TAKEOFF PHYSICS
-    // ---------------------------------------------------------
-    _scaleAnimation = TweenSequence<double>([
-      // Pop in with a quick bounce
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.0,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.easeOutBack)),
-        weight: 30.0,
-      ),
-      // Idle / Wait (to read text)
-      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 45.0),
-      // Anticipation Squeeze (whips back)
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.0,
-          end: 0.7,
-        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
-        weight: 15.0,
-      ),
-      // Shrink as it flies off
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.7,
-          end: 0.0,
-        ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 10.0,
-      ),
-    ]).animate(_controller);
+    // 1. Smooth Fade-in
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
 
-    _positionAnimation = TweenSequence<Offset>([
-      // Stay centered
-      TweenSequenceItem(
-        tween: ConstantTween<Offset>(Offset.zero),
-        weight: 85.0,
-      ),
-      // Shoots aggressively up and to the right (lightning fast)
-      TweenSequenceItem(
-        tween: Tween<Offset>(
-          begin: Offset.zero,
-          end: const Offset(1.5, -2.0),
-        ).chain(CurveTween(curve: Curves.easeInBack)),
-        weight: 15.0,
-      ),
-    ]).animate(_controller);
+    // 2. Premium Gentle Scale-in (0.88 -> 1.0)
+    _scaleAnimation = Tween<double>(
+      begin: 0.88,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    ));
 
-    _opacityAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.0,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 10.0,
-      ),
-      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 80.0),
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.0,
-          end: 0.0,
-        ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 10.0,
-      ),
-    ]).animate(_controller);
+    // 3. Subtle Tagline Slide-up
+    _textSlideAnimation = Tween<Offset>(
+      begin: const Offset(0.0, 0.25),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    ));
 
-    // ---------------------------------------------------------
-    // 2. BOTTOM TEXT: INSTAGRAM FADE & SLIDE UP
-    // ---------------------------------------------------------
-    _textOpacityAnimation = TweenSequence<double>([
-      // Wait for logo to start popping in
-      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 20.0),
-      // Fade in fast
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.0,
-          end: 1.0,
-        ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 15.0,
-      ),
-      // Stay visible
-      TweenSequenceItem(tween: ConstantTween<double>(1.0), weight: 45.0),
-      // Fade out before logo flies away
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.0,
-          end: 0.0,
-        ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 10.0,
-      ),
-      TweenSequenceItem(tween: ConstantTween<double>(0.0), weight: 10.0),
-    ]).animate(_controller);
-
-    _textSlideAnimation = TweenSequence<Offset>([
-      // Start slightly lower
-      TweenSequenceItem(
-        tween: ConstantTween<Offset>(const Offset(0.0, 0.5)),
-        weight: 20.0,
-      ),
-      // Slide up gently to default position
-      TweenSequenceItem(
-        tween: Tween<Offset>(
-          begin: const Offset(0.0, 0.5),
-          end: Offset.zero,
-        ).chain(CurveTween(curve: Curves.easeOutCubic)),
-        weight: 15.0,
-      ),
-      // Hold position
-      TweenSequenceItem(
-        tween: ConstantTween<Offset>(Offset.zero),
-        weight: 65.0,
-      ),
-    ]).animate(_controller);
-
-    // Start the animation and navigate to Login
+    // Start animation and immediately transition when complete
     _controller.forward().then((_) {
       if (!mounted) return;
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final Widget targetScreen = currentUser != null
+          ? const TrainerMainScreen()
+          : const LoginScreen();
+
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          // Lightning-fast crossfade into the app (250ms)
-          transitionDuration: const Duration(milliseconds: 250),
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const LoginScreen(),
+          transitionDuration: const Duration(milliseconds: 150),
+          pageBuilder: (context, animation, secondaryAnimation) => targetScreen,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
@@ -193,19 +111,16 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // 1. CENTER: The Telegram-style animated logo
+          // 1. CENTER: Smooth animated logo
           Center(
             child: AnimatedBuilder(
               animation: _controller,
               builder: (context, child) {
                 return Opacity(
-                  opacity: _opacityAnimation.value,
-                  child: SlideTransition(
-                    position: _positionAnimation,
-                    child: Transform.scale(
-                      scale: _scaleAnimation.value,
-                      child: child,
-                    ),
+                  opacity: _fadeAnimation.value,
+                  child: Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: child,
                   ),
                 );
               },
@@ -218,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen>
             ),
           ),
 
-          // 2. BOTTOM: The Instagram-style Tagline Text
+          // 2. BOTTOM: The Tagline Text
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -227,10 +142,9 @@ class _SplashScreenState extends State<SplashScreen>
                 animation: _controller,
                 builder: (context, child) {
                   return Opacity(
-                    opacity: _textOpacityAnimation.value,
+                    opacity: _fadeAnimation.value,
                     child: SlideTransition(
-                      position:
-                          _textSlideAnimation, // <--- FIXED TYPO HERE! No .value
+                      position: _textSlideAnimation,
                       child: child,
                     ),
                   );

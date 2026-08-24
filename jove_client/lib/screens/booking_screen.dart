@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-// --- NEW GOOGLE MAPS & LOCATION IMPORTS ---
+// --- GOOGLE MAPS & LOCATION IMPORTS ---
 import 'package:flutter_google_places/flutter_google_places.dart';
 import 'package:google_maps_webservice/places.dart';
 import 'package:geolocator/geolocator.dart';
@@ -20,7 +20,6 @@ import 'notification_screen.dart';
 
 class _Formatters {
   static final Map<String, DateFormat> _time = {};
-  static final Map<String, DateFormat> _dbDate = {};
   static final Map<String, DateFormat> _full = {};
   static final Map<String, DateFormat> _monthYear = {};
   static final Map<String, DateFormat> _dayName = {};
@@ -28,8 +27,6 @@ class _Formatters {
 
   static DateFormat time(String loc) =>
       _time.putIfAbsent(loc, () => DateFormat('h:mm a', loc));
-  static DateFormat dbDate(String loc) =>
-      _dbDate.putIfAbsent(loc, () => DateFormat('yyyy-MM-dd', loc));
   static DateFormat full(String loc) =>
       _full.putIfAbsent(loc, () => DateFormat('EEEE, MMM d', loc));
   static DateFormat monthYear(String loc) =>
@@ -80,6 +77,16 @@ class _BookingScreenState extends State<BookingScreen> {
   static const Color _activeBlue = Color(0xFF003AA3);
   static const Color _redButtonColor = Color(0xFFBB0013);
 
+  final List<String> _daysOfWeek = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -92,11 +99,31 @@ class _BookingScreenState extends State<BookingScreen> {
       _fetchTrainerAndInitialize(widget.trainerId!);
     }
 
-    // Fetch REAL GPS location on init
     _fetchCurrentLocation();
   }
 
-  // --- FASTER REAL GPS FETCH LOGIC ---
+  // --- TIME PARSING TO INTEGER MINUTES FROM MIDNIGHT ---
+  int _parseTimeToMinutes(String timeStr) {
+    if (timeStr.trim().isEmpty) return 0;
+    String clean = timeStr.trim();
+    bool isPm = clean.toUpperCase().contains("PM");
+    bool isAm = clean.toUpperCase().contains("AM");
+    String digitsAndColon = clean.replaceAll(RegExp(r'[^\d:]'), '');
+    List<String> parts = digitsAndColon.split(":");
+    if (parts.isEmpty || parts[0].isEmpty) return 0;
+
+    int h = int.tryParse(parts[0]) ?? 0;
+    int m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+
+    if (isPm && h < 12) h += 12;
+    if (isAm && h == 12) h = 0;
+    return h * 60 + m;
+  }
+
+  String _formatIsoDate(DateTime d) {
+    return "${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}";
+  }
+
   Future<void> _fetchCurrentLocation() async {
     setState(() => _isFetchingLocation = true);
 
@@ -118,16 +145,14 @@ class _BookingScreenState extends State<BookingScreen> {
         throw Exception('Location permissions are permanently denied.');
       }
 
-      // 1. FAST PATH: Get last known position instantly so UI loads fast
       Position? lastPosition = await Geolocator.getLastKnownPosition();
       if (lastPosition != null && mounted) {
         await _updateAddressFromPosition(lastPosition);
       }
 
-      // 2. ACCURATE PATH: Get fresh position with a 5-second timeout so it doesn't spin forever
       Position freshPosition = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium, // Medium is much faster than High
+          accuracy: LocationAccuracy.medium,
           timeLimit: Duration(seconds: 5),
         ),
       );
@@ -137,7 +162,6 @@ class _BookingScreenState extends State<BookingScreen> {
       }
     } catch (e) {
       debugPrint("Location fallback/timeout: $e");
-      // If everything fails and we have no data, show a fallback message
       if (mounted && _locationLat == 0.0) {
         setState(() {
           _locationTitle = 'Location Unavailable';
@@ -151,7 +175,6 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  // Helper function to decode GPS coordinates to readable address
   Future<void> _updateAddressFromPosition(Position position) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -215,6 +238,31 @@ class _BookingScreenState extends State<BookingScreen> {
       if (doc.exists && mounted) {
         _trainer = Trainer.fromFirestore(doc);
         _initializeScreen();
+      } else {
+        // Fallback: check users collection
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(id)
+            .get();
+        if (userDoc.exists && mounted) {
+          final uData = userDoc.data() ?? {};
+          _trainer = Trainer(
+            id: id,
+            name:
+                uData['fullName']?.toString() ??
+                uData['name']?.toString() ??
+                'Trainer',
+            designation: uData['designation']?.toString() ?? 'Personal Trainer',
+            rating: (uData['rating'] as num?)?.toDouble() ?? 5.0,
+            ratingCount: (uData['ratingCount'] as num?)?.toInt() ?? 0,
+            yearsExperience: uData['yearsExperience']?.toString() ?? '0',
+            bio: uData['bio']?.toString() ?? '',
+            specializations: List<String>.from(uData['specializations'] ?? []),
+            certifications: List<String>.from(uData['certifications'] ?? []),
+            imageUrl: uData['photoURL']?.toString() ?? '',
+          );
+          _initializeScreen();
+        }
       }
     } catch (e) {
       debugPrint('Error fetching trainer: $e');
@@ -358,6 +406,7 @@ class _BookingScreenState extends State<BookingScreen> {
     });
   }
 
+  // --- 60-MINUTE NON-OVERLAPPING CONFLICT ENGINE ---
   Future<void> _checkAvailability() async {
     if (_selectedTime == null || _selectedDate == null || _trainer == null) {
       return;
@@ -379,6 +428,7 @@ class _BookingScreenState extends State<BookingScreen> {
         _selectedTime!.minute,
       );
 
+      // Check if time is in the past
       if (selectedDateTime.isBefore(now)) {
         if (mounted) {
           setState(() {
@@ -389,20 +439,80 @@ class _BookingScreenState extends State<BookingScreen> {
         return;
       }
 
-      final String locale = context.locale.languageCode;
-      final String dbDate = _Formatters.dbDate(locale).format(_selectedDate!);
-      final String dbTime = _formatTimeStrict(_selectedTime!, locale);
+      final String dbDate = _formatIsoDate(_selectedDate!);
+      final String currentDayName = _daysOfWeek[_selectedDate!.weekday - 1];
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('bookings')
-          .where('trainerId', isEqualTo: _trainer!.id)
-          .where('date', isEqualTo: dbDate)
-          .where('time', isEqualTo: dbTime)
+      // Requested 60-minute interval
+      int selectedStartMinutes =
+          _selectedTime!.hour * 60 + _selectedTime!.minute;
+      int selectedEndMinutes = selectedStartMinutes + 60;
+
+      // 1. Verify within Trainer's working shifts (Case-insensitive)
+      final availSnap = await FirebaseFirestore.instance
+          .collection('trainers')
+          .doc(_trainer!.id)
+          .collection('availability')
           .get();
 
-      final bool isTaken = snapshot.docs.any(
-        (doc) => doc.data()['status'] != 'cancelled',
-      );
+      final matchingDayDocs = availSnap.docs.where((doc) {
+        String docDay = (doc.data()['dayOfWeek'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        return docDay == currentDayName.toLowerCase();
+      }).toList();
+
+      if (matchingDayDocs.isNotEmpty) {
+        bool withinShift = matchingDayDocs.any((doc) {
+          int s = _parseTimeToMinutes(doc.data()['startTime'] ?? "06:00 AM");
+          int e = _parseTimeToMinutes(doc.data()['endTime'] ?? "08:00 PM");
+          return selectedStartMinutes >= s && selectedEndMinutes <= e;
+        });
+
+        if (!withinShift) {
+          if (mounted) {
+            setState(() {
+              _isChecking = false;
+              _availabilityStatus = 'taken';
+            });
+          }
+          return;
+        }
+      }
+
+      // 2. Fetch existing bookings and sessions for this date
+      final results = await Future.wait([
+        FirebaseFirestore.instance
+            .collection('bookings')
+            .where('trainerId', isEqualTo: _trainer!.id)
+            .where('date', isEqualTo: dbDate)
+            .get(),
+        FirebaseFirestore.instance
+            .collection('sessions')
+            .where('trainerId', isEqualTo: _trainer!.id)
+            .where('scheduledDate', isEqualTo: dbDate)
+            .get(),
+      ]);
+
+      // Overlap formula: (slotStart < bookingEnd) && (slotEnd > bookingStart)
+      bool hasOverlap(Map<String, dynamic> data) {
+        final status = (data['status'] ?? '').toString().toLowerCase();
+        if (status == 'cancelled' || status == 'rejected') {
+          return false;
+        }
+
+        int bStart =
+            data['startMinutes'] ??
+            _parseTimeToMinutes(data['startTime'] ?? data['time'] ?? "00:00");
+        int bEnd =
+            data['endMinutes'] ?? (bStart + (data['durationMinutes'] ?? 60));
+
+        return (selectedStartMinutes < bEnd) && (selectedEndMinutes > bStart);
+      }
+
+      bool isTaken =
+          results[0].docs.any((d) => hasOverlap(d.data())) ||
+          results[1].docs.any((d) => hasOverlap(d.data()));
 
       if (mounted) {
         setState(() {
@@ -411,6 +521,7 @@ class _BookingScreenState extends State<BookingScreen> {
         });
       }
     } catch (e) {
+      debugPrint("Availability check error: $e");
       if (mounted) {
         setState(() {
           _isChecking = false;
@@ -425,10 +536,10 @@ class _BookingScreenState extends State<BookingScreen> {
 
     Prediction? p = await PlacesAutocomplete.show(
       context: context,
-      apiKey: "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA", // Your exact API Key
+      apiKey: "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA",
       mode: Mode.overlay,
       language: "en",
-      components: [Component(Component.country, "in")], // Restricts to India
+      components: [Component(Component.country, "in")],
     );
 
     if (p != null) {
@@ -454,7 +565,6 @@ class _BookingScreenState extends State<BookingScreen> {
     }
   }
 
-  // --- UPDATED LOCATION PICKER BOTTOM SHEET ---
   void _showLocationPicker() {
     HapticFeedback.lightImpact();
 
@@ -498,7 +608,6 @@ class _BookingScreenState extends State<BookingScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 1. Current Location Option
               InkWell(
                 onTap: () {
                   Navigator.pop(context);
@@ -558,7 +667,6 @@ class _BookingScreenState extends State<BookingScreen> {
                 ),
               ),
 
-              // 2. Search Maps Option
               InkWell(
                 onTap: () {
                   Navigator.pop(context);
@@ -894,30 +1002,177 @@ class _BookingScreenState extends State<BookingScreen> {
                     try {
                       final user = FirebaseAuth.instance.currentUser;
                       if (user != null && _trainer != null) {
-                        await FirebaseFirestore.instance
+                        String clientName = user.displayName ?? "Client";
+                        try {
+                          final uDoc = await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(user.uid)
+                              .get();
+                          if (uDoc.exists) {
+                            clientName =
+                                uDoc.data()?['fullName'] ??
+                                uDoc.data()?['name'] ??
+                                clientName;
+                          }
+                        } catch (_) {}
+
+                        final String dbDate = _formatIsoDate(_selectedDate!);
+                        final String dbStartTime = _formatTimeStrict(
+                          _selectedTime!,
+                          locale,
+                        );
+
+                        int startMin =
+                            _selectedTime!.hour * 60 + _selectedTime!.minute;
+                        int endMin = startMin + 60;
+                        TimeOfDay endTimeOfDay = TimeOfDay(
+                          hour: (endMin ~/ 60) % 24,
+                          minute: endMin % 60,
+                        );
+                        final String dbEndTime = _formatTimeStrict(
+                          endTimeOfDay,
+                          locale,
+                        );
+
+                        final batch = FirebaseFirestore.instance.batch();
+
+                        // 1. Store in bookings collection
+                        final bookingRef = FirebaseFirestore.instance
                             .collection('bookings')
-                            .add({
-                              'userId': user.uid,
-                              'trainerId': _trainer!.id,
-                              'trainerName': _trainer!.name,
-                              'date': _Formatters.dbDate(
-                                locale,
-                              ).format(_selectedDate!),
-                              'time': _formatTimeStrict(_selectedTime!, locale),
-                              'sessionType': _selectedSession,
-                              'location': {
-                                'title': _locationTitle,
-                                'address': _locationAddress,
-                                'lat': _locationLat,
-                                'lng': _locationLng,
-                              },
-                              'status': 'confirmed',
-                              'createdAt': FieldValue.serverTimestamp(),
-                            });
+                            .doc();
+
+                        batch.set(bookingRef, {
+                          'bookingId': bookingRef.id,
+                          'userId': user.uid,
+                          'clientId': user.uid,
+                          'clientName': clientName,
+                          'trainerId': _trainer!.id,
+                          'trainerName': _trainer!.name,
+                          'date': dbDate,
+                          'scheduledDate': dbDate,
+                          'time': dbStartTime,
+                          'startTime': dbStartTime,
+                          'endTime': dbEndTime,
+                          'startMinutes': startMin,
+                          'endMinutes': endMin,
+                          'durationMinutes': 60,
+                          'sessionType': _selectedSession,
+                          'serviceType': _selectedSession,
+                          'location': {
+                            'title': _locationTitle,
+                            'address': _locationAddress,
+                            'lat': _locationLat,
+                            'lng': _locationLng,
+                          },
+                          'status': 'confirmed',
+                          'createdAt': FieldValue.serverTimestamp(),
+                        });
+
+                        // 2. Synchronize to sessions collection
+                        final sessionRef = FirebaseFirestore.instance
+                            .collection('sessions')
+                            .doc(bookingRef.id);
+
+                        batch.set(sessionRef, {
+                          'sessionId': bookingRef.id,
+                          'bookingId': bookingRef.id,
+                          'userId': user.uid,
+                          'clientId': user.uid,
+                          'clientName': clientName,
+                          'trainerId': _trainer!.id,
+                          'trainerName': _trainer!.name,
+                          'scheduledDate': dbDate,
+                          'date': dbDate,
+                          'startTime': dbStartTime,
+                          'endTime': dbEndTime,
+                          'time': dbStartTime,
+                          'startMinutes': startMin,
+                          'endMinutes': endMin,
+                          'durationMinutes': 60,
+                          'serviceType': _selectedSession,
+                          'sessionType': _selectedSession,
+                          'area': _locationTitle,
+                          'location': {
+                            'title': _locationTitle,
+                            'address': _locationAddress,
+                            'lat': _locationLat,
+                            'lng': _locationLng,
+                          },
+                          'status': 'confirmed',
+                          'notes': '',
+                          'createdAt': FieldValue.serverTimestamp(),
+                        });
+
+                        // 3. Dispatch Notification to Trainer (All Query Field Aliases for 100% Delivery)
+                        final notifTrainerRef = FirebaseFirestore.instance
+                            .collection('notifications')
+                            .doc();
+                        batch.set(notifTrainerRef, {
+                          'userId': _trainer!.id,
+                          'trainerId': _trainer!.id,
+                          'recipientId': _trainer!.id,
+                          'recipientRole': 'trainer',
+                          'role': 'trainer',
+                          'type': 'session_booked',
+                          'title': 'New 60-Min Session Booked',
+                          'body':
+                              '$clientName booked $_selectedSession on $formattedDate ($dbStartTime - $dbEndTime).',
+                          'message':
+                              '$clientName booked $_selectedSession on $formattedDate ($dbStartTime - $dbEndTime).',
+                          'sessionId': bookingRef.id,
+                          'bookingId': bookingRef.id,
+                          'read': false,
+                          'isRead': false,
+                          'createdAt': FieldValue.serverTimestamp(),
+                          'timestamp': FieldValue.serverTimestamp(),
+                        });
+
+                        // Also write to trainer's private subcollection
+                        final trainerSubNotif = FirebaseFirestore.instance
+                            .collection('trainers')
+                            .doc(_trainer!.id)
+                            .collection('notifications')
+                            .doc(notifTrainerRef.id);
+                        batch.set(trainerSubNotif, {
+                          'userId': _trainer!.id,
+                          'trainerId': _trainer!.id,
+                          'type': 'session_booked',
+                          'title': 'New 60-Min Session Booked',
+                          'body':
+                              '$clientName booked $_selectedSession on $formattedDate ($dbStartTime - $dbEndTime).',
+                          'message':
+                              '$clientName booked $_selectedSession on $formattedDate ($dbStartTime - $dbEndTime).',
+                          'sessionId': bookingRef.id,
+                          'bookingId': bookingRef.id,
+                          'read': false,
+                          'isRead': false,
+                          'createdAt': FieldValue.serverTimestamp(),
+                          'timestamp': FieldValue.serverTimestamp(),
+                        });
+
+                        // 4. Dispatch Notification to Admin
+                        final notifAdminRef = FirebaseFirestore.instance
+                            .collection('notifications')
+                            .doc();
+                        batch.set(notifAdminRef, {
+                          'recipientRole': 'admin',
+                          'type': 'session_booked',
+                          'title': 'Session Booked ($clientName)',
+                          'body':
+                              'Trainer: ${_trainer!.name} | $formattedDate ($dbStartTime - $dbEndTime)',
+                          'sessionId': bookingRef.id,
+                          'bookingId': bookingRef.id,
+                          'read': false,
+                          'isRead': false,
+                          'createdAt': FieldValue.serverTimestamp(),
+                        });
+
+                        await batch.commit();
                       }
                       if (!context.mounted) return;
                       onSuccess();
                     } catch (e) {
+                      debugPrint("Booking save error: $e");
                       if (!context.mounted) return;
                       setBookingState(false);
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1149,7 +1404,6 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  // --- SLIMMER LOCATION CARD UI ---
   Widget _buildLocationCard() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1165,16 +1419,13 @@ class _BookingScreenState extends State<BookingScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 12), // Reduced spacing
+        const SizedBox(height: 12),
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 24),
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ), // Reduced padding
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16), // Slightly tighter radius
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.grey.shade200, width: 1.5),
             boxShadow: [
               BoxShadow(
@@ -1187,7 +1438,7 @@ class _BookingScreenState extends State<BookingScreen> {
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10), // Smaller icon box
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: _bgColor,
                   borderRadius: BorderRadius.circular(12),
@@ -1204,7 +1455,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     : const Icon(
                         Icons.my_location_rounded,
                         color: _textMain,
-                        size: 20, // Smaller icon
+                        size: 20,
                       ),
               ),
               const SizedBox(width: 14),
@@ -1215,7 +1466,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     Text(
                       _locationTitle,
                       style: const TextStyle(
-                        fontSize: 15, // Slightly smaller text
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: _activeBlue,
                       ),
@@ -1224,7 +1475,7 @@ class _BookingScreenState extends State<BookingScreen> {
                     Text(
                       _locationAddress,
                       style: TextStyle(
-                        fontSize: 12, // Slightly smaller text
+                        fontSize: 12,
                         color: Colors.grey.shade600,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1445,7 +1696,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
                   const SizedBox(height: 32),
 
-                  // ---> SELECT TIME MOVED ABOVE LOCATION <---
+                  // ---> TIME SELECTION CARD <---
                   Container(
                     margin: const EdgeInsets.symmetric(horizontal: 24),
                     padding: const EdgeInsets.all(20),
@@ -1636,7 +1887,6 @@ class _BookingScreenState extends State<BookingScreen> {
 
                   const SizedBox(height: 32),
 
-                  // ---> LOCATION CARD MOVED BELOW TIME CONTAINER <---
                   _buildLocationCard(),
 
                   if (_availabilityStatus == 'available') ...[

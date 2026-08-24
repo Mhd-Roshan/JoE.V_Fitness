@@ -2,29 +2,31 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:jove_trainer/screens/profile/trainer_profile_screen.dart';
 
-// Import your other screens for the bottom navigation to work
-import '../home/trainer_home_screen.dart';
-import '../schedules/trainer_schedules_screen.dart';
-import '../users/trainer_users_screen.dart';
 // Import the sub-screens for adding and editing notes
 import 'add_visit_note_screen.dart';
 import 'edit_visit_note_screen.dart';
 
-// ---> NEW: IMPORT LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
+import '../home/trainer_main_screen.dart';
+
+import '../../services/trainer_data_service.dart';
 
 class TrainerNotesScreen extends StatefulWidget {
-  const TrainerNotesScreen({super.key});
+  final bool isEmbeddedInShell;
+  const TrainerNotesScreen({super.key, this.isEmbeddedInShell = false});
 
   @override
   State<TrainerNotesScreen> createState() => _TrainerNotesScreenState();
 }
 
-class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
+class _TrainerNotesScreenState extends State<TrainerNotesScreen>
+    with AutomaticKeepAliveClientMixin {
   // 0: Add notes, 1: Past notes
   int _selectedTab = 0;
+
+  @override
+  bool get wantKeepAlive => true;
 
   bool _isLoadingClients = true;
   List<Map<String, dynamic>> _clients = [];
@@ -36,16 +38,20 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
   // Rotating colors for client avatars (Kept static for consistent visual identity)
   final List<Map<String, Color>> _avatarColors = [
     {
-      'bg': const Color(0xFFE0E7FF),
-      'text': const Color(0xFF3730A3),
-    }, // Light Indigo
-    {
       'bg': const Color(0xFFF3E8FF),
       'text': const Color(0xFF6B21A8),
     }, // Light Purple
     {
+      'bg': const Color(0xFFFFEDD5),
+      'text': const Color(0xFFC2410C),
+    }, // Light Orange
+    {
+      'bg': const Color(0xFFDBEAFE),
+      'text': const Color(0xFF1D4ED8),
+    }, // Light Blue
+    {
       'bg': const Color(0xFFFEE2E2),
-      'text': const Color(0xFF991B1B),
+      'text': const Color(0xFFB91C1C),
     }, // Light Red
     {
       'bg': const Color(0xFFDCFCE7),
@@ -56,12 +62,30 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchClients();
+    if (TrainerDataService().isInitialized) {
+      _parseFromCache();
+      _fetchClients(showSpinner: false);
+    } else {
+      _fetchClients(showSpinner: true);
+    }
     _searchController.addListener(() {
       setState(() {
         _searchQuery = _searchController.text.toLowerCase();
       });
     });
+  }
+
+  void _parseFromCache() {
+    final cache = TrainerDataService();
+    if (!cache.isInitialized) return;
+    _processDocs(
+      cache.myTrainerIds,
+      cache.myTrainerNames,
+      cache.allUsersDocs,
+      cache.allTrainersDocs,
+      cache.allSessionsDocs,
+      cache.allBookingsDocs,
+    );
   }
 
   @override
@@ -70,78 +94,155 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchClients() async {
-    setState(() {
-      _isLoadingClients = true;
-    });
+  Set<String> _myTrainerIds = {};
+  Set<String> _myTrainerNames = {};
 
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      setState(() {
-        _isLoadingClients = false;
-      });
+
+
+  Future<void> _fetchClients({bool showSpinner = true, bool force = false}) async {
+    if (showSpinner && _clients.isEmpty) {
+      if (mounted) setState(() => _isLoadingClients = true);
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _isLoadingClients = false);
       return;
     }
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('trainerId', isEqualTo: uid)
-          .get();
-
-      List<Map<String, dynamic>> fetchedClients = [];
-      final strings = languageService.strings; // Fetch language map
-
-      for (int i = 0; i < snap.docs.length; i++) {
-        final doc = snap.docs[i];
-        final data = doc.data();
-        final name =
-            data['fullName'] ??
-            data['name'] ??
-            (strings['unknownClient'] ?? 'Unknown Client');
-
-        // Use just the first name for the UI chip
-        final firstName = name.trim().split(' ').first;
-
-        // Generate Initials
-        final parts = name.trim().split(' ');
-        String initials = '';
-        if (parts.isNotEmpty && parts[0].isNotEmpty) {
-          initials += parts[0][0];
-          if (parts.length > 1 && parts.last.isNotEmpty) {
-            initials += parts.last[0];
-          }
-        }
-        initials = initials.toUpperCase();
-        if (initials.isEmpty) {
-          initials = '?';
-        }
-
-        // Pick a color theme based on the index
-        final colorTheme = _avatarColors[i % _avatarColors.length];
-
-        fetchedClients.add({
-          'id': doc.id,
-          'name': firstName,
-          'initials': initials,
-          'bgColor': colorTheme['bg'],
-          'textColor': colorTheme['text'],
+      final cache = TrainerDataService();
+      if (!cache.isInitialized) {
+        await cache.preloadAll(notify: false);
+      } else if (force) {
+        await cache.preloadAll(notify: false, force: true);
+      } else {
+        cache.preloadAll(notify: false, force: true).then((_) {
+          if (mounted) _parseFromCache();
         });
       }
-
-      if (mounted) {
-        setState(() {
-          _clients = fetchedClients;
-          _isLoadingClients = false;
-        });
-      }
+      _parseFromCache();
     } catch (e) {
       debugPrint('Error fetching clients: $e');
+    } finally {
       if (mounted) {
-        setState(() {
-          _isLoadingClients = false;
-        });
+        setState(() => _isLoadingClients = false);
       }
+    }
+  }
+
+  void _processDocs(
+    Set<String> myTrainerIds,
+    Set<String> myTrainerNames,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> usersDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> allTrainersDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> sessionsDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingsDocs,
+  ) {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+
+    // 1. Discover all clients belonging to this trainer (assigned, booked, sessions, or completed)
+    final Set<String> relatedClientIds = {};
+    for (var bDoc in bookingsDocs) {
+      final bData = bDoc.data();
+      final bTrainerId = (bData['trainerId'] ?? bData['assignedTrainerId'] ?? '').toString().trim();
+      final bTrainerName = (bData['trainerName'] ?? bData['trainer'] ?? '').toString().toLowerCase().trim();
+      final bClientId = (bData['clientId'] ?? bData['userId'] ?? '').toString().trim();
+      if (bClientId.isEmpty) continue;
+
+      bool isMyBooking = (bTrainerId.isNotEmpty && myTrainerIds.contains(bTrainerId)) ||
+          (bTrainerName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (bTrainerName == n || bTrainerName.contains(n) || n.contains(bTrainerName)))) ||
+          (allTrainersDocs.length == 1);
+
+      if (isMyBooking) {
+        relatedClientIds.add(bClientId);
+      }
+    }
+
+    for (var sDoc in sessionsDocs) {
+      final sData = sDoc.data();
+      final sTrainerId = (sData['trainerId'] ?? sData['assignedTrainerId'] ?? '').toString().trim();
+      final sTrainerName = (sData['trainerName'] ?? sData['trainer'] ?? '').toString().toLowerCase().trim();
+      final sClientId = (sData['clientId'] ?? sData['userId'] ?? '').toString().trim();
+      if (sClientId.isEmpty) continue;
+
+      bool isMySession = (sTrainerId.isNotEmpty && myTrainerIds.contains(sTrainerId)) ||
+          (sTrainerName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (sTrainerName == n || sTrainerName.contains(n) || n.contains(sTrainerName)))) ||
+          (allTrainersDocs.length == 1);
+
+      if (isMySession) {
+        relatedClientIds.add(sClientId);
+      }
+    }
+
+    // 2. Process users and include all clients assigned to or associated with this trainer
+    List<Map<String, dynamic>> fetchedClients = [];
+    final strings = languageService.strings;
+
+    for (int i = 0; i < usersDocs.length; i++) {
+      final doc = usersDocs[i];
+      final data = doc.data();
+      if (doc.id == uid) continue;
+      final role = (data['role'] ?? '').toString().toLowerCase();
+      if (role == 'trainer' || role == 'admin') continue;
+
+      final assignedId = (data['assignedTrainerId'] ?? data['trainerId'] ?? data['assignedTrainer'] ?? '').toString().trim();
+      final assignedName = (data['assignedTrainerName'] ?? data['assignedTrainer'] ?? '').toString().toLowerCase().trim();
+
+      bool isMyClient = false;
+      if (assignedId.isNotEmpty && myTrainerIds.contains(assignedId)) {
+        isMyClient = true;
+      } else if (assignedName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (assignedName == n || assignedName.contains(n) || n.contains(assignedName)))) {
+        isMyClient = true;
+      } else if (relatedClientIds.contains(doc.id)) {
+        isMyClient = true;
+      } else if (allTrainersDocs.length == 1) {
+        isMyClient = true;
+      }
+
+      if (!isMyClient) continue;
+
+      final fullName = (data['fullName'] ?? data['name'] ?? (strings['unknownClient'] ?? 'Unknown Client')).toString();
+      final firstName = fullName.trim().split(' ').first;
+
+      final parts = fullName.trim().split(' ');
+      String initials = '';
+      if (parts.isNotEmpty && parts[0].isNotEmpty) {
+        initials += parts[0][0];
+        if (parts.length > 1 && parts.last.isNotEmpty) {
+          initials += parts.last[0];
+        }
+      }
+      initials = initials.toUpperCase();
+      if (initials.isEmpty) initials = '?';
+
+      final package = data['package']?.toString() ?? data['plan']?.toString() ?? 'Standard';
+      final goal = data['goal']?.toString() ?? data['fitnessGoal']?.toString() ?? 'Fitness';
+      final details = '$package · $goal';
+
+      final photoUrl = data['photoURL']?.toString() ?? data['photoUrl']?.toString() ?? data['profileImage']?.toString() ?? data['image']?.toString();
+      final colorTheme = _avatarColors[fetchedClients.length % _avatarColors.length];
+
+      fetchedClients.add({
+        'id': doc.id,
+        'name': firstName,
+        'fullName': fullName,
+        'initials': initials,
+        'photoUrl': photoUrl,
+        'details': details,
+        'bgColor': colorTheme['bg'],
+        'textColor': colorTheme['text'],
+      });
+    }
+
+    if (mounted) {
+      setState(() {
+        _myTrainerIds = myTrainerIds;
+        _myTrainerNames = myTrainerNames;
+        _clients = fetchedClients;
+        _isLoadingClients = false;
+      });
     }
   }
 
@@ -201,6 +302,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final strings = languageService.strings;
 
     // ---> DYNAMIC THEME COLORS <---
@@ -210,7 +312,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      bottomNavigationBar: _BottomNav(currentIndex: 3, strings: strings),
+      bottomNavigationBar: widget.isEmbeddedInShell
+          ? null
+          : _BottomNav(currentIndex: 3, strings: strings),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -307,9 +411,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
-            strings['selectClients'] ?? 'Select Clients',
+            strings['selectClients'] ?? 'Select Client',
             style: GoogleFonts.workSans(
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: FontWeight.w800,
               color: textColor,
             ),
@@ -317,9 +421,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
         ),
         const SizedBox(height: 16),
 
-        // Horizontal Client List
-        SizedBox(
-          height: 48,
+        Expanded(
           child: _isLoadingClients
               ? Center(
                   child: CircularProgressIndicator(
@@ -328,25 +430,38 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                   ),
                 )
               : _clients.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    strings['noClientsFound'] ?? 'No clients found.',
-                    style: GoogleFonts.workSans(
-                      color: subTextColor,
-                      fontStyle: FontStyle.italic,
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.people_outline_rounded,
+                          size: 48,
+                          color: subTextColor.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          strings['noClientsAssigned'] ??
+                              'No clients assigned to you yet.',
+                          style: GoogleFonts.workSans(
+                            color: subTextColor,
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                   itemCount: _clients.length,
                   separatorBuilder: (context, index) =>
-                      const SizedBox(width: 12),
+                      const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final client = _clients[index];
-
                     return GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -354,7 +469,7 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                           MaterialPageRoute(
                             builder: (context) => AddVisitNoteScreen(
                               clientId: client['id'],
-                              clientName: client['name'],
+                              clientName: client['fullName'] ?? client['name'],
                               clientInitials: client['initials'],
                               bgColor: client['bgColor'],
                               textColor: client['textColor'],
@@ -363,38 +478,110 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                         );
                       },
                       child: Container(
-                        padding: const EdgeInsets.fromLTRB(6, 6, 16, 6),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: cardColor,
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(color: dividerColor, width: 1.0),
                         ),
                         child: Row(
                           children: [
                             Container(
-                              width: 34,
-                              height: 34,
+                              width: 46,
+                              height: 46,
                               decoration: BoxDecoration(
                                 color: client['bgColor'],
                                 shape: BoxShape.circle,
                               ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                client['initials'],
-                                style: GoogleFonts.workSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: client['textColor'],
-                                ),
+                              child: ClipOval(
+                                child: client['photoUrl'] != null &&
+                                        client['photoUrl'].toString().isNotEmpty
+                                    ? Image.network(
+                                        client['photoUrl'],
+                                        fit: BoxFit.cover,
+                                        width: 46,
+                                        height: 46,
+                                        errorBuilder:
+                                            (context, error, stackTrace) =>
+                                                Container(
+                                          color: client['bgColor'],
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            client['initials'],
+                                            style: GoogleFonts.workSans(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w800,
+                                              color: client['textColor'],
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Container(
+                                        color: client['bgColor'],
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          client['initials'],
+                                          style: GoogleFonts.workSans(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            color: client['textColor'],
+                                          ),
+                                        ),
+                                      ),
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Text(
-                              client['name'],
-                              style: GoogleFonts.workSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: textColor,
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    client['fullName'] ?? client['name'],
+                                    style: GoogleFonts.workSans(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    client['details'] ?? 'Assigned Client',
+                                    style: GoogleFonts.workSans(
+                                      fontSize: 12,
+                                      color: subTextColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFC7001A).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.add_circle_outline_rounded,
+                                    color: Color(0xFFC7001A),
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    strings['addNote'] ?? 'Add Note',
+                                    style: GoogleFonts.workSans(
+                                      color: const Color(0xFFC7001A),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -461,8 +648,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('visit_notes')
-                .where('trainerId', isEqualTo: uid)
-                .orderBy('createdAt', descending: true)
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -479,11 +664,31 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen> {
                 );
               }
 
-              // Filter results based on search query
+              // Filter results based on trainerId and search query
               final docs = snapshot.data!.docs.where((doc) {
-                final clientName = doc['clientName'].toString().toLowerCase();
+                final data = doc.data() as Map<String, dynamic>;
+                final noteTrainerId = (data['trainerId'] ?? '').toString().trim();
+                final noteTrainerName = (data['trainerName'] ?? '').toString().toLowerCase().trim();
+
+                bool isMyNote = noteTrainerId == uid ||
+                    _myTrainerIds.contains(noteTrainerId) ||
+                    (_myTrainerNames.isNotEmpty && noteTrainerName.isNotEmpty && _myTrainerNames.any((n) => n.isNotEmpty && (noteTrainerName == n || noteTrainerName.contains(n)))) ||
+                    (_myTrainerIds.length == 1);
+
+                if (!isMyNote) return false;
+
+                final clientName = (data['clientName'] ?? '').toString().toLowerCase();
                 return clientName.contains(_searchQuery);
               }).toList();
+
+              // Sort by createdAt descending
+              docs.sort((a, b) {
+                final aTime = (a.data() as Map<String, dynamic>)['createdAt'];
+                final bTime = (b.data() as Map<String, dynamic>)['createdAt'];
+                DateTime aDate = aTime is Timestamp ? aTime.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                DateTime bDate = bTime is Timestamp ? bTime.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+                return bDate.compareTo(aDate);
+              });
 
               if (docs.isEmpty) {
                 return Center(
@@ -851,25 +1056,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          if (index == 0) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
-            );
-          } else if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
-            );
-          } else if (index == 3) {
-            // Already on Notes
-          } else if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

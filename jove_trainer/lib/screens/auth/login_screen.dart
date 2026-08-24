@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../home/trainer_home_screen.dart';
+import '../home/trainer_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -56,10 +56,10 @@ class _LoginScreenState extends State<LoginScreen> {
         password: password,
       );
 
-      // Navigate to TrainerHomeScreen on successful login
+      // Navigate to TrainerMainScreen on successful login
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
+          MaterialPageRoute(builder: (_) => const TrainerMainScreen()),
         );
       }
     } on FirebaseAuthException catch (e) {

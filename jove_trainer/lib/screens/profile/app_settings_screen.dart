@@ -8,11 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../theme/theme_provider.dart';
 
-// --- BOTTOM NAVIGATION IMPORTS ---
+import '../home/trainer_main_screen.dart';
 import '../home/trainer_home_screen.dart';
-import '../schedules/trainer_schedules_screen.dart';
-import '../users/trainer_users_screen.dart';
-import '../notes/trainer_notes_screen.dart';
 import '../profile/trainer_profile_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
 
@@ -696,16 +693,25 @@ class _TopHeaderBand extends StatelessWidget {
                       color: Colors.white,
                       size: 20,
                     ),
-                    if (uid != null)
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('notifications')
-                            .where('trainerId', isEqualTo: uid)
-                            .where('isRead', isEqualTo: false)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData &&
-                              snapshot.data!.docs.isNotEmpty) {
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('notifications')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData &&
+                            snapshot.data!.docs.isNotEmpty) {
+                          final userEmail = FirebaseAuth.instance.currentUser?.email;
+                          final hasUnread = snapshot.data!.docs.any((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final isForMe = TrainerNotificationsScreen.isNotificationForTrainer(
+                              data: data,
+                              uid: uid ?? '',
+                              userEmail: userEmail,
+                            );
+                            final isUnread = TrainerNotificationsScreen.isNotificationUnread(data);
+                            return isForMe && isUnread;
+                          });
+                          if (hasUnread) {
                             return Positioned(
                               top: 8,
                               right: 10,
@@ -719,9 +725,10 @@ class _TopHeaderBand extends StatelessWidget {
                               ),
                             );
                           }
-                          return const SizedBox.shrink();
-                        },
-                      ),
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -794,28 +801,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          if (index == 0) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
-              (route) => false,
-            );
-          } else if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
-            );
-          } else if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

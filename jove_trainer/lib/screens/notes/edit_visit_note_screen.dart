@@ -2,14 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// Import your other screens for the bottom navigation to work
-import '../home/trainer_home_screen.dart';
-import '../schedules/trainer_schedules_screen.dart';
-import '../users/trainer_users_screen.dart';
-import 'trainer_notes_screen.dart';
-import '../profile/trainer_profile_screen.dart';
-
-// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../home/trainer_main_screen.dart';
 import '../../services/language_service.dart';
 
 class EditVisitNoteScreen extends StatefulWidget {
@@ -215,33 +208,38 @@ class _EditVisitNoteScreenState extends State<EditVisitNoteScreen> {
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        strings['clientCaps'] ?? 'CLIENT',
-                                        style: GoogleFonts.workSans(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.8,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          strings['clientCaps'] ?? 'CLIENT',
+                                          style: GoogleFonts.workSans(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.8,
+                                            ),
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 1.0,
                                           ),
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 1.0,
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        clientName,
-                                        style: GoogleFonts.workSans(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          clientName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: GoogleFonts.workSans(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
+                                  const SizedBox(width: 12),
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -564,28 +562,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          if (index == 0) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
-              (route) => false,
-            );
-          } else if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
-            );
-          } else if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

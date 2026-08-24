@@ -178,22 +178,38 @@ function extractPackage(userDoc?: UserDocData, subDoc?: SubDocData): string {
 // Main Fetch Logic
 // ------------------------------------------------------------------
 async function fetchAssignData() {
-    const trainersSnap = await getDocs(query(collection(db, "users"), where("role", "==", "trainer")));
+    const [usersTrainersSnap, directTrainersSnap] = await Promise.all([
+        getDocs(query(collection(db, "users"), where("role", "==", "trainer"))).catch(() => ({ docs: [] })),
+        getDocs(collection(db, "trainers")).catch(() => ({ docs: [] }))
+    ]);
+
     const trainersMap: Record<string, string> = {};
     const tempTrainers: Record<string, Trainer> = {};
 
-    trainersSnap.docs.forEach(docSnap => {
-        const data = docSnap.data();
-        const name = data.fullName || "Unknown Trainer";
-        trainersMap[docSnap.id] = name;
+    const processTrainer = (id: string, data: any) => {
+        const name = (data.fullName || data.name || "").trim();
+        const email = (data.email || "").trim();
+        if (!name && !email) return;
+        if (name.toLowerCase() === "unnamed trainer" || name.toLowerCase() === "unknown trainer") return;
 
-        tempTrainers[docSnap.id] = {
-            id: docSnap.id,
-            fullName: name,
-            initials: name.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase(),
-            clientCount: 0
-        };
-    });
+        const displayName = name || "Trainer";
+        trainersMap[id] = displayName;
+        if (data.userId) trainersMap[data.userId] = displayName;
+        if (data.trainerId) trainersMap[data.trainerId] = displayName;
+        if (data.id) trainersMap[data.id] = displayName;
+
+        if (!tempTrainers[id]) {
+            tempTrainers[id] = {
+                id: id,
+                fullName: displayName,
+                initials: displayName.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase(),
+                clientCount: 0
+            };
+        }
+    };
+
+    usersTrainersSnap.docs.forEach(d => processTrainer(d.id, d.data()));
+    directTrainersSnap.docs.forEach(d => processTrainer(d.id, d.data()));
 
     const [subsSnap, assessSnap, goalsSnap] = await Promise.all([
         getDocs(collection(db, "subscriptions")).catch(() => ({ docs: [] })),
@@ -222,19 +238,21 @@ async function fetchAssignData() {
         goalsMap[uid] = data;
     });
 
-    const clientsSnap = await getDocs(query(collection(db, "users"), where("role", "==", "client")));
+    const allUsersSnap = await getDocs(collection(db, "users"));
     const loadedClients: ClientRow[] = [];
 
-    clientsSnap.docs.forEach(docSnap => {
+    allUsersSnap.docs.forEach(docSnap => {
         const data = docSnap.data() as UserDocData;
         const uid = docSnap.id;
+        const role = ((data as any).role || "").toString().toLowerCase();
+        if (role === "trainer" || role === "admin") return;
 
         const subData = subsMap[uid];
         const assessData = assessMap[uid];
         const goalData = goalsMap[uid];
 
-        const name = data.fullName || "Unknown Client";
-        const trainerId = data.trainerId || subData?.trainerId || null;
+        const name = data.fullName || (data as any).name || "Unknown Client";
+        const trainerId = (data as any).assignedTrainerId || data.trainerId || (data as any).assignedTrainer || subData?.trainerId || null;
 
         if (trainerId && tempTrainers[trainerId]) {
             tempTrainers[trainerId].clientCount += 1;
@@ -276,7 +294,7 @@ async function fetchAssignData() {
             primaryGoal: actualGoal,
             goalColor: getGoalColor(actualGoal),
             currentTrainerId: trainerId,
-            currentTrainerName: trainerId ? trainersMap[trainerId] : null,
+            currentTrainerName: trainerId ? (trainersMap[trainerId] || "Assigned") : null,
             status: status
         });
     });
@@ -435,10 +453,68 @@ export default function AssignDuties() {
         if (!selectedClient) return;
         setAssigning(true);
         try {
+            const targetTrainer = trainerId ? trainers.find(t => t.id === trainerId) : null;
+            const trainerName = targetTrainer ? targetTrainer.fullName : null;
+
+            // 1. Update user document with full trainer assignment fields
             await setDoc(doc(db, "users", selectedClient.id), {
-                trainerId: trainerId,
-                reassignRequest: false
+                trainerId: trainerId || null,
+                assignedTrainerId: trainerId || null,
+                assignedTrainerName: trainerName || null,
+                assignedTrainer: trainerName || null,
+                trainerName: trainerName || null,
+                reassignRequest: false,
+                updatedAt: new Date()
             }, { merge: true });
+
+            // 2. Sync to subscriptions
+            try {
+                const subQuery1 = query(collection(db, "subscriptions"), where("userId", "==", selectedClient.id));
+                const subQuery2 = query(collection(db, "subscriptions"), where("clientId", "==", selectedClient.id));
+                const [sSnap1, sSnap2] = await Promise.all([getDocs(subQuery1), getDocs(subQuery2)]);
+                const subDocs = [...sSnap1.docs, ...sSnap2.docs];
+                for (const sDoc of subDocs) {
+                    await setDoc(doc(db, "subscriptions", sDoc.id), {
+                        trainerId: trainerId || null,
+                        assignedTrainerId: trainerId || null,
+                        assignedTrainerName: trainerName || null,
+                        trainerName: trainerName || null
+                    }, { merge: true });
+                }
+            } catch (err) {
+                console.warn("Sub sync warn:", err);
+            }
+
+            // 3. Sync to active sessions and bookings
+            try {
+                const sessQ1 = query(collection(db, "sessions"), where("userId", "==", selectedClient.id));
+                const sessQ2 = query(collection(db, "sessions"), where("clientId", "==", selectedClient.id));
+                const bookQ1 = query(collection(db, "bookings"), where("userId", "==", selectedClient.id));
+                const bookQ2 = query(collection(db, "bookings"), where("clientId", "==", selectedClient.id));
+
+                const [s1, s2, b1, b2] = await Promise.all([
+                    getDocs(sessQ1).catch(() => ({ docs: [] })),
+                    getDocs(sessQ2).catch(() => ({ docs: [] })),
+                    getDocs(bookQ1).catch(() => ({ docs: [] })),
+                    getDocs(bookQ2).catch(() => ({ docs: [] }))
+                ]);
+
+                const schedDocs = [...s1.docs, ...s2.docs, ...b1.docs, ...b2.docs];
+                for (const d of schedDocs) {
+                    const status = ((d.data() as any).status || "").toLowerCase();
+                    if (status !== "completed" && status !== "done" && status !== "cancelled" && status !== "canceled") {
+                        await setDoc(doc(db, d.ref.parent.id, d.id), {
+                            trainerId: trainerId || null,
+                            assignedTrainerId: trainerId || null,
+                            assignedTrainerName: trainerName || null,
+                            trainerName: trainerName || null,
+                            trainer: trainerName || null
+                        }, { merge: true });
+                    }
+                }
+            } catch (err) {
+                console.warn("Sessions sync warn:", err);
+            }
 
             const { newTrainers, newClients, heatmapStats, newRecommendations } = await fetchAssignData();
             setTrainers(newTrainers);

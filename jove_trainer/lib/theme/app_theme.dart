@@ -1,6 +1,49 @@
 import 'package:flutter/material.dart';
 
+/// Custom high-performance, low-latency (180ms) page transition for all platforms
+class FastFadeSlidePageTransitionsBuilder extends PageTransitionsBuilder {
+  const FastFadeSlidePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    final slideAnimation = Tween<Offset>(
+      begin: const Offset(0.06, 0.0),
+      end: Offset.zero,
+    ).animate(curvedAnimation);
+
+    return SlideTransition(
+      position: slideAnimation,
+      child: FadeTransition(
+        opacity: curvedAnimation,
+        child: child,
+      ),
+    );
+  }
+}
+
 class AppTheme {
+  static const _fastTransitionsTheme = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: FastFadeSlidePageTransitionsBuilder(),
+      TargetPlatform.iOS: FastFadeSlidePageTransitionsBuilder(),
+      TargetPlatform.windows: FastFadeSlidePageTransitionsBuilder(),
+      TargetPlatform.macOS: FastFadeSlidePageTransitionsBuilder(),
+      TargetPlatform.linux: FastFadeSlidePageTransitionsBuilder(),
+    },
+  );
+
   // --- LIGHT THEME ---
   static final ThemeData lightTheme = ThemeData(
     brightness: Brightness.light,
@@ -8,6 +51,7 @@ class AppTheme {
     primaryColor: const Color(0xFF003AA3), // headerBlue
     cardColor: Colors.white,
     dividerColor: const Color(0xFFE5E7EB), // borderGrey
+    pageTransitionsTheme: _fastTransitionsTheme,
     colorScheme: const ColorScheme.light(
       primary: Color(0xFF00225D), // darkBlue
       secondary: Color(0xFF01BCE3), // cyanAccent
@@ -25,6 +69,7 @@ class AppTheme {
     primaryColor: const Color(0xFF00225D), // Keep header dark blue
     cardColor: const Color(0xFF1E1E1E), // Dark grey for cards
     dividerColor: const Color(0xFF333333), // Dark borders
+    pageTransitionsTheme: _fastTransitionsTheme,
     colorScheme: const ColorScheme.dark(
       primary: Color(0xFF01BCE3), // Lighter blue for dark mode
       secondary: Color(0xFF01BCE3),

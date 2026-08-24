@@ -89,28 +89,59 @@ interface RawProgressData {
     steps?: number;
 }
 
-interface RawBookingData {
-    sessionType?: string;
-    serviceType?: string;
-    trainerName?: string;
-    date?: string;
-    time?: string;
-}
-
 // ------------------------------------------------------------------
 // Date Helpers
 // ------------------------------------------------------------------
-const formatFullDate = (dString: string | number) => {
+const parseDateFlexible = (val: unknown): Date | null => {
+    if (!val) return null;
+    if (typeof (val as { toDate?: () => Date }).toDate === "function") {
+        return (val as { toDate: () => Date }).toDate();
+    }
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === "number") {
+        const ms = val < 10000000000 ? val * 1000 : val;
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof val === "string") {
+        const s = val.trim();
+        if (!s || s === "—") return null;
+
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) return parsed;
+
+        const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+        if (isoMatch) {
+            const y = parseInt(isoMatch[1], 10);
+            const m = parseInt(isoMatch[2], 10) - 1;
+            const d = parseInt(isoMatch[3], 10);
+            const res = new Date(y, m, d);
+            if (!isNaN(res.getTime())) return res;
+        }
+
+        const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+        if (dmyMatch) {
+            const d = parseInt(dmyMatch[1], 10);
+            const m = parseInt(dmyMatch[2], 10) - 1;
+            const y = parseInt(dmyMatch[3], 10);
+            const res = new Date(y, m, d);
+            if (!isNaN(res.getTime())) return res;
+        }
+    }
+    return null;
+};
+
+const formatFullDate = (dString: unknown) => {
     if (!dString || dString === "—") return "—";
-    const d = new Date(dString);
-    if (isNaN(d.getTime())) return dString.toString();
+    const d = parseDateFlexible(dString);
+    if (!d) return dString.toString();
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const formatShortDate = (dString: string | number) => {
+const formatShortDate = (dString: unknown) => {
     if (!dString || dString === "—") return "—";
-    const d = new Date(dString);
-    if (isNaN(d.getTime())) return dString.toString();
+    const d = parseDateFlexible(dString);
+    if (!d) return dString.toString();
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
@@ -148,9 +179,11 @@ export default function UserProfile() {
 
         async function loadProfileFast() {
             try {
-                // Fetch all data (including the assessments collection)
+                // Fetch all data (including both bookings & sessions collections)
                 const [
-                    userSnap, profileSnap, subSnap, bookingsSnap,
+                    userSnap, profileSnap, subSnap,
+                    bookingsUserSnap, bookingsClientSnap,
+                    sessionsUserSnap, sessionsClientSnap,
                     progressSnap, dietSnap, conditionsSnap,
                     proceduresSnap, medsSnap, actionItemsSnap,
                     assessDocSnap, assessUserSnap, assessClientSnap
@@ -159,6 +192,9 @@ export default function UserProfile() {
                     getDoc(doc(db, "users", id!, "clientProfile", id!)),
                     getDocs(query(collection(db, "subscriptions"), where("clientId", "==", id))),
                     getDocs(query(collection(db, "bookings"), where("userId", "==", id))),
+                    getDocs(query(collection(db, "bookings"), where("clientId", "==", id))),
+                    getDocs(query(collection(db, "sessions"), where("userId", "==", id))),
+                    getDocs(query(collection(db, "sessions"), where("clientId", "==", id))),
                     getDocs(collection(db, "users", id!, "progress_history")),
                     getDocs(query(collection(db, "clientDietPlans"), where("clientId", "==", id), where("status", "==", "active"))),
                     getDocs(collection(db, "users", id!, "healthConditions")),
@@ -297,23 +333,46 @@ export default function UserProfile() {
                     })));
                 }
 
-                // Process Bookings
-                const sortedBookings = bookingsSnap.docs
-                    .map(d => ({ id: d.id, ...(d.data() as RawBookingData) }))
-                    .sort((a, b) => {
-                        const dateA = new Date((a.date || "") + " " + (a.time || "")).getTime() || 0;
-                        const dateB = new Date((b.date || "") + " " + (b.time || "")).getTime() || 0;
-                        return dateB - dateA;
-                    });
+                // Process Bookings & Sessions
+                const allDocsMap = new Map<string, Record<string, unknown>>();
+                [
+                    ...bookingsUserSnap.docs,
+                    ...bookingsClientSnap.docs,
+                    ...sessionsUserSnap.docs,
+                    ...sessionsClientSnap.docs
+                ].forEach(d => {
+                    const docData = d.data() as Record<string, unknown>;
+                    const uniqueKey = (docData.bookingId || docData.sessionId || d.id) as string;
+                    if (!allDocsMap.has(uniqueKey)) {
+                        allDocsMap.set(uniqueKey, { id: d.id, ...docData });
+                    }
+                });
+
+                const sortedBookings = Array.from(allDocsMap.values()).map(b => {
+                    const rawDate = (b.scheduledDate || b.date || b.sessionDate || b.bookingDate || b.createdAt || b.timestamp) as unknown;
+                    const parsedDate = parseDateFlexible(rawDate);
+                    return {
+                        id: b.id as string,
+                        serviceType: (b.sessionType || b.serviceType || b.service || b.plan || "Training Session") as string,
+                        trainerName: (b.trainerName || b.trainer || b.assignedTrainerName || trainerName || "Trainer") as string,
+                        scheduledDate: (rawDate ? rawDate.toString() : "—"),
+                        dateObj: parsedDate,
+                        time: (b.time || b.startTime || b.scheduledTime || "") as string,
+                    };
+                }).sort((a, b) => {
+                    const dateA = a.dateObj ? a.dateObj.getTime() : 0;
+                    const dateB = b.dateObj ? b.dateObj.getTime() : 0;
+                    return dateB - dateA;
+                });
 
                 if (isMounted) {
                     setTotalSessions(sortedBookings.length);
-                    setSessions(sortedBookings.slice(0, 3).map(b => ({
+                    setSessions(sortedBookings.slice(0, 5).map(b => ({
                         id: b.id,
-                        serviceType: b.sessionType || b.serviceType || "Training Session",
-                        trainerName: b.trainerName || trainerName,
-                        scheduledDate: b.date || "—",
-                        time: b.time || ""
+                        serviceType: b.serviceType,
+                        trainerName: b.trainerName,
+                        scheduledDate: b.scheduledDate,
+                        time: b.time
                     })));
                 }
 

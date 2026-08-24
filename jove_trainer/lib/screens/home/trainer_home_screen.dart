@@ -3,18 +3,82 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../schedules/trainer_schedules_screen.dart';
-import '../users/trainer_users_screen.dart';
-import '../notes/trainer_notes_screen.dart';
-import '../profile/trainer_profile_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../notifications/trainer_notifications_screen.dart';
 import '../profile/trainer_client_reviews_screen.dart';
+import 'trainer_main_screen.dart';
 
 // IMPORT LANGUAGE SERVICE
 import '../../services/language_service.dart';
 
+import '../../services/trainer_data_service.dart';
+
 class TrainerHomeScreen extends StatefulWidget {
-  const TrainerHomeScreen({super.key});
+  final bool isEmbeddedInShell;
+  const TrainerHomeScreen({super.key, this.isEmbeddedInShell = false});
+
+  /// Opens Google Maps with coordinates or address for turn-by-turn navigation
+  static Future<void> openGoogleMaps({
+    double? lat,
+    double? lng,
+    String? address,
+  }) async {
+    try {
+      if (lat != null && lng != null && (lat != 0 || lng != 0)) {
+        // 1. Try Google Maps Native App Navigation intent directly
+        final navUri = Uri.parse('google.navigation:q=$lat,$lng&mode=d');
+        try {
+          if (await launchUrl(navUri, mode: LaunchMode.externalApplication)) {
+            return;
+          }
+        } catch (_) {}
+
+        // 2. Try geo: intent
+        final geoUri = Uri.parse('geo:$lat,$lng?q=$lat,$lng');
+        try {
+          if (await launchUrl(geoUri, mode: LaunchMode.externalApplication)) {
+            return;
+          }
+        } catch (_) {}
+
+        // 3. Fallback to Google Maps Directions API (active turn-by-turn navigation)
+        final webUri = Uri.parse(
+          'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving&dir_action=navigate',
+        );
+        try {
+          await launchUrl(webUri, mode: LaunchMode.externalApplication);
+        } catch (e) {
+          debugPrint('Web launch error: $e');
+        }
+        return;
+      }
+
+      if (address != null &&
+          address.trim().isNotEmpty &&
+          address.trim() != 'Location' &&
+          address.trim() != '—') {
+        final query = Uri.encodeComponent(address.trim());
+        final navUri = Uri.parse('google.navigation:q=$query&mode=d');
+        try {
+          if (await launchUrl(navUri, mode: LaunchMode.externalApplication)) {
+            return;
+          }
+        } catch (_) {}
+
+        final webUri = Uri.parse(
+          'https://www.google.com/maps/dir/?api=1&destination=$query&travelmode=driving&dir_action=navigate',
+        );
+        try {
+          await launchUrl(webUri, mode: LaunchMode.externalApplication);
+        } catch (e) {
+          debugPrint('Web launch error: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching Google Maps: $e');
+    }
+  }
 
   @override
   State<TrainerHomeScreen> createState() => _TrainerHomeScreenState();
@@ -22,27 +86,48 @@ class TrainerHomeScreen extends StatefulWidget {
 
 class _TrainerSession {
   final String id;
+  final String clientId;
   final String clientName;
   final String serviceType;
   final String time;
   final String amPm;
   final String area;
+  final double? latitude;
+  final double? longitude;
+  final String? address;
+  final DateTime? scheduledDateTime;
   String status;
 
   _TrainerSession({
     required this.id,
+    this.clientId = '',
     required this.clientName,
     required this.serviceType,
     required this.time,
     required this.amPm,
     required this.area,
+    this.latitude,
+    this.longitude,
+    this.address,
+    this.scheduledDateTime,
     required this.status,
   });
+
+  /// Only visible/markable on the current scheduled date & time (with a 15-minute buffer before start)
+  bool get canMarkDone {
+    if (scheduledDateTime == null) return true;
+    final now = DateTime.now();
+    return now.isAfter(scheduledDateTime!.subtract(const Duration(minutes: 15)));
+  }
 }
 
-class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
-  bool _loading = true;
+class _TrainerHomeScreenState extends State<TrainerHomeScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   List<_TrainerSession> _sessions = [];
+  bool _loading = true;
 
   // Keep brand red static
   static const Color primaryRed = Color(0xFFBB0013);
@@ -50,60 +135,434 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    if (TrainerDataService().isInitialized) {
+      _parseFromCache();
+      _loadData(showSpinner: false);
+    } else {
+      _loadData(showSpinner: true);
+    }
   }
 
-  String _todayDateStr() {
-    final now = DateTime.now();
-    return '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
+  void _parseFromCache() {
+    final cache = TrainerDataService();
+    if (!cache.isInitialized) return;
+    _processDocs(
+      cache.myTrainerIds,
+      cache.myTrainerNames,
+      cache.myTrainerEmails,
+      cache.allUsersDocs,
+      cache.allTrainersDocs,
+      cache.allSessionsDocs,
+      cache.allBookingsDocs,
+    );
   }
 
-  Future<void> _loadData() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
+  // --- ROBUST DATE MATCHER (HANDLES ISO, DD-MM-YYYY, TEXT MONTHS, AND TIMESTAMPS) ---
+  bool _isSameDayDate(dynamic rawDate, DateTime targetDate) {
+    if (rawDate == null) {
+      return false;
+    }
+    DateTime? d;
+    if (rawDate is Timestamp) {
+      d = rawDate.toDate();
+    } else if (rawDate is DateTime) {
+      d = rawDate;
+    } else if (rawDate is num) {
+      int val = rawDate.toInt();
+      if (val < 10000000000) {
+        val *= 1000;
+      }
+      d = DateTime.fromMillisecondsSinceEpoch(val);
+    } else if (rawDate is String) {
+      String s = rawDate.trim();
+      if (s.isEmpty) return false;
+
+      // Check YYYY-MM-DD or YYYY/MM/DD
+      final isoRegex = RegExp(r'(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})');
+      final isoMatch = isoRegex.firstMatch(s);
+      if (isoMatch != null) {
+        int y = int.parse(isoMatch.group(1)!);
+        int m = int.parse(isoMatch.group(2)!);
+        int day = int.parse(isoMatch.group(3)!);
+        return y == targetDate.year &&
+            m == targetDate.month &&
+            day == targetDate.day;
+      }
+
+      // Check DD-MM-YYYY or DD/MM/YYYY
+      final dmyRegex = RegExp(r'(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})');
+      final dmyMatch = dmyRegex.firstMatch(s);
+      if (dmyMatch != null) {
+        int day = int.parse(dmyMatch.group(1)!);
+        int m = int.parse(dmyMatch.group(2)!);
+        int y = int.parse(dmyMatch.group(3)!);
+        return y == targetDate.year &&
+            m == targetDate.month &&
+            day == targetDate.day;
+      }
+
+      d = DateTime.tryParse(s);
+      if (d == null) {
+        final lower = s.toLowerCase();
+        const months = {
+          'jan': 1,
+          'feb': 2,
+          'mar': 3,
+          'apr': 4,
+          'may': 5,
+          'jun': 6,
+          'jul': 7,
+          'aug': 8,
+          'sep': 9,
+          'oct': 10,
+          'nov': 11,
+          'dec': 12,
+        };
+        for (final entry in months.entries) {
+          if (lower.contains(entry.key)) {
+            final numbers = RegExp(
+              r'\d+',
+            ).allMatches(lower).map((m) => int.parse(m.group(0)!)).toList();
+            if (numbers.isNotEmpty) {
+              int year = numbers.firstWhere(
+                (n) => n > 1900 && n < 2100,
+                orElse: () => targetDate.year,
+              );
+              int day = numbers.firstWhere(
+                (n) => n <= 31 && n != year,
+                orElse: () => -1,
+              );
+              if (day != -1) {
+                d = DateTime(year, entry.value, day);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+    if (d == null) {
+      return false;
+    }
+    return d.year == targetDate.year &&
+        d.month == targetDate.month &&
+        d.day == targetDate.day;
+  }
+
+  Future<void> _loadData({bool showSpinner = false, bool force = false}) async {
+    if (showSpinner && _sessions.isEmpty) {
+      if (mounted) setState(() => _loading = true);
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
       if (mounted) setState(() => _loading = false);
       return;
     }
 
     try {
-      final sessionsSnap = await FirebaseFirestore.instance
-          .collection('sessions')
-          .where('trainerId', isEqualTo: uid)
-          .where('scheduledDate', isEqualTo: _todayDateStr())
-          .get();
-
-      final sessions = sessionsSnap.docs.map((d) {
-        final data = d.data();
-        String rawTime = data['scheduledTime']?.toString().trim() ?? '00:00 AM';
-        List<String> timeParts = rawTime.split(' ');
-        String parsedTime = timeParts.isNotEmpty ? timeParts[0] : '00:00';
-        String parsedAmPm = timeParts.length > 1
-            ? timeParts[1].toUpperCase()
-            : 'AM';
-
-        return _TrainerSession(
-          id: d.id,
-          clientName: data['clientName']?.toString().toUpperCase() ?? 'UNKNOWN',
-          serviceType:
-              data['serviceType']?.toString().toUpperCase() ?? 'SESSION',
-          time: parsedTime,
-          amPm: parsedAmPm,
-          area: data['area'] ?? '—',
-          status: data['status']?.toString().toLowerCase() ?? 'future',
-        );
-      }).toList()..sort((a, b) => a.time.compareTo(b.time));
-
-      if (mounted) {
-        setState(() {
-          _sessions = sessions;
-          _loading = false;
+      final cache = TrainerDataService();
+      if (!cache.isInitialized) {
+        await cache.preloadAll(notify: false);
+      } else if (force) {
+        await cache.preloadAll(notify: false, force: true);
+      } else {
+        cache.preloadAll(notify: false, force: true).then((_) {
+          if (mounted) _parseFromCache();
         });
       }
+      _parseFromCache();
     } catch (e) {
       debugPrint('Trainer home load error: $e');
-      if (mounted) setState(() => _loading = false);
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _processDocs(
+    Set<String> myTrainerIds,
+    Set<String> myTrainerNames,
+    Set<String> myTrainerEmails,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> clientsDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> allTrainersDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> sessionsDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingsDocs,
+  ) {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+
+    final Map<String, String> clientToTrainerMap = {};
+    final Map<String, String> clientNamesMap = {};
+    final Map<String, Map<String, dynamic>> clientLocationsMap = {};
+    for (var doc in clientsDocs) {
+      final data = doc.data();
+      if (data['role'] != 'trainer') {
+        final assignedId = data['assignedTrainerId'] ??
+            data['trainerId'] ??
+            data['assignedTrainer'] ??
+            '';
+        if (assignedId.toString().isNotEmpty) {
+          clientToTrainerMap[doc.id] = assignedId.toString().trim();
+        }
+        final cName = data['fullName'] ?? data['name'] ?? '';
+        if (cName.toString().isNotEmpty) {
+          clientNamesMap[doc.id] = cName.toString().trim();
+        }
+
+        double? cLat = (data['latitude'] ?? data['lat']) is num
+            ? (data['latitude'] ?? data['lat']).toDouble()
+            : null;
+        double? cLng = (data['longitude'] ?? data['lng']) is num
+            ? (data['longitude'] ?? data['lng']).toDouble()
+            : null;
+        if (data['location'] is Map) {
+          final loc = data['location'] as Map;
+          if (loc['latitude'] is num) cLat = loc['latitude'].toDouble();
+          if (loc['lat'] is num) cLat = loc['lat'].toDouble();
+          if (loc['longitude'] is num) cLng = loc['longitude'].toDouble();
+          if (loc['lng'] is num) cLng = loc['lng'].toDouble();
+        }
+        String cAddress = data['address']?.toString() ??
+            data['locationAddress']?.toString() ??
+            data['area']?.toString() ??
+            '';
+        clientLocationsMap[doc.id] = {
+          'lat': cLat,
+          'lng': cLng,
+          'address': cAddress,
+        };
+      }
+    }
+
+    final strings = languageService.strings;
+    final Map<String, _TrainerSession> sessionMap = {};
+    final now = DateTime.now();
+
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> activeDocs = [];
+    activeDocs.addAll(sessionsDocs);
+    activeDocs.addAll(bookingsDocs);
+
+    for (var doc in activeDocs) {
+      final data = doc.data();
+      final docTrainerId = (data['trainerId'] ??
+              data['assignedTrainerId'] ??
+              data['assignedTrainer'] ??
+              data['trainer_id'] ??
+              '')
+          .toString()
+          .trim();
+      final docTrainerName = (data['trainerName'] ??
+              data['trainer'] ??
+              data['assignedTrainerName'] ??
+              data['trainer_name'] ??
+              '')
+          .toString()
+          .toLowerCase()
+          .trim();
+      final docTrainerEmail = (data['trainerEmail'] ??
+              data['trainer_email'] ??
+              data['email'] ??
+              '')
+          .toString()
+          .toLowerCase()
+          .trim();
+      final clientId = (data['clientId'] ??
+              data['userId'] ??
+              data['client_id'] ??
+              data['user_id'] ??
+              '')
+          .toString()
+          .trim();
+
+      // Check if this booking belongs to this trainer
+      bool isTrainerMatch = false;
+      if (docTrainerId.isNotEmpty && myTrainerIds.contains(docTrainerId)) {
+        isTrainerMatch = true;
+      } else if (docTrainerEmail.isNotEmpty &&
+          myTrainerEmails.contains(docTrainerEmail)) {
+        isTrainerMatch = true;
+      } else if (docTrainerName.isNotEmpty &&
+          myTrainerNames.any((n) =>
+              n.isNotEmpty &&
+              (docTrainerName == n ||
+                  docTrainerName.contains(n) ||
+                  n.contains(docTrainerName)))) {
+        isTrainerMatch = true;
+      } else if (clientId.isNotEmpty) {
+        final clientAssignedTrainer = clientToTrainerMap[clientId] ?? '';
+        if (clientAssignedTrainer.isNotEmpty &&
+            myTrainerIds.contains(clientAssignedTrainer)) {
+          isTrainerMatch = true;
+        } else if (docTrainerId.isEmpty &&
+            docTrainerName.isEmpty &&
+            clientId != uid) {
+          isTrainerMatch = true;
+        }
+      } else if (docTrainerId.isEmpty && docTrainerName.isEmpty) {
+        isTrainerMatch = true;
+      } else if (allTrainersDocs.length == 1) {
+        isTrainerMatch = true;
+      }
+
+      if (!isTrainerMatch) {
+        continue;
+      }
+
+      final rawDate = data['scheduledDate'] ??
+          data['date'] ??
+          data['sessionDate'] ??
+          data['bookingDate'] ??
+          data['selectedDate'] ??
+          data['scheduled_date'] ??
+          data['session_date'] ??
+          data['scheduledDateTime'] ??
+          data['dateTime'] ??
+          data['createdAt'] ??
+          data['timestamp'];
+
+      if (!_isSameDayDate(rawDate, now)) {
+        continue;
+      }
+
+      String rawTime = data['startTime']?.toString().trim() ??
+          data['time']?.toString().trim() ??
+          data['scheduledTime']?.toString().trim() ??
+          data['sessionTime']?.toString().trim() ??
+          data['start_time']?.toString().trim() ??
+          '08:00 AM';
+      List<String> timeParts = rawTime.split(' ');
+      String parsedTime = timeParts.isNotEmpty ? timeParts[0] : '08:00';
+      String parsedAmPm =
+          timeParts.length > 1 ? timeParts[1].toUpperCase() : 'AM';
+
+      String area = 'Location';
+      double? lat;
+      double? lng;
+      String? address;
+
+      if (data['latitude'] is num) lat = (data['latitude'] as num).toDouble();
+      if (data['lat'] is num) lat = (data['lat'] as num).toDouble();
+      if (data['longitude'] is num) lng = (data['longitude'] as num).toDouble();
+      if (data['lng'] is num) lng = (data['lng'] as num).toDouble();
+      if (data['geoPoint'] is GeoPoint) {
+        lat = (data['geoPoint'] as GeoPoint).latitude;
+        lng = (data['geoPoint'] as GeoPoint).longitude;
+      }
+
+      if (data['location'] is Map) {
+        final locMap = data['location'] as Map;
+        area = locMap['title']?.toString() ??
+            locMap['address']?.toString() ??
+            locMap['city']?.toString() ??
+            locMap['area']?.toString() ??
+            'Location';
+        if (locMap['latitude'] is num) lat = (locMap['latitude'] as num).toDouble();
+        if (locMap['lat'] is num) lat = (locMap['lat'] as num).toDouble();
+        if (locMap['longitude'] is num) lng = (locMap['longitude'] as num).toDouble();
+        if (locMap['lng'] is num) lng = (locMap['lng'] as num).toDouble();
+        address = locMap['address']?.toString() ??
+            locMap['street']?.toString() ??
+            locMap['title']?.toString();
+      } else if (data['area'] != null && data['area'].toString().isNotEmpty) {
+        area = data['area'].toString();
+      } else if (data['location'] != null &&
+          data['location'].toString().isNotEmpty) {
+        area = data['location'].toString();
+      }
+
+      if (lat == null &&
+          lng == null &&
+          clientId.isNotEmpty &&
+          clientLocationsMap.containsKey(clientId)) {
+        lat = clientLocationsMap[clientId]?['lat'];
+        lng = clientLocationsMap[clientId]?['lng'];
+        if (address == null || address.isEmpty) {
+          address = clientLocationsMap[clientId]?['address'];
+        }
+      }
+
+      if (address == null || address.isEmpty) {
+        address = data['address']?.toString() ??
+            data['street']?.toString() ??
+            data['clientAddress']?.toString() ??
+            area;
+      }
+
+      String rawStatus =
+          data['status']?.toString().toLowerCase().trim() ?? 'future';
+      if (rawStatus == 'completed' || rawStatus == 'done') {
+        rawStatus = 'completed';
+      } else if (rawStatus == 'live' || rawStatus == 'live now') {
+        rawStatus = 'live';
+      } else {
+        rawStatus = 'future';
+      }
+
+      String clientName = data['clientName'] ??
+          data['client'] ??
+          data['userName'] ??
+          data['name'] ??
+          (clientId.isNotEmpty ? clientNamesMap[clientId] : null) ??
+          (strings['unknownClient'] ?? 'Client');
+
+      String serviceType = data['serviceType'] ??
+          data['sessionType'] ??
+          data['service'] ??
+          data['plan'] ??
+          (strings['strength'] ?? 'Personal Training');
+
+      DateTime? parsedDateTime;
+      if (rawDate is Timestamp) {
+        parsedDateTime = rawDate.toDate();
+      } else if (rawDate is DateTime) {
+        parsedDateTime = rawDate;
+      } else if (rawDate is String) {
+        parsedDateTime = DateTime.tryParse(rawDate);
+      }
+      if (parsedDateTime != null) {
+        int h = 8;
+        int m = 0;
+        final tParts = parsedTime.split(':');
+        if (tParts.isNotEmpty) h = int.tryParse(tParts[0]) ?? 8;
+        if (tParts.length > 1) m = int.tryParse(tParts[1]) ?? 0;
+        if (parsedAmPm == 'PM' && h < 12) h += 12;
+        if (parsedAmPm == 'AM' && h == 12) h = 0;
+        parsedDateTime = DateTime(
+          parsedDateTime.year,
+          parsedDateTime.month,
+          parsedDateTime.day,
+          h,
+          m,
+        );
+      }
+
+      final uniqueKey = data['bookingId'] ?? data['sessionId'] ?? doc.id;
+      sessionMap[uniqueKey] = _TrainerSession(
+        id: doc.id,
+        clientId: clientId,
+        clientName: clientName.toUpperCase(),
+        serviceType: serviceType.toUpperCase(),
+        time: parsedTime,
+        amPm: parsedAmPm,
+        area: area,
+        latitude: lat,
+        longitude: lng,
+        address: address,
+        scheduledDateTime: parsedDateTime,
+        status: rawStatus,
+      );
+    }
+
+    final loadedList = sessionMap.values.toList()
+      ..sort((a, b) => a.time.compareTo(b.time));
+
+    if (mounted) {
+      setState(() {
+        _sessions = loadedList;
+        _loading = false;
+      });
     }
   }
 
@@ -116,10 +575,43 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
     });
 
     try {
-      await FirebaseFirestore.instance
+      final firestoreStatus = newStatus == 'completed'
+          ? 'completed'
+          : 'scheduled';
+      final batch = FirebaseFirestore.instance.batch();
+
+      final sessionRef = FirebaseFirestore.instance
           .collection('sessions')
-          .doc(session.id)
-          .update({'status': newStatus});
+          .doc(session.id);
+      final bookingRef = FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(session.id);
+
+      batch.set(sessionRef, {
+        'status': firestoreStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      batch.set(bookingRef, {
+        'status': firestoreStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (session.clientId.isNotEmpty) {
+        final userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(session.clientId);
+        if (newStatus == 'completed') {
+          batch.set(userRef, {
+            'completedSessions': FieldValue.increment(1),
+          }, SetOptions(merge: true));
+        } else {
+          batch.set(userRef, {
+            'completedSessions': FieldValue.increment(-1),
+          }, SetOptions(merge: true));
+        }
+      }
+
+      await batch.commit();
     } catch (e) {
       setState(() {
         session.status = oldStatus;
@@ -130,6 +622,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final strings = languageService.strings;
 
     // ---> DYNAMIC THEME COLORS <---
@@ -147,7 +640,9 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      bottomNavigationBar: _BottomNav(currentIndex: 0, strings: strings),
+      bottomNavigationBar: widget.isEmbeddedInShell
+          ? null
+          : _BottomNav(currentIndex: 0, strings: strings),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: primaryBlue))
           : SingleChildScrollView(
@@ -217,11 +712,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                         Expanded(
                           child: GestureDetector(
                             onTap: () {
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (_) => const TrainerNotesScreen(),
-                                ),
-                              );
+                              TrainerMainScreen.switchTab(context, 3);
                             },
                             child: _QuickActionCard(
                               label: strings['addNotes'] ?? 'Add Notes',
@@ -275,12 +766,7 @@ class _TrainerHomeScreenState extends State<TrainerHomeScreen> {
                             ),
                             GestureDetector(
                               onTap: () {
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const TrainerSchedulesScreen(),
-                                  ),
-                                );
+                                TrainerMainScreen.switchTab(context, 1);
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -436,16 +922,30 @@ class _TopHeaderBand extends StatelessWidget {
                           Colors.white, // Popped to white for better contrast
                       size: 20,
                     ),
-                    if (uid != null)
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('notifications')
-                            .where('trainerId', isEqualTo: uid)
-                            .where('isRead', isEqualTo: false)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData &&
-                              snapshot.data!.docs.isNotEmpty) {
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('notifications')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData &&
+                            snapshot.data!.docs.isNotEmpty) {
+                          final userEmail =
+                              FirebaseAuth.instance.currentUser?.email;
+                          final hasUnread = snapshot.data!.docs.any((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final isForMe =
+                                TrainerNotificationsScreen.isNotificationForTrainer(
+                                  data: data,
+                                  uid: uid ?? '',
+                                  userEmail: userEmail,
+                                );
+                            final isUnread =
+                                TrainerNotificationsScreen.isNotificationUnread(
+                                  data,
+                                );
+                            return isForMe && isUnread;
+                          });
+                          if (hasUnread) {
                             return Positioned(
                               top: 8,
                               right: 10,
@@ -459,9 +959,10 @@ class _TopHeaderBand extends StatelessWidget {
                               ),
                             );
                           }
-                          return const SizedBox.shrink();
-                        },
-                      ),
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -529,27 +1030,38 @@ class _HeroSessionCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.location_on_outlined,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            session.area,
-                            style: GoogleFonts.workSans(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            overflow: TextOverflow.ellipsis,
+                    GestureDetector(
+                      onTap: () {
+                        TrainerHomeScreen.openGoogleMaps(
+                          lat: session.latitude,
+                          lng: session.longitude,
+                          address: session.address ?? session.area,
+                        );
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.location_on,
+                            size: 16,
+                            color: Color(0xFF01BCE3),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              session.area,
+                              style: GoogleFonts.workSans(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                decoration: TextDecoration.underline,
+                                decorationColor: const Color(0xFF01BCE3),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -589,7 +1101,7 @@ class _HeroSessionCard extends StatelessWidget {
                     Text(
                       session.amPm,
                       style: GoogleFonts.workSans(
-                        color: Color(0xFF01BCE3),
+                        color: const Color(0xFF01BCE3),
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
@@ -600,48 +1112,208 @@ class _HeroSessionCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 24),
+          // Google Maps Live Client Navigation Tile (Uber/Delivery style)
+          GestureDetector(
+            onTap: () {
+              TrainerHomeScreen.openGoogleMaps(
+                lat: session.latitude,
+                lng: session.longitude,
+                address: session.address ?? session.area,
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFF01BCE3).withValues(alpha: 0.6),
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF01BCE3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.navigation_rounded,
+                      color: Color(0xFF00225D),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                strings['clientLocation'] ?? 'CLIENT LOCATION',
+                                style: GoogleFonts.workSans(
+                                  color: const Color(0xFF01BCE3),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.open_in_new_rounded,
+                              color: Color(0xFF01BCE3),
+                              size: 11,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          session.address != null &&
+                                  session.address!.isNotEmpty &&
+                                  session.address != 'Location'
+                              ? session.address!
+                              : (session.area != 'Location'
+                                  ? session.area
+                                  : (strings['openInGoogleMaps'] ??
+                                      'Open in Google Maps')),
+                          style: GoogleFonts.workSans(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.directions_car_rounded,
+                          color: Color(0xFF00225D),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          strings['navigate'] ?? 'Navigate',
+                          style: GoogleFonts.workSans(
+                            color: const Color(0xFF00225D),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 20),
 
           Row(
             children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onComplete,
-                  icon: Icon(
-                    isCompleted
-                        ? Icons.undo_rounded
-                        : Icons.check_circle_outline,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    isCompleted
-                        ? (strings['markUndone'] ?? 'Mark Undone')
-                        : (strings['markDone'] ?? 'Mark Done'),
-                    style: GoogleFonts.workSans(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white, width: 1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+              if (isCompleted)
+                Expanded(
+                  child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF22C55E),
+                        width: 1.5,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: Color(0xFF4ADE80),
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            strings['completed'] ?? 'Completed',
+                            style: GoogleFonts.workSans(
+                              color: const Color(0xFF4ADE80),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (session.canMarkDone)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onComplete,
+                    icon: const Icon(
+                      Icons.check_circle_outline,
+                      size: 18,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      strings['markDone'] ?? 'Mark Done',
+                      style: GoogleFonts.workSans(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white, width: 1),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+              if (isCompleted || session.canMarkDone)
+                const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(
-                        builder: (_) => const TrainerNotesScreen(),
-                      ),
-                    );
+                    TrainerMainScreen.switchTab(context, 3);
                   },
                   icon: const Icon(
                     Icons.description_outlined,
@@ -739,103 +1411,200 @@ class _SessionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompleted = session.status == 'completed';
+    final isLive = session.status == 'live';
 
     final cardColor = Theme.of(context).cardColor;
     final dividerColor = Theme.of(context).dividerColor;
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
-    final primaryColor = Theme.of(context).primaryColor;
+    const brandRed = Color(0xFFBB0013);
+    const brandNavy = Color(0xFF00225D);
 
-    // Dynamic Row Styling
-    Color rowBgColor = isCompleted
-        ? Theme.of(context).scaffoldBackgroundColor
-        : cardColor;
-    Color borderColor = isCompleted
-        ? dividerColor
+    // Dynamic Row Styling matching mock design
+    Color rowBgColor = cardColor;
+    Color borderColor = isLive
+        ? brandRed
+        : isCompleted
+        ? dividerColor.withValues(alpha: 0.5)
         : dividerColor.withValues(alpha: 0.5);
-    Color timeBoxColor = isCompleted ? dividerColor : primaryColor;
-    Color timeTextColor = isCompleted ? textColor : Colors.white;
-    Color titleColor = isCompleted ? subTextColor : textColor;
-    Color subtitleColor = isCompleted
-        ? subTextColor.withValues(alpha: 0.6)
-        : subTextColor;
+    Color timeBoxColor = isLive
+        ? brandRed
+        : isCompleted
+        ? brandNavy
+        : const Color(0xFFE2E8F0);
+    Color timeTextColor = (isLive || isCompleted)
+        ? Colors.white
+        : const Color(0xFF334155);
+    Color titleColor = isLive ? brandRed : textColor;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: rowBgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 55,
-            height: 60,
-            decoration: BoxDecoration(
-              color: timeBoxColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  session.time,
-                  style: GoogleFonts.workSans(
-                    color: timeTextColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+    return GestureDetector(
+      onTap: () {
+        TrainerMainScreen.switchTab(context, 1);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: rowBgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: isLive ? 1.8 : 1.2),
+          boxShadow: isLive
+              ? [
+                  BoxShadow(
+                    color: brandRed.withValues(alpha: 0.12),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                ),
-                Text(
-                  session.amPm,
-                  style: GoogleFonts.workSans(
-                    color: timeTextColor.withValues(alpha: 0.9),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 55,
+              height: 60,
+              decoration: BoxDecoration(
+                color: timeBoxColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    session.time,
+                    style: GoogleFonts.workSans(
+                      color: timeTextColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  session.clientName,
-                  style: GoogleFonts.workSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: titleColor,
-                    letterSpacing: 0.5,
+                  Text(
+                    session.amPm,
+                    style: GoogleFonts.workSans(
+                      color: timeTextColor.withValues(alpha: 0.9),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  session.serviceType,
-                  style: GoogleFonts.workSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: subtitleColor,
-                    letterSpacing: 0.5,
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          session.clientName,
+                          style: GoogleFonts.workSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: titleColor,
+                            letterSpacing: 0.5,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isCompleted) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFF22C55E,
+                            ).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: const Color(0xFF22C55E),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            'DONE ✓',
+                            style: GoogleFonts.workSans(
+                              color: const Color(0xFF16A34A),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (isLive) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: brandRed,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 13,
+                        color: subTextColor,
+                      ),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          session.area,
+                          style: GoogleFonts.workSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: subTextColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                TrainerHomeScreen.openGoogleMaps(
+                  lat: session.latitude,
+                  lng: session.longitude,
+                  address: session.address ?? session.area,
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(right: 4),
+                decoration: BoxDecoration(
+                  color: (isLive ? brandRed : brandNavy).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ],
+                child: Icon(
+                  Icons.navigation_rounded,
+                  color: isLive ? brandRed : brandNavy,
+                  size: 18,
+                ),
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: onToggle,
-            icon: Icon(
-              isCompleted
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: isCompleted ? Colors.green : subTextColor,
-              size: 28,
+            Icon(
+              isLive
+                  ? Icons.keyboard_double_arrow_right_rounded
+                  : Icons.chevron_right_rounded,
+              color: isLive ? brandRed : subTextColor.withValues(alpha: 0.5),
+              size: isLive ? 24 : 20,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -905,23 +1674,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
-            );
-          } else if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

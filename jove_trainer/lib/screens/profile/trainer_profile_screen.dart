@@ -3,29 +3,32 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../home/trainer_home_screen.dart';
-import '../schedules/trainer_schedules_screen.dart';
-import '../users/trainer_users_screen.dart';
-import '../notes/trainer_notes_screen.dart';
-import '../notifications/trainer_notifications_screen.dart';
 import 'contact_admin_screen.dart';
 import 'app_settings_screen.dart';
 import 'trainer_client_reviews_screen.dart';
 import '../auth/login_screen.dart';
+import '../notifications/trainer_notifications_screen.dart';
 
-// ---> IMPORT LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
+import '../home/trainer_main_screen.dart';
+
+import '../../services/trainer_data_service.dart';
 
 class TrainerProfileScreen extends StatefulWidget {
-  const TrainerProfileScreen({super.key});
+  final bool isEmbeddedInShell;
+  const TrainerProfileScreen({super.key, this.isEmbeddedInShell = false});
 
   @override
   State<TrainerProfileScreen> createState() => _TrainerProfileScreenState();
 }
 
-class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
+class _TrainerProfileScreenState extends State<TrainerProfileScreen>
+    with AutomaticKeepAliveClientMixin {
   // Keep brand specific colors static
   static const Color primaryRed = Color(0xFFC7001A);
+
+  @override
+  bool get wantKeepAlive => true;
 
   bool _isLoading = true;
   String _fullName = '';
@@ -44,155 +47,495 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfileData();
+    if (TrainerDataService().isInitialized) {
+      _parseFromCache();
+      _loadProfileData(showSpinner: false);
+    } else {
+      _loadProfileData(showSpinner: true);
+    }
   }
 
-  Future<void> _loadProfileData() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    final userEmail = FirebaseAuth.instance.currentUser?.email;
+  void _parseFromCache() {
+    final cache = TrainerDataService();
+    if (!cache.isInitialized) return;
+    _processDocs(
+      cache.trainerUserData,
+      cache.trainerDocData,
+      cache.myTrainerIds,
+      cache.myTrainerNames,
+      cache.myTrainerEmails,
+      cache.myTrainerPhones,
+      cache.allUsersDocs,
+      cache.allTrainersDocs,
+      cache.allSessionsDocs,
+      cache.allBookingsDocs,
+      cache.allWorkoutsDocs,
+      cache.allPlansDocs,
+      cache.allFeedbacksDocs,
+      cache.allReviewsDocs,
+    );
+  }
+
+  Future<void> _loadProfileData({bool showSpinner = true, bool force = false}) async {
+    if (showSpinner && _fullName.isEmpty) {
+      if (mounted) setState(() => _isLoading = true);
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid;
     if (uid == null) {
       if (mounted) setState(() => _isLoading = false);
       return;
     }
 
     try {
-      // 1. Fetch User Doc
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      final userData = userDoc.data() ?? {};
-
-      // 2. Fetch Trainer Profile Doc (Robust Fallback Strategy)
-      Map<String, dynamic> trainerData = {};
-
-      // Attempt A: Direct Document ID
-      final directTrainerDoc = await FirebaseFirestore.instance
-          .collection('trainers')
-          .doc(uid)
-          .get();
-      if (directTrainerDoc.exists && directTrainerDoc.data() != null) {
-        trainerData = directTrainerDoc.data()!;
+      final cache = TrainerDataService();
+      if (!cache.isInitialized) {
+        await cache.preloadAll(notify: false);
+      } else if (force) {
+        await cache.preloadAll(notify: false, force: true);
       } else {
-        // Attempt B: Query by userId field
-        final trainerQuery = await FirebaseFirestore.instance
-            .collection('trainers')
-            .where('userId', isEqualTo: uid)
-            .limit(1)
-            .get();
+        cache.preloadAll(notify: false, force: true).then((_) {
+          if (mounted) _parseFromCache();
+        });
+      }
+      _parseFromCache();
+    } catch (e) {
+      debugPrint("Error loading profile: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
-        if (trainerQuery.docs.isNotEmpty) {
-          trainerData = trainerQuery.docs.first.data();
-        } else if (userEmail != null) {
-          // Attempt C: Query by email field
-          final emailQuery = await FirebaseFirestore.instance
-              .collection('trainers')
-              .where('email', isEqualTo: userEmail)
-              .limit(1)
-              .get();
-          if (emailQuery.docs.isNotEmpty) {
-            trainerData = emailQuery.docs.first.data();
+  void _processDocs(
+    Map<String, dynamic> userData,
+    Map<String, dynamic> directTrainerData,
+    Set<String> myTrainerIds,
+    Set<String> myTrainerNames,
+    Set<String> myTrainerEmails,
+    Set<String> myTrainerPhones,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> allUsersDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> allTrainersDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> sessionsDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingsDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> workoutsDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> plansDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> feedbacksDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> reviewsDocs,
+  ) {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+    final userEmail = user?.email;
+
+    try {
+      Map<String, dynamic> trainerData = Map<String, dynamic>.from(directTrainerData);
+
+      if (userData['fullName'] != null) {
+        final fn = userData['fullName'].toString().toLowerCase().trim();
+        myTrainerNames.add(fn);
+        for (final part in fn.split(' ')) {
+          if (part.length > 1) myTrainerNames.add(part);
+        }
+      }
+      if (userData['name'] != null) {
+        final n = userData['name'].toString().toLowerCase().trim();
+        myTrainerNames.add(n);
+        for (final part in n.split(' ')) {
+          if (part.length > 1) myTrainerNames.add(part);
+        }
+      }
+      if (userData['email'] != null) {
+        myTrainerEmails.add(userData['email'].toString().toLowerCase().trim());
+      }
+      if (userData['phone'] != null || userData['phoneNumber'] != null) {
+        final p = (userData['phone'] ?? userData['phoneNumber']).toString().trim();
+        if (p.isNotEmpty) myTrainerPhones.add(p);
+      }
+      if (userData['trainerId'] != null) {
+        myTrainerIds.add(userData['trainerId'].toString().trim());
+      }
+      if (userData['id'] != null) {
+        myTrainerIds.add(userData['id'].toString().trim());
+      }
+
+      // 2. Fetch Trainer Profile Docs & match all trainers in collection
+      for (var tDoc in allTrainersDocs) {
+        final tData = tDoc.data();
+        final tEmail = (tData['email'] ?? '').toString().toLowerCase().trim();
+        final tName = (tData['fullName'] ?? tData['name'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+        final tUserId = (tData['userId'] ?? tData['authUid'] ?? tData['uid'] ?? '')
+            .toString()
+            .trim();
+        final tPhone =
+            (tData['phone'] ?? tData['phoneNumber'] ?? '').toString().trim();
+
+        bool isMe = tDoc.id == uid ||
+            (tUserId.isNotEmpty && tUserId == uid) ||
+            (userEmail != null &&
+                tEmail.isNotEmpty &&
+                tEmail == userEmail.toLowerCase().trim()) ||
+            (myTrainerEmails.isNotEmpty &&
+                tEmail.isNotEmpty &&
+                myTrainerEmails.contains(tEmail)) ||
+            (myTrainerPhones.isNotEmpty &&
+                tPhone.isNotEmpty &&
+                myTrainerPhones.contains(tPhone)) ||
+            (myTrainerNames.isNotEmpty &&
+                tName.isNotEmpty &&
+                myTrainerNames.any((n) =>
+                    n.isNotEmpty &&
+                    (tName == n || tName.contains(n) || n.contains(tName)))) ||
+            (allTrainersDocs.length == 1);
+
+        if (isMe) {
+          if (trainerData.isEmpty) {
+            trainerData = tData;
+          }
+          myTrainerIds.add(tDoc.id);
+          if (tData['trainerId'] != null) {
+            myTrainerIds.add(tData['trainerId'].toString().trim());
+          }
+          if (tData['id'] != null) {
+            myTrainerIds.add(tData['id'].toString().trim());
+          }
+          if (tName.isNotEmpty) {
+            myTrainerNames.add(tName);
+            for (final part in tName.split(' ')) {
+              if (part.length > 1) myTrainerNames.add(part);
+            }
+          }
+          if (tEmail.isNotEmpty) myTrainerEmails.add(tEmail);
+          if (tPhone.isNotEmpty) myTrainerPhones.add(tPhone);
+        }
+      }
+
+      // 3. Count Unique Assigned Clients across users, bookings, and sessions
+      final Set<String> assignedClientIds = {};
+
+      for (var uDoc in allUsersDocs) {
+        if (uDoc.id == uid) continue;
+        final uData = uDoc.data();
+          final role = (uData['role'] ?? '').toString().toLowerCase();
+          if (role == 'trainer' || role == 'admin') continue;
+
+          final assignedTId = (uData['assignedTrainerId'] ??
+                  uData['trainerId'] ??
+                  uData['trainer_id'] ??
+                  '')
+              .toString()
+              .trim();
+          final assignedTName = (uData['assignedTrainerName'] ??
+                  uData['trainerName'] ??
+                  uData['trainer'] ??
+                  '')
+              .toString()
+              .toLowerCase()
+              .trim();
+
+          bool isAssigned = (assignedTId.isNotEmpty &&
+                  myTrainerIds.contains(assignedTId)) ||
+              (assignedTName.isNotEmpty &&
+                  myTrainerNames.any((n) =>
+                      n.isNotEmpty &&
+                      (assignedTName == n ||
+                          assignedTName.contains(n) ||
+                          n.contains(assignedTName))));
+
+          if (isAssigned) {
+            assignedClientIds.add(uDoc.id);
+          }
+        }
+
+      // 4. Count Unique Sessions & Client Bookings
+      final Set<String> uniqueSessionIds = {};
+      int sessionsCount = 0;
+      int completedSessionsCount = 0;
+
+      final List<QueryDocumentSnapshot<Map<String, dynamic>>> combinedSessions = [];
+      combinedSessions.addAll(sessionsDocs);
+      combinedSessions.addAll(bookingsDocs);
+
+      for (var doc in combinedSessions) {
+        final data = doc.data();
+        final tId = (data['trainerId'] ??
+                data['trainer_id'] ??
+                data['assignedTrainerId'] ??
+                '')
+            .toString()
+            .trim();
+        final tName = (data['trainerName'] ??
+                data['trainer'] ??
+                data['assignedTrainerName'] ??
+                '')
+            .toString()
+            .toLowerCase()
+            .trim();
+
+        bool isMySession = (tId.isNotEmpty && myTrainerIds.contains(tId)) ||
+            (tName.isNotEmpty &&
+                myTrainerNames.any((n) =>
+                    n.isNotEmpty &&
+                    (tName == n || tName.contains(n) || n.contains(tName)))) ||
+            (tId.isEmpty && tName.isEmpty);
+
+        if (isMySession) {
+          final key = data['bookingId'] ?? data['sessionId'] ?? doc.id;
+          if (!uniqueSessionIds.contains(key)) {
+            uniqueSessionIds.add(key);
+            sessionsCount++;
+
+            final clientId = (data['clientId'] ?? data['userId'] ?? '')
+                .toString()
+                .trim();
+            if (clientId.isNotEmpty && clientId != uid) {
+              assignedClientIds.add(clientId);
+            }
+
+            final status =
+                (data['status'] ?? '').toString().toLowerCase().trim();
+            if (status == 'completed' || status == 'done') {
+              completedSessionsCount++;
+            }
           }
         }
       }
 
-      // Fetch Clients Count
-      final clientsQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('trainerId', isEqualTo: uid)
-          .get();
+      // 5. Fetch Workouts Count (Strictly Real Data from Firestore)
+      int workoutsCount = 0;
+      for (var doc in workoutsDocs) {
+        final data = doc.data();
+        final tId = (data['trainerId'] ?? data['createdBy'] ?? data['userId'] ?? '')
+            .toString()
+            .trim();
+        final tName = (data['trainerName'] ?? data['trainer'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
 
-      // Fetch Sessions Count
-      final sessionsQuery = await FirebaseFirestore.instance
-          .collection('sessions')
-          .where('trainerId', isEqualTo: uid)
-          .get();
+        if (tId.isNotEmpty && myTrainerIds.contains(tId) ||
+            (tName.isNotEmpty &&
+                myTrainerNames.any((n) =>
+                    n.isNotEmpty &&
+                    (tName == n || tName.contains(n) || n.contains(tName))))) {
+          workoutsCount++;
+        }
+      }
 
-      // Fetch Workouts Count (Added Workouts Fetch)
-      final workoutsQuery = await FirebaseFirestore.instance
-          .collection('workouts')
-          .where('trainerId', isEqualTo: uid)
-          .get();
+      for (var doc in plansDocs) {
+        final data = doc.data();
+        final tId = (data['trainerId'] ?? data['createdBy'] ?? data['userId'] ?? '')
+            .toString()
+            .trim();
+        final tName = (data['trainerName'] ?? data['trainer'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
 
-      // Fetch Feedbacks
-      final feedbackQuery = await FirebaseFirestore.instance
-          .collection('feedbacks')
-          .where('trainerId', isEqualTo: uid)
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .get();
+        if (tId.isNotEmpty && myTrainerIds.contains(tId) ||
+            (tName.isNotEmpty &&
+                myTrainerNames.any((n) =>
+                    n.isNotEmpty &&
+                    (tName == n || tName.contains(n) || n.contains(tName))))) {
+          workoutsCount++;
+        }
+      }
+
+      // If no explicit standalone workout documents, count completed workout sessions from database
+      if (workoutsCount == 0 && completedSessionsCount > 0) {
+        workoutsCount = completedSessionsCount;
+      }
+
+      // 6. Fetch Feedbacks & Calculate Live Accurate Rating (Strictly Real Data)
+      List<Map<String, dynamic>> feedbackList = [];
+      double totalRatingSum = 0;
+      int ratingCount = 0;
+
+      final List<QueryDocumentSnapshot<Map<String, dynamic>>> combinedFeedbacks = [];
+      combinedFeedbacks.addAll(feedbacksDocs);
+      combinedFeedbacks.addAll(reviewsDocs);
+
+      for (var doc in combinedFeedbacks) {
+        final data = doc.data();
+        final tId = (data['trainerId'] ?? data['targetId'] ?? data['trainer_id'] ?? '')
+            .toString()
+            .trim();
+        final tName = (data['trainerName'] ?? data['trainer'] ?? '')
+            .toString()
+            .toLowerCase()
+            .trim();
+
+        bool isMyFeedback = (tId.isNotEmpty && myTrainerIds.contains(tId)) ||
+            (tName.isNotEmpty &&
+                myTrainerNames.any((n) =>
+                    n.isNotEmpty &&
+                    (tName == n || tName.contains(n) || n.contains(tName))));
+
+        if (isMyFeedback) {
+          feedbackList.add(data);
+          final r = data['rating'] ?? data['stars'] ?? data['score'] ?? data['rate'];
+          if (r != null) {
+            final numVal = num.tryParse(r.toString());
+            if (numVal != null && numVal > 0) {
+              totalRatingSum += numVal;
+              ratingCount++;
+            }
+          }
+        }
+      }
+
+      String calculatedRating = '0.0';
+      if (ratingCount > 0) {
+        calculatedRating = (totalRatingSum / ratingCount).toStringAsFixed(1);
+      } else if (trainerData['rating'] != null) {
+        final r = num.tryParse(trainerData['rating'].toString());
+        if (r != null && r > 0) {
+          calculatedRating = r.toDouble().toStringAsFixed(1);
+        }
+      }
+
+      // 7. Resolve Profile Photo
+      final resolvedPhoto = (trainerData['photoUrl'] ??
+              trainerData['photoURL'] ??
+              trainerData['profileImageUrl'] ??
+              trainerData['profileImage'] ??
+              trainerData['image'] ??
+              trainerData['imageUrl'] ??
+              trainerData['avatar'] ??
+              userData['photoUrl'] ??
+              userData['photoURL'] ??
+              userData['profileImageUrl'] ??
+              userData['profileImage'] ??
+              userData['image'] ??
+              userData['imageUrl'] ??
+              user?.photoURL ??
+              '')
+          .toString()
+          .trim();
+
+      // 8. Resolve Phone Number (Strictly Real Data from Firebase)
+      String resolvedPhone = '';
+      for (final source in [trainerData, userData]) {
+        for (final key in [
+          'phone',
+          'phoneNumber',
+          'contactNumber',
+          'mobile',
+          'contact',
+          'telephone',
+        ]) {
+          final val = source[key]?.toString().trim();
+          if (val != null &&
+              val.isNotEmpty &&
+              val != '—' &&
+              val != 'null' &&
+              val != 'undefined') {
+            resolvedPhone = val;
+            break;
+          }
+        }
+        if (resolvedPhone.isNotEmpty) break;
+      }
+
+      if (resolvedPhone.isEmpty && myTrainerPhones.isNotEmpty) {
+        resolvedPhone = myTrainerPhones.first;
+      }
+
+      if (resolvedPhone.isEmpty &&
+          user?.phoneNumber != null &&
+          user!.phoneNumber!.isNotEmpty) {
+        resolvedPhone = user.phoneNumber!;
+      }
+
+      if (resolvedPhone.isEmpty) {
+        for (var uDoc in allUsersDocs) {
+          final data = uDoc.data();
+          if ((data['role'] ?? '').toString().toLowerCase() != 'trainer') continue;
+          final email = (data['email'] ?? '').toString().toLowerCase().trim();
+          final name = (data['fullName'] ?? data['name'] ?? '').toString().toLowerCase().trim();
+          if (uDoc.id == uid ||
+              (userEmail != null && email == userEmail.toLowerCase().trim()) ||
+              (name.isNotEmpty && myTrainerNames.contains(name))) {
+            final p = (data['phone'] ??
+                    data['phoneNumber'] ??
+                    data['mobile'] ??
+                    data['contact'])
+                ?.toString()
+                .trim();
+            if (p != null && p.isNotEmpty && p != '—' && p != 'null') {
+              resolvedPhone = p;
+              break;
+            }
+          }
+        }
+      }
+
+      // 9. Resolve Specializations (Strictly Real Data from Firebase)
+      final specs = trainerData['specializations'] ??
+          trainerData['specialization'] ??
+          trainerData['expertise'] ??
+          trainerData['skills'] ??
+          userData['specializations'] ??
+          userData['specialization'] ??
+          userData['expertise'] ??
+          userData['skills'];
+
+      String resolvedSpecs = '';
+      if (specs is List && specs.isNotEmpty) {
+        resolvedSpecs = specs
+            .map((e) => e.toString().trim())
+            .where((s) => s.isNotEmpty)
+            .join(', ');
+      } else if (specs is String && specs.trim().isNotEmpty) {
+        resolvedSpecs = specs.trim();
+      }
+
+      // 10. Resolve Designation & Experience
+      final resolvedDesignation = (trainerData['designation'] ??
+              trainerData['role'] ??
+              trainerData['title'] ??
+              userData['designation'] ??
+              userData['role'] ??
+              '')
+          .toString()
+          .toUpperCase();
+
+      final resolvedExperience = (trainerData['yearsExperience'] ??
+              trainerData['experience'] ??
+              trainerData['experienceYears'] ??
+              userData['yearsExperience'] ??
+              userData['experience'] ??
+              '')
+          .toString();
 
       if (mounted) {
         setState(() {
-          // STRICT REAL DATA BINDING
-          _fullName =
-              (trainerData['fullName'] ??
-                      trainerData['name'] ??
-                      userData['fullName'] ??
-                      userData['name'] ??
-                      '')
-                  .toString();
-
-          // Phone Number (Checking multiple common database field names)
-          _phone =
-              (trainerData['phone'] ??
-                      trainerData['phoneNumber'] ??
-                      userData['phone'] ??
-                      userData['phoneNumber'] ??
-                      '')
-                  .toString();
-
-          // Email
-          _email =
-              (trainerData['email'] ?? userData['email'] ?? userEmail ?? '')
-                  .toString();
-
-          // Profile Photo (Checking multiple common database field names)
-          _profileImageUrl =
-              (trainerData['profileImageUrl'] ??
-                      trainerData['photoURL'] ??
-                      trainerData['image'] ??
-                      trainerData['imageUrl'] ??
-                      userData['profileImageUrl'] ??
-                      userData['photoURL'] ??
-                      '')
-                  .toString();
-
-          // Designation & Experience
-          _designation =
-              (trainerData['designation'] ?? userData['designation'] ?? '')
-                  .toString()
-                  .toUpperCase();
-          _yearsExperience =
-              (trainerData['yearsExperience'] ??
-                      userData['yearsExperience'] ??
-                      0)
-                  .toString();
-
-          // Safely map specializations (Checking both singular and plural names)
-          final specs =
-              trainerData['specializations'] ??
-              trainerData['specialization'] ??
-              userData['specializations'] ??
-              userData['specialization'];
-          if (specs is List && specs.isNotEmpty) {
-            _specializations = specs.map((e) => e.toString()).join(', ');
-          } else if (specs is String) {
-            _specializations = specs;
-          } else {
-            _specializations = '';
-          }
-
-          // Real Rating logic
-          final ratingVal = trainerData['rating'] ?? 0.0;
-          _rating = ratingVal is double
-              ? ratingVal.toStringAsFixed(1)
-              : ratingVal.toString();
-
-          _clientCount = clientsQuery.docs.length;
-          _totalSessions = sessionsQuery.docs.length;
-          _totalWorkouts = workoutsQuery.docs.length; // Assign workouts
-          _feedbacks = feedbackQuery.docs.map((doc) => doc.data()).toList();
+          _fullName = (trainerData['fullName'] ??
+                  trainerData['name'] ??
+                  userData['fullName'] ??
+                  userData['name'] ??
+                  user?.displayName ??
+                  'Trainer')
+              .toString();
+          _phone = resolvedPhone;
+          _email = (trainerData['email'] ??
+                  userData['email'] ??
+                  userEmail ??
+                  'trainer@joevfitness.com')
+              .toString();
+          _profileImageUrl = resolvedPhoto;
+          _designation = resolvedDesignation;
+          _yearsExperience = resolvedExperience;
+          _specializations = resolvedSpecs;
+          _rating = calculatedRating;
+          _clientCount = assignedClientIds.length;
+          _totalSessions = sessionsCount;
+          _totalWorkouts = workoutsCount;
+          _feedbacks = feedbackList.take(5).toList();
           _isLoading = false;
         });
       }
@@ -234,15 +577,17 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
             onPressed: () async {
               Navigator.pop(dialogContext);
               try {
+                TrainerDataService().clear();
                 await FirebaseAuth.instance.signOut();
+              } catch (e) {
+                debugPrint("Error signing out from Firebase: $e");
+              } finally {
                 if (mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
+                  Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                     (route) => false,
                   );
                 }
-              } catch (e) {
-                debugPrint("Error signing out: $e");
               }
             },
             child: Text(
@@ -260,13 +605,16 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final strings = languageService.strings;
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final brandBlue = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       backgroundColor: bgColor,
-      bottomNavigationBar: _BottomNav(currentIndex: 4, strings: strings),
+      bottomNavigationBar: widget.isEmbeddedInShell
+          ? null
+          : _BottomNav(currentIndex: 4, strings: strings),
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: brandBlue))
           : Column(
@@ -341,12 +689,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                                 subtitle:
                                     '$_clientCount ${strings['usersAssigned'] ?? 'users assigned'}',
                                 onTap: () =>
-                                    Navigator.of(context).pushReplacement(
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const TrainerUsersScreen(),
-                                      ),
-                                    ),
+                                    TrainerMainScreen.switchTab(context, 2),
                               ),
                               const SizedBox(height: 12),
                               _buildMenuOption(
@@ -444,22 +787,54 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: brandBlue, width: 3),
               ),
-              child: CircleAvatar(
-                radius: 46,
-                backgroundColor: dividerColor,
-                backgroundImage: _profileImageUrl.isNotEmpty
-                    ? NetworkImage(_profileImageUrl)
-                    : null,
-                child: _profileImageUrl.isEmpty
-                    ? Text(
-                        initials,
-                        style: GoogleFonts.workSans(
-                          fontSize: 32,
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
+              child: ClipOval(
+                child: Container(
+                  width: 92,
+                  height: 92,
+                  color: dividerColor,
+                  child: _profileImageUrl.isNotEmpty
+                      ? Image.network(
+                          _profileImageUrl,
+                          width: 92,
+                          height: 92,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Center(
+                              child: Text(
+                                initials,
+                                style: GoogleFonts.workSans(
+                                  fontSize: 32,
+                                  color: textColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: brandBlue,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Center(
+                          child: Text(
+                            initials,
+                            style: GoogleFonts.workSans(
+                              fontSize: 32,
+                              color: textColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                      )
-                    : null,
+                ),
               ),
             ),
             Positioned(
@@ -802,26 +1177,32 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen> {
                     : null,
               ),
               const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    clientName,
-                    style: GoogleFonts.workSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: textColor,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      clientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.workSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                      ),
                     ),
-                  ),
-                  Text(
-                    memberType.toUpperCase(),
-                    style: GoogleFonts.workSans(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: subTextColor,
+                    Text(
+                      memberType.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.workSans(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: subTextColor,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -1004,16 +1385,25 @@ class _TopHeaderBand extends StatelessWidget {
                       color: Colors.white,
                       size: 20,
                     ),
-                    if (uid != null)
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('notifications')
-                            .where('trainerId', isEqualTo: uid)
-                            .where('isRead', isEqualTo: false)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData &&
-                              snapshot.data!.docs.isNotEmpty) {
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('notifications')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData &&
+                            snapshot.data!.docs.isNotEmpty) {
+                          final userEmail = FirebaseAuth.instance.currentUser?.email;
+                          final hasUnread = snapshot.data!.docs.any((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final isForMe = TrainerNotificationsScreen.isNotificationForTrainer(
+                              data: data,
+                              uid: uid ?? '',
+                              userEmail: userEmail,
+                            );
+                            final isUnread = TrainerNotificationsScreen.isNotificationUnread(data);
+                            return isForMe && isUnread;
+                          });
+                          if (hasUnread) {
                             return Positioned(
                               top: 8,
                               right: 10,
@@ -1027,9 +1417,10 @@ class _TopHeaderBand extends StatelessWidget {
                               ),
                             );
                           }
-                          return const SizedBox.shrink();
-                        },
-                      ),
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -1103,24 +1494,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          if (index == 0) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
-              (route) => false,
-            );
-          } else if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

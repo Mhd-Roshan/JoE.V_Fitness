@@ -39,14 +39,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateToNext() async {
-    // Wait for 1800ms
-    await Future.delayed(const Duration(milliseconds: 1800));
+    // Fast 450ms splash display
+    await Future.delayed(const Duration(milliseconds: 450));
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        // 1. INCREASED TRANSITION TIME for a slow, premium crossfade
-        transitionDuration: const Duration(milliseconds: 1000),
+        transitionDuration: const Duration(milliseconds: 180),
 
         pageBuilder: (context, animation, secondaryAnimation) {
           // 2. ADDED A CURVE so the fade feels organic, not robotic

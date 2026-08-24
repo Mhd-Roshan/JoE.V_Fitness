@@ -2,19 +2,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:jove_trainer/screens/users/client_profile_screen.dart';
-
-import '../home/trainer_home_screen.dart';
-import '../notes/trainer_notes_screen.dart';
-import '../schedules/trainer_schedules_screen.dart';
-import '../profile/trainer_profile_screen.dart';
+import 'client_profile_screen.dart';
 import '../notifications/trainer_notifications_screen.dart';
 
-// ---> NEW: IMPORT USER PROFILE SCREEN & LANGUAGE SERVICE <---
 import '../../services/language_service.dart';
+import '../home/trainer_main_screen.dart';
+
+import '../../services/trainer_data_service.dart';
 
 class TrainerUsersScreen extends StatefulWidget {
-  const TrainerUsersScreen({super.key});
+  final bool isEmbeddedInShell;
+  const TrainerUsersScreen({super.key, this.isEmbeddedInShell = false});
 
   @override
   State<TrainerUsersScreen> createState() => _TrainerUsersScreenState();
@@ -26,22 +24,32 @@ class _ClientData {
   final String name;
   final String initials;
   final String details;
-  final String? medicalWarning;
+  final int completedSessions;
+  final int totalSessions;
   final int progressPercent;
+  final String? medicalWarning;
   final String status;
+  final String? photoUrl;
 
   _ClientData({
     required this.id,
     required this.name,
     required this.initials,
     required this.details,
+    required this.completedSessions,
+    required this.totalSessions,
     required this.progressPercent,
     this.medicalWarning,
-    this.status = 'Active',
+    required this.status,
+    this.photoUrl,
   });
 }
 
-class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
+class _TrainerUsersScreenState extends State<TrainerUsersScreen>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
   bool _loading = true;
   List<_ClientData> _users = [];
   List<_ClientData> _filteredUsers = []; // <-- Added for Search functionality
@@ -56,7 +64,26 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchUsers();
+    if (TrainerDataService().isInitialized) {
+      _parseFromCache();
+      _fetchUsers(showSpinner: false);
+    } else {
+      _fetchUsers(showSpinner: true);
+    }
+  }
+
+  void _parseFromCache() {
+    final cache = TrainerDataService();
+    if (!cache.isInitialized) return;
+    _processDocs(
+      cache.myTrainerIds,
+      cache.myTrainerNames,
+      cache.myTrainerEmails,
+      cache.allUsersDocs,
+      cache.allTrainersDocs,
+      cache.allSessionsDocs,
+      cache.allBookingsDocs,
+    );
   }
 
   @override
@@ -65,31 +92,194 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchUsers() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      setState(() => _loading = false);
-      return;
+  static int _sessionsFromDurationString(String str) {
+    if (str.isEmpty) return 26;
+    final sessMatch = RegExp(r'(\d+)\s*(?:sessions?|class(?:es)?)', caseSensitive: false).firstMatch(str);
+    if (sessMatch != null) {
+      final s = int.tryParse(sessMatch.group(1) ?? '0') ?? 0;
+      if (s > 0) return s;
+    }
+    if (str.contains('12 month') || str.contains('1 year') || str.contains('annual') || str.contains('12m') || str.contains('1y')) {
+      return 312;
+    }
+    if (str.contains('6 month') || str.contains('6m') || str.contains('half year')) {
+      return 156;
+    }
+    if (str.contains('3 month') || str.contains('3m') || str.contains('quarter')) {
+      return 78;
+    }
+    if (str.contains('2 month') || str.contains('2m')) {
+      return 52;
+    }
+    if (str.contains('1 month') || str.contains('1m') || str.contains('monthly') || str.contains('standard')) {
+      return 26;
+    }
+    if (str.contains('month')) {
+      final mMatch = RegExp(r'(\d+)\s*month').firstMatch(str);
+      final months = int.tryParse(mMatch?.group(1) ?? '1') ?? 1;
+      return months * 26;
+    }
+    if (str.contains('week')) {
+      final wMatch = RegExp(r'(\d+)\s*week').firstMatch(str);
+      final weeks = int.tryParse(wMatch?.group(1) ?? '1') ?? 1;
+      return weeks * 6;
+    }
+    final numMatch = RegExp(r'(\d+)').firstMatch(str);
+    if (numMatch != null) {
+      final n = int.tryParse(numMatch.group(1) ?? '0') ?? 0;
+      if (n > 0 && n <= 365) return n;
+    }
+    return 26;
+  }
+
+  static int _calculatePackageTotalSessions(Map<String, dynamic> data, int totalBookingsCount) {
+    for (final key in [
+      'totalSessions',
+      'totalCount',
+      'packageSessions',
+      'sessionsCount',
+      'sessionCount',
+      'maxSessions',
+      'totalPackageSessions',
+    ]) {
+      if (data[key] != null) {
+        final val = int.tryParse(data[key].toString());
+        if (val != null && val > 0) return val;
+      }
     }
 
-    final strings = languageService.strings;
+    for (final key in ['subscription', 'package', 'membership', 'activePlan', 'planDetails']) {
+      if (data[key] is Map) {
+        final map = data[key] as Map;
+        for (final subKey in ['totalSessions', 'sessions', 'sessionsCount', 'count']) {
+          if (map[subKey] != null) {
+            final val = int.tryParse(map[subKey].toString());
+            if (val != null && val > 0) return val;
+          }
+        }
+        final durationStr = (map['duration'] ?? map['packageDuration'] ?? map['name'] ?? map['title'] ?? '').toString().toLowerCase();
+        final fromDuration = _sessionsFromDurationString(durationStr);
+        if (fromDuration > 0) return fromDuration;
+      }
+    }
+
+    final durationStr = (data['packageDuration'] ?? data['duration'] ?? data['package'] ?? data['plan'] ?? data['packageName'] ?? data['subscriptionPlan'] ?? '').toString().toLowerCase();
+    final fromDuration = _sessionsFromDurationString(durationStr);
+    if (fromDuration > 0) return fromDuration;
+
+    if (totalBookingsCount > 26) return totalBookingsCount;
+    return 26;
+  }
+
+
+
+  Future<void> _fetchUsers({bool showSpinner = true, bool force = false}) async {
+    if (showSpinner && _users.isEmpty) {
+      setState(() => _loading = true);
+    }
 
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('trainerId', isEqualTo: uid)
-          .get();
+      final cache = TrainerDataService();
+      if (!cache.isInitialized) {
+        await cache.preloadAll(notify: false);
+      } else if (force) {
+        await cache.preloadAll(notify: false, force: true);
+      } else {
+        cache.preloadAll(notify: false, force: true).then((_) {
+          if (mounted) _parseFromCache();
+        });
+      }
+      _parseFromCache();
+    } catch (e) {
+      debugPrint('Error fetching users: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
 
-      final loadedUsers = snap.docs.map((doc) {
-        final data = doc.data();
+  void _processDocs(
+    Set<String> myTrainerIds,
+    Set<String> myTrainerNames,
+    Set<String> myTrainerEmails,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> usersDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> allTrainersDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> sessionsDocs,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingsDocs,
+  ) {
+    final user = FirebaseAuth.instance.currentUser;
+    final uid = user?.uid ?? '';
+    final strings = languageService.strings;
+
+    // 1. Collect client IDs and calculate completed sessions from bookings & sessions
+    final Set<String> bookedClientIds = {};
+    final Map<String, int> clientCompletedCount = {};
+    final Map<String, int> clientTotalBookingsCount = {};
+
+    final List<QueryDocumentSnapshot<Map<String, dynamic>>> sessionResults = [];
+    sessionResults.addAll(sessionsDocs);
+    sessionResults.addAll(bookingsDocs);
+
+    for (var doc in sessionResults) {
+      final d = doc.data();
+      final docTrainerId = (d['trainerId'] ?? d['assignedTrainerId'] ?? d['trainer_id'] ?? '').toString().trim();
+      final docTrainerName = (d['trainerName'] ?? d['trainer'] ?? '').toString().toLowerCase().trim();
+      final docTrainerEmail = (d['trainerEmail'] ?? d['email'] ?? '').toString().toLowerCase().trim();
+      final cId = (d['clientId'] ?? d['userId'] ?? d['client_id'] ?? d['user_id'] ?? '').toString().trim();
+
+      bool isMatch = false;
+      if (docTrainerId.isNotEmpty && myTrainerIds.contains(docTrainerId)) {
+        isMatch = true;
+      } else if (docTrainerEmail.isNotEmpty && myTrainerEmails.contains(docTrainerEmail)) {
+        isMatch = true;
+      } else if (docTrainerName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (docTrainerName == n || docTrainerName.contains(n) || n.contains(docTrainerName)))) {
+        isMatch = true;
+      } else if (allTrainersDocs.length == 1) {
+        isMatch = true;
+      }
+
+      if (isMatch && cId.isNotEmpty && cId != uid) {
+        bookedClientIds.add(cId);
+        clientTotalBookingsCount[cId] = (clientTotalBookingsCount[cId] ?? 0) + 1;
+
+        final status = (d['status'] ?? '').toString().toLowerCase().trim();
+        if (status == 'completed' || status == 'done') {
+          clientCompletedCount[cId] = (clientCompletedCount[cId] ?? 0) + 1;
+        }
+      }
+    }
+
+    // 2. Process all users and filter clients
+    final List<_ClientData> loadedUsers = [];
+
+    for (var doc in usersDocs) {
+      final data = doc.data();
+      if (doc.id == uid) continue;
+      if (data['role'] == 'trainer' || data['role'] == 'admin') continue;
+
+      final assignedId = (data['assignedTrainerId'] ?? data['trainerId'] ?? data['assignedTrainer'] ?? '').toString().trim();
+      final assignedName = (data['assignedTrainerName'] ?? data['assignedTrainer'] ?? '').toString().toLowerCase().trim();
+
+      bool isMyClient = false;
+      if (assignedId.isNotEmpty && myTrainerIds.contains(assignedId)) {
+        isMyClient = true;
+      } else if (assignedName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (assignedName == n || assignedName.contains(n) || n.contains(assignedName)))) {
+        isMyClient = true;
+      } else if (bookedClientIds.contains(doc.id)) {
+        isMyClient = true;
+      } else if (allTrainersDocs.length == 1) {
+        isMyClient = true;
+      }
+
+      if (!isMyClient) continue;
 
         // Safely extract name
-        final name =
-            data['fullName']?.toString() ??
+        final name = data['fullName']?.toString() ??
             data['name']?.toString() ??
             (strings['unknownClient'] ?? 'Unknown User');
 
-        // Dynamically generate initials
+        // Initials
         final parts = name.trim().split(' ');
         String initials = 'U';
         if (parts.isNotEmpty && parts.first.isNotEmpty) {
@@ -99,52 +289,69 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
           }
         }
 
-        // Build details string
-        final package = data['package']?.toString() ?? 'Standard';
-        final goal = data['goal']?.toString() ?? 'Fitness';
-        final area = data['area']?.toString() ?? 'Location';
+        // Details string
+        final package = data['package']?.toString() ?? data['plan'] ?? 'Standard';
+        final goal = data['goal']?.toString() ?? data['fitnessGoal'] ?? 'Fitness';
+        final area = data['area']?.toString() ?? data['city'] ?? 'Location';
         final details = '$package · $goal · $area';
 
-        // Calculate progress percentage
-        final completed = data['completedSessions'] ?? 0;
-        final total = data['totalSessions'] ?? 10;
+        // Calculate Package Total Sessions from package duration
+        final totalBookings = clientTotalBookingsCount[doc.id] ?? 0;
+        final totalPackageSessions = _calculatePackageTotalSessions(data, totalBookings);
+
+        // Live completed sessions count
+        int liveCompleted = clientCompletedCount[doc.id] ?? 0;
+        int docCompleted = 0;
+        if (data['completedSessions'] is num) {
+          docCompleted = (data['completedSessions'] as num).toInt();
+        } else if (data['completedCount'] is num) {
+          docCompleted = (data['completedCount'] as num).toInt();
+        }
+        final completed = liveCompleted > docCompleted ? liveCompleted : docCompleted;
+
         int progress = 0;
-        if (total > 0 && completed is num && total is num) {
-          progress = ((completed / total) * 100).round();
+        if (totalPackageSessions > 0) {
+          progress = ((completed / totalPackageSessions) * 100).round();
           if (progress > 100) progress = 100;
         }
 
-        // Extract medical warning
-        String? medical = data['medicalWarning']?.toString();
+        // Medical warning
+        String? medical = data['medicalWarning']?.toString() ??
+            data['medicalCondition']?.toString();
         if (medical != null && medical.trim().isEmpty) {
           medical = null;
         }
 
-        return _ClientData(
-          id: doc.id,
-          name: name,
-          initials: initials.toUpperCase(),
-          details: details,
-          progressPercent: progress,
-          medicalWarning: medical,
-          status: data['status']?.toString() ?? 'Active',
-        );
-      }).toList();
+        // Photo URL
+        final photoUrl = data['photoURL']?.toString() ??
+            data['photoUrl']?.toString() ??
+            data['profileImage']?.toString() ??
+            data['image']?.toString();
 
-      if (!mounted) return;
-      setState(() {
-        _users = loadedUsers;
-        _filteredUsers = loadedUsers; // Initialize filtered list
-        _loading = false;
-      });
-    } catch (e) {
-      debugPrint('Error fetching users: $e');
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
+        loadedUsers.add(
+          _ClientData(
+            id: doc.id,
+            name: name,
+            initials: initials.toUpperCase(),
+            details: details,
+            completedSessions: completed,
+            totalSessions: totalPackageSessions,
+            progressPercent: progress,
+            medicalWarning: medical,
+            status: data['status']?.toString() ?? 'Active',
+            photoUrl: photoUrl,
+          ),
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _users = loadedUsers;
+          _filteredUsers = loadedUsers;
+          _loading = false;
+        });
+      }
     }
-  }
 
   // --- Search Logic ---
   void _filterUsers(String query) {
@@ -165,6 +372,7 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final strings = languageService.strings;
 
     // ---> DYNAMIC THEME COLORS <---
@@ -177,10 +385,12 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      bottomNavigationBar: _BottomNav(
-        currentIndex: 2,
-        strings: strings,
-      ), // Index 2 is Users
+      bottomNavigationBar: widget.isEmbeddedInShell
+          ? null
+          : _BottomNav(
+              currentIndex: 2,
+              strings: strings,
+            ), // Index 2 is Users
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -349,20 +559,43 @@ class _UserCard extends StatelessWidget {
             children: [
               // Avatar
               Container(
-                width: 46,
-                height: 46,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   color: brandBlue,
                   shape: BoxShape.circle,
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  user.initials,
-                  style: GoogleFonts.workSans(
-                    color: Colors.white, // Initials stay white
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
+                child: ClipOval(
+                  child: user.photoUrl != null && user.photoUrl!.isNotEmpty
+                      ? Image.network(
+                          user.photoUrl!,
+                          fit: BoxFit.cover,
+                          width: 48,
+                          height: 48,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: brandBlue,
+                            alignment: Alignment.center,
+                            child: Text(
+                              user.initials,
+                              style: GoogleFonts.workSans(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          alignment: Alignment.center,
+                          child: Text(
+                            user.initials,
+                            style: GoogleFonts.workSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -374,6 +607,8 @@ class _UserCard extends StatelessWidget {
                   children: [
                     Text(
                       user.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.workSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -383,6 +618,8 @@ class _UserCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       user.details,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.workSans(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
@@ -445,13 +682,26 @@ class _UserCard extends StatelessWidget {
           const SizedBox(height: 20),
 
           // 2. Progress Bar Section
-          Text(
-            strings['sessions'] ?? 'Sessions',
-            style: GoogleFonts.workSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: textColor,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                strings['sessions'] ?? 'Sessions',
+                style: GoogleFonts.workSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                '${user.completedSessions} / ${user.totalSessions} (${user.progressPercent}%)',
+                style: GoogleFonts.workSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: subTextColor,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Row(
@@ -465,7 +715,7 @@ class _UserCard extends StatelessWidget {
                   ),
                   alignment: Alignment.centerLeft,
                   child: FractionallySizedBox(
-                    widthFactor: user.progressPercent / 100,
+                    widthFactor: (user.progressPercent / 100).clamp(0.0, 1.0),
                     child: Container(
                       decoration: BoxDecoration(
                         color: _TrainerUsersScreenState.primaryRed,
@@ -473,15 +723,6 @@ class _UserCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '${user.progressPercent}%',
-                style: GoogleFonts.workSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: textColor,
                 ),
               ),
             ],
@@ -494,19 +735,12 @@ class _UserCard extends StatelessWidget {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '${strings['openingProfileFor'] ?? 'Opening profile for '}${user.name}...',
-                    ),
-                  ),
-                );
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => TrainerUserProfileScreen(
                       clientId: user.id,
-                    ), // Ensure this matches your screen name
+                    ),
                   ),
                 );
               },
@@ -648,16 +882,25 @@ class _TopHeaderBand extends StatelessWidget {
                       color: Colors.white, // Fixed white on header
                       size: 20,
                     ),
-                    if (uid != null)
-                      StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection('notifications')
-                            .where('trainerId', isEqualTo: uid)
-                            .where('isRead', isEqualTo: false)
-                            .snapshots(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData &&
-                              snapshot.data!.docs.isNotEmpty) {
+                    StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection('notifications')
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData &&
+                            snapshot.data!.docs.isNotEmpty) {
+                          final userEmail = FirebaseAuth.instance.currentUser?.email;
+                          final hasUnread = snapshot.data!.docs.any((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final isForMe = TrainerNotificationsScreen.isNotificationForTrainer(
+                              data: data,
+                              uid: uid ?? '',
+                              userEmail: userEmail,
+                            );
+                            final isUnread = TrainerNotificationsScreen.isNotificationUnread(data);
+                            return isForMe && isUnread;
+                          });
+                          if (hasUnread) {
                             return Positioned(
                               top: 8,
                               right: 10,
@@ -671,9 +914,10 @@ class _TopHeaderBand extends StatelessWidget {
                               ),
                             );
                           }
-                          return const SizedBox.shrink();
-                        },
-                      ),
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -748,24 +992,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          if (index == 0) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
-              (route) => false,
-            );
-          } else if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
-            );
-          } else if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

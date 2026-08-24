@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'notification_screen.dart';
@@ -42,10 +43,18 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     _parseInitialTime();
   }
 
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
   void _parseInitialTime() {
     try {
-      if (widget.bookingData['time'] != null) {
-        String timeStr = widget.bookingData['time'];
+      if (widget.bookingData['time'] != null ||
+          widget.bookingData['startTime'] != null) {
+        String timeStr =
+            widget.bookingData['startTime'] ?? widget.bookingData['time'];
         final parts = timeStr.split(' ');
         final timeParts = parts[0].split(':');
         int hour = int.parse(timeParts[0]);
@@ -76,6 +85,28 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     _selectedDate = _next6Days[1];
   }
 
+  int _timeOfDayToMinutes(TimeOfDay time) => time.hour * 60 + time.minute;
+
+  int _parseTimeToMinutes(String timeStr) {
+    if (timeStr.isEmpty) {
+      return 0;
+    }
+    bool isPm = timeStr.toUpperCase().contains("PM");
+    bool isAm = timeStr.toUpperCase().contains("AM");
+    String clean = timeStr.replaceAll(RegExp(r'[^\d:]'), '');
+    List<String> parts = clean.split(":");
+    int h = int.tryParse(parts[0]) ?? 0;
+    int m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+
+    if (isPm && h < 12) {
+      h += 12;
+    }
+    if (isAm && h == 12) {
+      h = 0;
+    }
+    return h * 60 + m;
+  }
+
   String _formatTimeStrict(TimeOfDay time) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
@@ -89,32 +120,142 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
       initialTime: _selectedTime ?? TimeOfDay.now(),
     );
 
-    if (!mounted) {
+    if (!mounted || picked == null) {
       return;
     }
 
-    if (picked != null) {
-      setState(() {
-        _selectedTime = picked;
-        _availabilityStatus = 'none';
-      });
-    }
-  }
-
-  void _checkAvailability() {
-    HapticFeedback.mediumImpact();
-    setState(() => _isChecking = true);
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isChecking = false;
-        _availabilityStatus = 'available';
-      });
+    setState(() {
+      _selectedTime = picked;
+      _availabilityStatus = 'none';
     });
   }
 
+  // --- 60-MINUTE NON-OVERLAPPING CONFLICT ENGINE ---
+  Future<void> _checkAvailability() async {
+    if (_selectedTime == null || _selectedDate == null) {
+      return;
+    }
+
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _isChecking = true;
+      _availabilityStatus = 'none';
+    });
+
+    try {
+      final DateTime now = DateTime.now();
+      final DateTime selectedDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      // Check if time is in past
+      if (selectedDateTime.isBefore(now)) {
+        if (mounted) {
+          setState(() {
+            _isChecking = false;
+            _availabilityStatus = 'past';
+          });
+        }
+        return;
+      }
+
+      final String newDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      final String dayOfWeek = DateFormat('EEEE').format(_selectedDate!);
+      final String trainerId =
+          widget.bookingData['trainerId']?.toString() ?? '';
+
+      int requestedStart = _timeOfDayToMinutes(_selectedTime!);
+      int requestedEnd = requestedStart + 60;
+
+      // 1. Verify within Trainer's working shifts
+      if (trainerId.isNotEmpty) {
+        final availSnap = await FirebaseFirestore.instance
+            .collection('trainers')
+            .doc(trainerId)
+            .collection('availability')
+            .where('dayOfWeek', isEqualTo: dayOfWeek)
+            .get();
+
+        if (availSnap.docs.isNotEmpty) {
+          bool withinWorkingHours = availSnap.docs.any((d) {
+            int s = _parseTimeToMinutes(d.data()['startTime'] ?? '06:00 AM');
+            int e = _parseTimeToMinutes(d.data()['endTime'] ?? '08:00 PM');
+            return requestedStart >= s && requestedEnd <= e;
+          });
+
+          if (!withinWorkingHours) {
+            if (mounted) {
+              setState(() {
+                _isChecking = false;
+                _availabilityStatus = 'taken';
+              });
+            }
+            return;
+          }
+        }
+      }
+
+      // 2. Fetch existing bookings for this date and trainer
+      final bookingsQuery = FirebaseFirestore.instance
+          .collection('bookings')
+          .where('date', isEqualTo: newDateStr);
+
+      final sessionsQuery = FirebaseFirestore.instance
+          .collection('sessions')
+          .where('scheduledDate', isEqualTo: newDateStr);
+
+      final results = await Future.wait([
+        trainerId.isNotEmpty
+            ? bookingsQuery.where('trainerId', isEqualTo: trainerId).get()
+            : bookingsQuery.get(),
+        trainerId.isNotEmpty
+            ? sessionsQuery.where('trainerId', isEqualTo: trainerId).get()
+            : sessionsQuery.get(),
+      ]);
+
+      bool hasOverlap(Map<String, dynamic> data, String docId) {
+        // Exclude the current session being rescheduled
+        if (docId == widget.bookingId) {
+          return false;
+        }
+        if (data['status'] == 'cancelled' || data['status'] == 'rejected') {
+          return false;
+        }
+
+        int bStart =
+            data['startMinutes'] ??
+            _parseTimeToMinutes(data['startTime'] ?? data['time'] ?? '00:00');
+        int bEnd = data['endMinutes'] ?? (bStart + 60);
+
+        return (requestedStart < bEnd) && (requestedEnd > bStart);
+      }
+
+      bool isColliding =
+          results[0].docs.any((d) => hasOverlap(d.data(), d.id)) ||
+          results[1].docs.any((d) => hasOverlap(d.data(), d.id));
+
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+          _availabilityStatus = isColliding ? 'taken' : 'available';
+        });
+      }
+    } catch (e) {
+      debugPrint("Error checking availability: $e");
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+          _availabilityStatus = 'none';
+        });
+      }
+    }
+  }
+
+  // --- CONFIRM RESCHEDULE & NOTIFY TRAINER/ADMIN ---
   Future<void> _confirmReschedule() async {
     if (_selectedDate == null || _selectedTime == null) {
       return;
@@ -122,19 +263,111 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
 
     setState(() => _isUpdating = true);
     try {
-      String newDate = DateFormat('yyyy-MM-dd').format(_selectedDate!);
-      String newTime = _formatTimeStrict(_selectedTime!);
+      final String newDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+      final String newTimeStr = _formatTimeStrict(_selectedTime!);
+      final String formattedFullDate = DateFormat(
+        'EEEE, MMM d',
+      ).format(_selectedDate!);
 
-      await FirebaseFirestore.instance
+      int startMin = _timeOfDayToMinutes(_selectedTime!);
+      int endMin = startMin + 60;
+      TimeOfDay endTod = TimeOfDay(
+        hour: (endMin ~/ 60) % 24,
+        minute: endMin % 60,
+      );
+      final String newEndTimeStr = _formatTimeStrict(endTod);
+
+      final String trainerId =
+          widget.bookingData['trainerId']?.toString() ?? '';
+      final String trainerName =
+          widget.bookingData['trainerName']?.toString() ?? 'Trainer';
+      final String clientName =
+          widget.bookingData['clientName']?.toString() ??
+          FirebaseAuth.instance.currentUser?.displayName ??
+          'Client';
+      final String sessionType =
+          widget.bookingData['sessionType']?.toString() ?? 'Training Session';
+
+      final batch = FirebaseFirestore.instance.batch();
+
+      // 1. Update in bookings collection
+      final bookingRef = FirebaseFirestore.instance
           .collection('bookings')
-          .doc(widget.bookingId)
-          .update({
-            'date': newDate,
-            'time': newTime,
-            'status': 'confirmed',
-            'rescheduleReason': _reasonController.text.trim(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
+          .doc(widget.bookingId);
+      batch.update(bookingRef, {
+        'date': newDateStr,
+        'scheduledDate': newDateStr,
+        'time': newTimeStr,
+        'startTime': newTimeStr,
+        'endTime': newEndTimeStr,
+        'startMinutes': startMin,
+        'endMinutes': endMin,
+        'status': 'confirmed',
+        'rescheduled': true,
+        'rescheduleReason': _reasonController.text.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. Synchronize to sessions collection
+      final sessionRef = FirebaseFirestore.instance
+          .collection('sessions')
+          .doc(widget.bookingId);
+      batch.set(sessionRef, {
+        'bookingId': widget.bookingId,
+        'sessionId': widget.bookingId,
+        'trainerId': trainerId,
+        'trainerName': trainerName,
+        'clientName': clientName,
+        'scheduledDate': newDateStr,
+        'date': newDateStr,
+        'startTime': newTimeStr,
+        'endTime': newEndTimeStr,
+        'time': newTimeStr,
+        'startMinutes': startMin,
+        'endMinutes': endMin,
+        'durationMinutes': 60,
+        'serviceType': sessionType,
+        'status': 'rescheduled',
+        'rescheduleReason': _reasonController.text.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 3. Dispatch Notification to Trainer
+      if (trainerId.isNotEmpty) {
+        final notifTrainerRef = FirebaseFirestore.instance
+            .collection('notifications')
+            .doc();
+        batch.set(notifTrainerRef, {
+          'userId': trainerId,
+          'recipientRole': 'trainer',
+          'type': 'session_rescheduled',
+          'title': 'Session Rescheduled',
+          'body':
+              '$clientName rescheduled $sessionType to $formattedFullDate ($newTimeStr - $newEndTimeStr).',
+          'sessionId': widget.bookingId,
+          'bookingId': widget.bookingId,
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 4. Dispatch Notification to Admin
+      final notifAdminRef = FirebaseFirestore.instance
+          .collection('notifications')
+          .doc();
+      batch.set(notifAdminRef, {
+        'recipientRole': 'admin',
+        'type': 'session_rescheduled',
+        'title': 'Session Rescheduled: $clientName',
+        'body':
+            'Trainer: $trainerName | $formattedFullDate ($newTimeStr - $newEndTimeStr)',
+        'sessionId': widget.bookingId,
+        'bookingId': widget.bookingId,
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      await batch.commit();
 
       if (!mounted) {
         return;
@@ -147,8 +380,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
         ),
       );
 
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     } catch (e) {
+      debugPrint("Reschedule error: $e");
       if (!mounted) {
         return;
       }
@@ -415,7 +649,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              widget.bookingData['time'] ?? '',
+                              widget.bookingData['time'] ??
+                                  widget.bookingData['startTime'] ??
+                                  '',
                               style: const TextStyle(
                                 color: _textMain,
                                 fontWeight: FontWeight.w800,
@@ -665,6 +901,60 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                               'time_available'.tr(),
                               style: const TextStyle(
                                 color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (_availabilityStatus == 'taken') ...[
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.cancel,
+                              color: Colors.red,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'slot_booked'.tr(),
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else if (_availabilityStatus == 'past') ...[
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.access_time_filled,
+                              color: Colors.orange,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'cannot_book_past'.tr(),
+                              style: const TextStyle(
+                                color: Colors.orange,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

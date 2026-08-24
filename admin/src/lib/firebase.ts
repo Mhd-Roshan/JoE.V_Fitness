@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, initializeAuth, inMemoryPersistence } from "firebase/auth";
+import type { Auth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -27,7 +28,7 @@ const secondaryApp =
     getApps().find((a) => a.name === "Secondary") ??
     initializeApp(firebaseConfig, "Secondary");
 
-let secondaryAuth;
+let secondaryAuth: Auth;
 try {
     secondaryAuth = initializeAuth(secondaryApp, {
         persistence: inMemoryPersistence,

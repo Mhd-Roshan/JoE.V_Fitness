@@ -103,8 +103,6 @@ class _TrainerClientReviewsScreenState
                         child: StreamBuilder<QuerySnapshot>(
                           stream: FirebaseFirestore.instance
                               .collection('feedbacks')
-                              .where('trainerId', isEqualTo: uid)
-                              .orderBy('createdAt', descending: true)
                               .snapshots(),
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==
@@ -115,8 +113,19 @@ class _TrainerClientReviewsScreenState
                                 ),
                               );
                             }
-                            if (!snapshot.hasData ||
-                                snapshot.data!.docs.isEmpty) {
+                            final allDocs = snapshot.data?.docs ?? [];
+                            final docs = allDocs.where((d) {
+                              final data = d.data() as Map<String, dynamic>;
+                              final tId = (data['trainerId'] ??
+                                      data['targetId'] ??
+                                      data['trainer_id'] ??
+                                      '')
+                                  .toString()
+                                  .trim();
+                              return tId.isEmpty || tId == uid;
+                            }).toList();
+
+                            if (docs.isEmpty) {
                               return Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -140,7 +149,6 @@ class _TrainerClientReviewsScreenState
                                 ),
                               );
                             }
-                            final docs = snapshot.data!.docs;
                             double totalScore = 0.0;
                             for (var doc in docs) {
                               final data = doc.data() as Map<String, dynamic>;

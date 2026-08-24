@@ -3,18 +3,134 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// --- Import your bottom nav screens ---
-import '../home/trainer_home_screen.dart';
-import '../schedules/trainer_schedules_screen.dart';
-import '../users/trainer_users_screen.dart';
-import '../notes/trainer_notes_screen.dart';
-import '../profile/trainer_profile_screen.dart';
-
-// ---> NEW: IMPORT LANGUAGE SERVICE <---
+import '../home/trainer_main_screen.dart';
 import '../../services/language_service.dart';
 
 class TrainerNotificationsScreen extends StatefulWidget {
   const TrainerNotificationsScreen({super.key});
+
+  static bool isNotificationForTrainer({
+    required Map<String, dynamic> data,
+    required String uid,
+    String? userEmail,
+    Set<String>? trainerIds,
+    Set<String>? trainerNames,
+  }) {
+    final tId = (data['trainerId'] ??
+            data['targetId'] ??
+            data['recipientId'] ??
+            data['userId'] ??
+            data['trainer_id'] ??
+            '')
+        .toString()
+        .trim();
+
+    if (tId.isNotEmpty) {
+      if (tId == uid || (trainerIds != null && trainerIds.contains(tId))) {
+        return true;
+      }
+    }
+
+    final targetRole = (data['targetRole'] ??
+            data['recipientRole'] ??
+            data['role'] ??
+            data['for'] ??
+            data['type'] ??
+            '')
+        .toString()
+        .toLowerCase()
+        .trim();
+
+    if (targetRole == 'trainer' ||
+        targetRole == 'all' ||
+        targetRole == 'broadcast' ||
+        targetRole == 'staff') {
+      if (tId.isEmpty || tId == uid || (trainerIds != null && trainerIds.contains(tId))) {
+        return true;
+      }
+    }
+
+    final email = (data['trainerEmail'] ??
+            data['trainer_email'] ??
+            data['email'] ??
+            '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    if (email.isNotEmpty &&
+        userEmail != null &&
+        userEmail.isNotEmpty &&
+        email == userEmail.toLowerCase().trim()) {
+      return true;
+    }
+
+    final trainerName = (data['trainerName'] ??
+            data['trainer'] ??
+            data['assignedTrainerName'] ??
+            '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    if (trainerName.isNotEmpty && trainerNames != null) {
+      if (trainerNames.any((n) =>
+          n.isNotEmpty &&
+          (trainerName == n ||
+              trainerName.contains(n) ||
+              n.contains(trainerName)))) {
+        return true;
+      }
+    }
+
+    if (tId.isEmpty && (targetRole.isEmpty || targetRole == 'general' || targetRole == 'session')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  static String getNotificationSource(Map<String, dynamic> data) {
+    final sender = (data['from'] ??
+            data['senderRole'] ??
+            data['source'] ??
+            data['sender'] ??
+            '')
+        .toString()
+        .toLowerCase()
+        .trim();
+
+    if (sender == 'admin') return 'Admin';
+    if (sender == 'client') return 'Client';
+
+    final type = (data['type'] ?? '').toString().toLowerCase().trim();
+    if (type.contains('admin') ||
+        type.contains('broadcast') ||
+        type.contains('announcement') ||
+        type.contains('duty') ||
+        type == 'system' ||
+        data['requestedBy'] != null ||
+        data['targetAudience'] != null) {
+      return 'Admin';
+    }
+
+    if (type.contains('session') ||
+        type.contains('booking') ||
+        type.contains('reschedule') ||
+        type.contains('cancel') ||
+        type.contains('feedback') ||
+        type.contains('client') ||
+        data['clientId'] != null ||
+        data['bookingId'] != null) {
+      return 'Client';
+    }
+
+    return 'Admin';
+  }
+
+  static bool isNotificationUnread(Map<String, dynamic> data) {
+    if (data['isRead'] == true || data['read'] == true) return false;
+    if (data['isRead'] == false || data['read'] == false) return true;
+    return true; // Default unread
+  }
 
   @override
   State<TrainerNotificationsScreen> createState() =>
@@ -23,10 +139,141 @@ class TrainerNotificationsScreen extends StatefulWidget {
 
 class _TrainerNotificationsScreenState
     extends State<TrainerNotificationsScreen> {
-  // Keep brand red static
   static const Color primaryRed = Color(0xFFC7001A);
+  static const Color cyanAccent = Color(0xFF01BCE3);
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
+  final Set<String> _myTrainerIds = {};
+  final Set<String> _myTrainerNames = {};
+  bool _identifiersLoaded = false;
+  String _selectedFilter = 'all'; // 'all', 'admin', 'client'
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrainerIdentifiers();
+  }
+
+  Future<void> _loadTrainerIdentifiers() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return;
+    }
+
+    final uid = user.uid;
+    _myTrainerIds.add(uid);
+
+    if (user.displayName != null && user.displayName!.isNotEmpty) {
+      final name = user.displayName!.toLowerCase().trim();
+      _myTrainerNames.add(name);
+      for (final part in name.split(' ')) {
+        if (part.length > 1) {
+          _myTrainerNames.add(part);
+        }
+      }
+    }
+    if (user.email != null && user.email!.isNotEmpty) {
+      _myTrainerNames.add(user.email!.toLowerCase().trim());
+    }
+
+    try {
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final uData = userDoc.data() ?? {};
+        if (uData['fullName'] != null) {
+          final fn = uData['fullName'].toString().toLowerCase().trim();
+          _myTrainerNames.add(fn);
+          for (final part in fn.split(' ')) {
+            if (part.length > 1) {
+              _myTrainerNames.add(part);
+            }
+          }
+        }
+        if (uData['name'] != null) {
+          final n = uData['name'].toString().toLowerCase().trim();
+          _myTrainerNames.add(n);
+          for (final part in n.split(' ')) {
+            if (part.length > 1) {
+              _myTrainerNames.add(part);
+            }
+          }
+        }
+        if (uData['trainerId'] != null) {
+          _myTrainerIds.add(uData['trainerId'].toString().trim());
+        }
+        if (uData['id'] != null) {
+          _myTrainerIds.add(uData['id'].toString().trim());
+        }
+      }
+
+      final directTrainerDoc = await FirebaseFirestore.instance
+          .collection('trainers')
+          .doc(uid)
+          .get();
+      if (directTrainerDoc.exists) {
+        final tData = directTrainerDoc.data() ?? {};
+        if (tData['fullName'] != null) {
+          final fn = tData['fullName'].toString().toLowerCase().trim();
+          _myTrainerNames.add(fn);
+          for (final part in fn.split(' ')) {
+            if (part.length > 1) {
+              _myTrainerNames.add(part);
+            }
+          }
+        }
+        if (tData['name'] != null) {
+          final n = tData['name'].toString().toLowerCase().trim();
+          _myTrainerNames.add(n);
+          for (final part in n.split(' ')) {
+            if (part.length > 1) {
+              _myTrainerNames.add(part);
+            }
+          }
+        }
+        if (tData['trainerId'] != null) {
+          _myTrainerIds.add(tData['trainerId'].toString().trim());
+        }
+        if (tData['id'] != null) {
+          _myTrainerIds.add(tData['id'].toString().trim());
+        }
+      }
+
+      final allTrainersSnap =
+          await FirebaseFirestore.instance.collection('trainers').get();
+      for (var tDoc in allTrainersSnap.docs) {
+        final tData = tDoc.data();
+        final tEmail = (tData['email'] ?? '').toString().toLowerCase().trim();
+        final tName =
+            (tData['fullName'] ?? tData['name'] ?? '').toString().toLowerCase().trim();
+        if ((user.email != null && tEmail == user.email!.toLowerCase().trim()) ||
+            _myTrainerNames.contains(tName) ||
+            tDoc.id == uid) {
+          _myTrainerIds.add(tDoc.id);
+          if (tData['trainerId'] != null) {
+            _myTrainerIds.add(tData['trainerId'].toString().trim());
+          }
+          if (tData['id'] != null) {
+            _myTrainerIds.add(tData['id'].toString().trim());
+          }
+          if (tName.isNotEmpty) {
+            _myTrainerNames.add(tName);
+            for (final part in tName.split(' ')) {
+              if (part.length > 1) {
+                _myTrainerNames.add(part);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading trainer identifiers: $e');
+    }
+
+    if (mounted) {
+      setState(() => _identifiersLoaded = true);
+    }
+  }
 
   // Helper to format time (e.g. "09:00 AM")
   String _formatTime(DateTime time) {
@@ -34,24 +281,33 @@ class _TrainerNotificationsScreenState
     int minute = time.minute;
     String ampm = hour >= 12 ? 'PM' : 'AM';
     hour = hour % 12;
-    if (hour == 0) hour = 12;
+    if (hour == 0) {
+      hour = 12;
+    }
     String minStr = minute.toString().padLeft(2, '0');
     return '$hour:$minStr $ampm';
   }
 
   // Batch update to mark all as read in Firebase
   Future<void> _markAllAsRead(List<QueryDocumentSnapshot> unreadDocs) async {
-    if (unreadDocs.isEmpty) return;
+    if (unreadDocs.isEmpty) {
+      return;
+    }
 
     final batch = FirebaseFirestore.instance.batch();
     for (var doc in unreadDocs) {
-      batch.update(doc.reference, {'isRead': true});
+      batch.update(doc.reference, {
+        'isRead': true,
+        'read': true,
+      });
     }
 
     try {
       await batch.commit();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final strings = languageService.strings;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -60,6 +316,113 @@ class _TrainerNotificationsScreenState
           ),
         ),
       );
+    }
+  }
+
+  // Delete/Clear all notifications with confirmation
+  Future<void> _clearAllNotifications(List<QueryDocumentSnapshot> docs) async {
+    if (docs.isEmpty) {
+      return;
+    }
+
+    final strings = languageService.strings;
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        final textColor = Theme.of(ctx).colorScheme.onSurface;
+        final subTextColor = Theme.of(ctx).colorScheme.onSurfaceVariant;
+        final cardColor = Theme.of(ctx).cardColor;
+        return AlertDialog(
+          backgroundColor: cardColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            strings['clearAll'] ?? 'Clear Notifications',
+            style: GoogleFonts.workSans(
+              fontWeight: FontWeight.w800,
+              color: textColor,
+            ),
+          ),
+          content: Text(
+            strings['clearConfirm'] ??
+                'Are you sure you want to delete all notifications? This action cannot be undone.',
+            style: GoogleFonts.workSans(
+              color: subTextColor,
+              fontSize: 14,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                strings['cancel'] ?? 'Cancel',
+                style: GoogleFonts.workSans(
+                  color: subTextColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryRed,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                strings['clear'] ?? 'Clear',
+                style: GoogleFonts.workSans(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    final batch = FirebaseFirestore.instance.batch();
+    for (var doc in docs) {
+      batch.delete(doc.reference);
+    }
+
+    try {
+      await batch.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              strings['notificationsCleared'] ??
+                  'Notifications cleared successfully.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error clearing notifications: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  // Delete a single notification
+  Future<void> _deleteSingleNotification(DocumentReference ref) async {
+    try {
+      await ref.delete();
+    } catch (e) {
+      debugPrint('Error deleting notification: $e');
     }
   }
 
@@ -94,20 +457,74 @@ class _TrainerNotificationsScreenState
                 : StreamBuilder<QuerySnapshot>(
                     stream: FirebaseFirestore.instance
                         .collection('notifications')
-                        .where('trainerId', isEqualTo: _uid)
-                        .orderBy('createdAt', descending: true)
                         .snapshots(),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          !_identifiersLoaded) {
                         return Center(
                           child: CircularProgressIndicator(color: brandBlue),
                         );
                       }
 
-                      final docs = snapshot.data?.docs ?? [];
-                      final unreadDocs = docs
-                          .where((doc) => doc['isRead'] == false)
-                          .toList();
+                      final allDocs = snapshot.data?.docs ?? [];
+                      final userEmail = FirebaseAuth.instance.currentUser?.email;
+                      
+                      // Filter docs matching trainer
+                      final matchedDocs = allDocs.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        return TrainerNotificationsScreen.isNotificationForTrainer(
+                          data: data,
+                          uid: _uid,
+                          userEmail: userEmail,
+                          trainerIds: _myTrainerIds,
+                          trainerNames: _myTrainerNames,
+                        );
+                      }).toList();
+
+                      // Sort by createdAt descending
+                      matchedDocs.sort((a, b) {
+                        final aData = a.data() as Map<String, dynamic>;
+                        final bData = b.data() as Map<String, dynamic>;
+                        
+                        dynamic aDate = aData['createdAt'] ?? aData['timestamp'] ?? aData['date'];
+                        dynamic bDate = bData['createdAt'] ?? bData['timestamp'] ?? bData['date'];
+
+                        DateTime aDt = DateTime.fromMillisecondsSinceEpoch(0);
+                        DateTime bDt = DateTime.fromMillisecondsSinceEpoch(0);
+
+                        if (aDate is Timestamp) {
+                          aDt = aDate.toDate();
+                        } else if (aDate is DateTime) {
+                          aDt = aDate;
+                        } else if (aDate is String) {
+                          aDt = DateTime.tryParse(aDate) ?? aDt;
+                        }
+
+                        if (bDate is Timestamp) {
+                          bDt = bDate.toDate();
+                        } else if (bDate is DateTime) {
+                          bDt = bDate;
+                        } else if (bDate is String) {
+                          bDt = DateTime.tryParse(bDate) ?? bDt;
+                        }
+
+                        return bDt.compareTo(aDt);
+                      });
+
+                      // Apply category filter
+                      final filteredDocs = matchedDocs.where((doc) {
+                        if (_selectedFilter == 'all') return true;
+                        final data = doc.data() as Map<String, dynamic>;
+                        final source = TrainerNotificationsScreen.getNotificationSource(data).toLowerCase();
+                        return source == _selectedFilter;
+                      }).toList();
+
+                      final unreadDocs = matchedDocs.where((doc) {
+                        final data = doc.data() as Map<String, dynamic>;
+                        final isRead = data['isRead'] == true || data['read'] == true;
+                        return !isRead;
+                      }).toList();
+
                       final unreadCount = unreadDocs.length;
 
                       return Column(
@@ -131,7 +548,7 @@ class _TrainerNotificationsScreenState
                                 const SizedBox(width: 12),
                                 Text(
                                   strings['notificationTitle'] ??
-                                      'Notification',
+                                      'Notifications',
                                   style: GoogleFonts.workSans(
                                     fontSize: 22,
                                     fontWeight: FontWeight.w800,
@@ -142,18 +559,48 @@ class _TrainerNotificationsScreenState
                             ),
                           ),
 
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 20),
 
-                          // Unread Pill & Mark All Read Button
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                          // Category Filter Chips (All, Admin, Client)
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildFilterChip(
+                                  label: 'All (${matchedDocs.length})',
+                                  filterKey: 'all',
+                                  isSelected: _selectedFilter == 'all',
+                                ),
+                                const SizedBox(width: 8),
+                                _buildFilterChip(
+                                  label: 'From Admin',
+                                  filterKey: 'admin',
+                                  isSelected: _selectedFilter == 'admin',
+                                  badgeColor: primaryRed,
+                                ),
+                                const SizedBox(width: 8),
+                                _buildFilterChip(
+                                  label: 'From Clients',
+                                  filterKey: 'client',
+                                  isSelected: _selectedFilter == 'client',
+                                  badgeColor: cyanAccent,
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Unread Pill, Mark All Read & Clear All Buttons
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Row(
                               children: [
                                 // Unread Pill
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
+                                    horizontal: 12,
                                     vertical: 6,
                                   ),
                                   decoration: BoxDecoration(
@@ -172,83 +619,200 @@ class _TrainerNotificationsScreenState
                                   ),
                                 ),
 
+                                const Spacer(),
+
                                 // Mark all read Button
-                                GestureDetector(
-                                  onTap: () => _markAllAsRead(unreadDocs),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: cardColor,
-                                      border: Border.all(color: dividerColor),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.check,
-                                          size: 16,
-                                          color: textColor,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          strings['markAllRead'] ??
-                                              'Mark all read',
-                                          style: GoogleFonts.workSans(
+                                if (unreadCount > 0) ...[
+                                  GestureDetector(
+                                    onTap: () => _markAllAsRead(unreadDocs),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: cardColor,
+                                        border: Border.all(color: dividerColor),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.done_all_rounded,
+                                            size: 15,
                                             color: textColor,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            strings['markAllRead'] ??
+                                                'Mark read',
+                                            style: GoogleFonts.workSans(
+                                              color: textColor,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8),
+                                ],
+
+                                // Clear All Button
+                                if (matchedDocs.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _clearAllNotifications(matchedDocs),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            primaryRed.withValues(alpha: 0.1),
+                                        border: Border.all(
+                                          color: primaryRed.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                        ),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.delete_outline_rounded,
+                                            size: 15,
+                                            color: primaryRed,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            strings['clearAll'] ?? 'Clear all',
+                                            style: GoogleFonts.workSans(
+                                              color: primaryRed,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
 
                           // Notifications List
                           Expanded(
-                            child: docs.isEmpty
+                            child: filteredDocs.isEmpty
                                 ? Center(
-                                    child: Text(
-                                      strings['noNotificationsYet'] ??
-                                          'No notifications yet.',
-                                      style: GoogleFonts.workSans(
-                                        color: subTextColor,
-                                      ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.notifications_none_rounded,
+                                          size: 54,
+                                          color: subTextColor.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          strings['noNotificationsYet'] ??
+                                              'No notifications yet.',
+                                          style: GoogleFonts.workSans(
+                                            color: subTextColor,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   )
                                 : Padding(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 24,
+                                      horizontal: 20,
                                     ),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         color: cardColor,
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(16),
                                         border: Border.all(color: dividerColor),
                                       ),
                                       child: ListView.separated(
                                         padding: EdgeInsets.zero,
-                                        itemCount: docs.length,
+                                        itemCount: filteredDocs.length,
                                         separatorBuilder: (context, index) =>
                                             Divider(
                                               color: dividerColor,
                                               height: 1,
                                             ),
                                         itemBuilder: (context, index) {
+                                          final doc = filteredDocs[index];
                                           final data =
-                                              docs[index].data()
+                                              doc.data()
                                                   as Map<String, dynamic>;
-                                          return _buildNotificationItem(
-                                            data,
-                                            strings,
+                                          return Dismissible(
+                                            key: Key(doc.id),
+                                            direction:
+                                                DismissDirection.endToStart,
+                                            background: Container(
+                                              alignment: Alignment.centerRight,
+                                              padding: const EdgeInsets.only(
+                                                right: 20,
+                                              ),
+                                              color: primaryRed.withValues(
+                                                alpha: 0.15,
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.end,
+                                                children: [
+                                                  Text(
+                                                    strings['delete'] ??
+                                                        'Delete',
+                                                    style: GoogleFonts.workSans(
+                                                      color: primaryRed,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 12,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Icon(
+                                                    Icons.delete_outline_rounded,
+                                                    color: primaryRed,
+                                                    size: 20,
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            onDismissed: (_) {
+                                              _deleteSingleNotification(
+                                                doc.reference,
+                                              );
+                                            },
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                if (data['isRead'] != true &&
+                                                    data['read'] != true) {
+                                                  doc.reference.update({
+                                                    'isRead': true,
+                                                    'read': true,
+                                                  });
+                                                }
+                                              },
+                                              child: _buildNotificationItem(
+                                                data,
+                                                strings,
+                                              ),
+                                            ),
                                           );
                                         },
                                       ),
@@ -266,31 +830,76 @@ class _TrainerNotificationsScreenState
     );
   }
 
+  Widget _buildFilterChip({
+    required String label,
+    required String filterKey,
+    required bool isSelected,
+    Color? badgeColor,
+  }) {
+    final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final brandBlue = Theme.of(context).colorScheme.primary;
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilter = filterKey),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (badgeColor ?? brandBlue).withValues(alpha: 0.15)
+              : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? (badgeColor ?? brandBlue)
+                : Theme.of(context).dividerColor,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.workSans(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+            color: isSelected ? (badgeColor ?? brandBlue) : subTextColor,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildNotificationItem(
     Map<String, dynamic> data,
     Map<String, String> strings,
   ) {
     final title =
         data['title'] ?? (strings['notificationTitle'] ?? 'Notification');
-    final body = data['body'] ?? '';
-    final type = data['type'] ?? 'session'; // 'session' or 'medical'
-    final isRead = data['isRead'] ?? true;
-    final Timestamp? timestamp = data['createdAt'];
-    final timeStr = timestamp != null ? _formatTime(timestamp.toDate()) : '';
+    final body = data['body'] ?? data['message'] ?? '';
+    final isRead = !TrainerNotificationsScreen.isNotificationUnread(data);
+    final source = TrainerNotificationsScreen.getNotificationSource(data);
+    final isAdmin = source == 'Admin';
+
+    dynamic rawDate = data['createdAt'] ?? data['timestamp'] ?? data['date'] ?? data['time'];
+    DateTime? dt;
+    if (rawDate is Timestamp) {
+      dt = rawDate.toDate();
+    } else if (rawDate is DateTime) {
+      dt = rawDate;
+    } else if (rawDate is String) {
+      dt = DateTime.tryParse(rawDate);
+    }
+    final timeStr = dt != null ? _formatTime(dt) : '';
 
     final textColor = Theme.of(context).colorScheme.onSurface;
     final subTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
-    final brandBlue = Theme.of(context).colorScheme.primary;
 
-    // Styling based on notification type using dynamic opacities
-    final isMedical = type == 'medical';
-    final iconBgColor = isMedical
+    final iconBgColor = isAdmin
         ? primaryRed.withValues(alpha: 0.15)
-        : brandBlue.withValues(alpha: 0.15);
-    final iconColor = isMedical ? primaryRed : brandBlue;
-    final iconData = isMedical
-        ? Icons.warning_amber_rounded
-        : Icons.calendar_today_outlined;
+        : cyanAccent.withValues(alpha: 0.15);
+    final iconColor = isAdmin ? primaryRed : cyanAccent;
+    final iconData = isAdmin
+        ? Icons.admin_panel_settings_outlined
+        : Icons.person_outline_rounded;
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -321,7 +930,7 @@ class _TrainerNotificationsScreenState
                 shape: BoxShape.circle,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
           ],
 
           // Text Content
@@ -329,13 +938,38 @@ class _TrainerNotificationsScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: GoogleFonts.workSans(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: textColor,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: GoogleFonts.workSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isAdmin
+                            ? primaryRed.withValues(alpha: 0.12)
+                            : cyanAccent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        isAdmin ? 'ADMIN' : 'CLIENT',
+                        style: GoogleFonts.workSans(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: isAdmin ? primaryRed : cyanAccent,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -538,28 +1172,7 @@ class _BottomNav extends StatelessWidget {
             ),
         ],
         onTap: (index) {
-          if (index == 0) {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const TrainerHomeScreen()),
-              (route) => false,
-            );
-          } else if (index == 1) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerSchedulesScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerUsersScreen()),
-            );
-          } else if (index == 3) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerNotesScreen()),
-            );
-          } else if (index == 4) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const TrainerProfileScreen()),
-            );
-          }
+          TrainerMainScreen.switchTab(context, index);
         },
       ),
     );

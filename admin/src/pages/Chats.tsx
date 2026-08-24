@@ -58,7 +58,9 @@ interface ClientPanelData {
     primaryGoal: string | null;
     dietPlanName: string | null;
     weight: string;
-    bodyFat: string;
+    sleep: string;
+    hydration: string;
+    steps: string;
     initials: string;
 }
 
@@ -215,7 +217,7 @@ export default function Chats() {
                     getDoc(doc(db, "assessments", selectedId!)),
                     getDocs(query(collection(db, "assessments"), where("userId", "==", selectedId!))),
                     getDocs(query(collection(db, "clientDietPlans"), where("clientId", "==", selectedId!), where("status", "==", "active"), limit(1))),
-                    getDocs(query(collection(db, "users", selectedId!, "progress_history"), limit(1)))
+                    getDocs(collection(db, "users", selectedId!, "progress_history"))
                 ]);
 
                 if (!isMounted) return;
@@ -231,15 +233,46 @@ export default function Chats() {
                 const goal = extractDataAggressively(possibleSources, ['primaryGoal', 'goal', 'fitnessGoal', 'goals']) || "Not Set";
 
                 let currentWeight = "—";
-                let currentBf = "—";
+                let currentSleep = "—";
+                let currentHydration = "—";
+                let currentSteps = "—";
 
                 if (!progressSnap.empty) {
-                    const prog = progressSnap.docs[0].data();
-                    if (prog.weight) currentWeight = String(prog.weight);
-                    if (prog.bodyFat) currentBf = String(prog.bodyFat);
+                    const sortedProgress = progressSnap.docs
+                        .map(d => ({ id: d.id, ...d.data() } as Record<string, unknown>))
+                        .sort((a, b) => String(b.date || b.id).localeCompare(String(a.date || a.id)));
+
+                    const prog = sortedProgress[0];
+                    if (prog.weight !== undefined && prog.weight !== null && prog.weight !== "") currentWeight = String(prog.weight);
+                    if (prog.sleep !== undefined && prog.sleep !== null && prog.sleep !== "") currentSleep = String(prog.sleep);
+                    if (prog.hydration !== undefined && prog.hydration !== null && prog.hydration !== "") {
+                        const hVal = Number(prog.hydration);
+                        currentHydration = !isNaN(hVal) && hVal > 50 ? (hVal / 1000).toFixed(1) : String(prog.hydration);
+                    } else if (prog.water !== undefined && prog.water !== null) {
+                        currentHydration = String(prog.water);
+                    }
+                    if (prog.steps !== undefined && prog.steps !== null && prog.steps !== "") {
+                        const sVal = Number(prog.steps);
+                        currentSteps = !isNaN(sVal) ? sVal.toLocaleString() : String(prog.steps);
+                    }
                 }
-                if (currentWeight === "—") currentWeight = extractDataAggressively(possibleSources, ['weight', 'currentWeight']) || "—";
-                if (currentBf === "—") currentBf = extractDataAggressively(possibleSources, ['bodyFat', 'bf', 'bodyFatPercentage']) || "—";
+
+                if (currentWeight === "—") currentWeight = extractDataAggressively(possibleSources, ['weight', 'currentWeight', 'weightKg']) || "—";
+                if (currentSleep === "—") currentSleep = extractDataAggressively(possibleSources, ['sleep', 'sleepHours', 'avgSleep']) || "—";
+                if (currentHydration === "—") {
+                    const hRaw = extractDataAggressively(possibleSources, ['hydration', 'water', 'waterL', 'dailyWater']);
+                    if (hRaw) {
+                        const hNum = Number(hRaw);
+                        currentHydration = !isNaN(hNum) && hNum > 50 ? (hNum / 1000).toFixed(1) : hRaw;
+                    }
+                }
+                if (currentSteps === "—") {
+                    const sRaw = extractDataAggressively(possibleSources, ['steps', 'dailySteps', 'stepCount']);
+                    if (sRaw) {
+                        const sNum = Number(sRaw);
+                        currentSteps = !isNaN(sNum) ? sNum.toLocaleString() : sRaw;
+                    }
+                }
 
                 const threadFallback = threads.find(t => t.id === selectedId);
                 const fullName = (userData.fullName || userData.name || threadFallback?.clientName || "Unknown Client") as string;
@@ -252,7 +285,17 @@ export default function Chats() {
                     updateDoc(doc(db, "chatThreads", selectedId!), { clientName: fullName, clientPhotoURL: fetchedPhotoURL }).catch(console.error);
                 }
 
-                setClientPanel({ fullName, initials, photoURL: fetchedPhotoURL, primaryGoal: goal, dietPlanName: dietName, weight: currentWeight, bodyFat: currentBf });
+                setClientPanel({
+                    fullName,
+                    initials,
+                    photoURL: fetchedPhotoURL,
+                    primaryGoal: goal,
+                    dietPlanName: dietName,
+                    weight: currentWeight,
+                    sleep: currentSleep,
+                    hydration: currentHydration,
+                    steps: currentSteps
+                });
 
             } catch (err) {
                 console.error("Client panel load error:", err);
@@ -269,22 +312,24 @@ export default function Chats() {
 
     async function handleDeleteChat() {
         if (!selectedId) return;
-        const confirmDelete = window.confirm("Are you sure you want to delete this entire conversation? This action cannot be undone.");
+        const confirmDelete = window.confirm("Are you sure you want to clear this conversation history? The client will remain in your list.");
         if (!confirmDelete) return;
 
         try {
             const batch = writeBatch(db);
             const msgsSnap = await getDocs(collection(db, "chatThreads", selectedId, "messages"));
             msgsSnap.forEach(docSnap => batch.delete(docSnap.ref));
-            batch.delete(doc(db, "chatThreads", selectedId));
+
+            batch.update(doc(db, "chatThreads", selectedId), {
+                lastMessage: "",
+                unreadCount: 0
+            });
             await batch.commit();
 
-            setSelectedId(null);
-            setShowMobileChat(false);
             setMessages([]);
         } catch (err) {
-            console.error("Failed to delete chat:", err);
-            alert("An error occurred while deleting the chat.");
+            console.error("Failed to clear chat:", err);
+            alert("An error occurred while clearing the chat.");
         }
     }
 
@@ -329,17 +374,14 @@ export default function Chats() {
         }
     }
 
-    // --- CLEAN DIET PLAN SENDER ---
     async function handleSendDietPlan(template: DietTemplate) {
         if (!selectedId) return;
         setShowDietModal(false);
 
         try {
-            // 1. Fetch template data
             const tplSnap = await getDoc(doc(db, "dietPlanTemplates", template.id));
             const tplData = tplSnap.exists() ? tplSnap.data() : {};
 
-            // 2. Fetch meals safely
             let meals: Record<string, unknown>[] = [];
             if (Array.isArray(tplData.meals) && tplData.meals.length > 0) {
                 meals = tplData.meals;
@@ -350,7 +392,6 @@ export default function Chats() {
                 meals = mealsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             }
 
-            // 3. Fallbacks for Image & Macros
             let finalImageUrl = (tplData?.imageURL || tplData?.imageUrl || "") as string;
             if (!finalImageUrl && meals.length > 0) {
                 const mealWithImage = meals.find((m) => m.imageURL || m.imageUrl || m.image);
@@ -373,7 +414,6 @@ export default function Chats() {
                 });
             }
 
-            // 4. Send message as a clean diet_plan attachment (Clean text, no markdown table)
             await addDoc(collection(db, "chatThreads", selectedId, "messages"), {
                 senderRole: "admin",
                 senderId: auth.currentUser?.uid ?? null,
@@ -520,7 +560,7 @@ export default function Chats() {
                                 <div className="chat-header-actions">
                                     <button
                                         className="chat-delete-btn"
-                                        title="Delete Chat"
+                                        title="Clear Chat History"
                                         onClick={handleDeleteChat}
                                     >
                                         <i className="bx bx-trash"></i>
@@ -541,7 +581,6 @@ export default function Chats() {
                                 {messages.map((m, index) => {
                                     const isLast = index === messages.length - 1 || messages[index + 1].senderRole !== m.senderRole;
 
-                                    // 🔥 DETECT DIET PLAN (Check type, keyword, or attachment)
                                     const isDietPlan = m.type === "diet_plan" ||
                                         m.text.includes("**DIET PLAN") ||
                                         m.text.toLowerCase().includes("shared diet plan") ||
@@ -557,14 +596,13 @@ export default function Chats() {
                                             className={`message-row ${m.senderRole === "admin" ? "sent" : "received"} ${isLast ? 'last-in-group' : ''}`}
                                         >
                                             <div className="message-bubble-wrapper">
-                                                {/* ONLY render the clean card. NEVER render the blue text bubble for diet plans */}
                                                 {isDietPlan ? (
                                                     <div className="diet-attachment-card" style={{ marginTop: 4, padding: 14, width: 280, borderRadius: 16 }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                                             <div className="diet-att-icon"><i className="bx bx-restaurant"></i></div>
                                                             <div className="diet-att-info" style={{ overflow: 'hidden' }}>
                                                                 <div className="diet-att-label" style={{ fontSize: 10 }}>ATTACHED DIET TEMPLATE</div>
-                                                                <h4 className="diet-att-title" style={{ fontSize: 15, margin: '2px 0 0 0', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                                                                <h4 className="diet-att-title" style={{ fontSize: 15, margin: 0, textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                                                                     {m.attachment?.name || (m.text.match(/\*\*DIET PLAN:\s*([^*]+)\*\*/)?.[1]?.trim()) || "Diet Plan"}
                                                                 </h4>
                                                             </div>
@@ -597,7 +635,6 @@ export default function Chats() {
 
                             {/* Chat Input Area */}
                             <div className="chat-input-container">
-                                {/* Direct Plus Button opening Diet Plan Selection Modal (No Share Document option) */}
                                 <button
                                     className="chat-action-btn"
                                     title="Share Diet Plan"
@@ -617,7 +654,6 @@ export default function Chats() {
                                         onClick={() => setShowEmojiPicker(false)}
                                     />
 
-                                    {/* Emoji Picker */}
                                     <div className="emoji-picker-container" ref={emojiPickerRef}>
                                         <button
                                             className="chat-emoji-btn"
@@ -681,8 +717,8 @@ export default function Chats() {
                                         <div className="cp-stat-value">{clientPanel.weight} <small>kg</small></div>
                                     </div>
                                     <div className="cp-stat-card">
-                                        <div className="cp-stat-label">BF %</div>
-                                        <div className="cp-stat-value">{clientPanel.bodyFat} <small>%</small></div>
+                                        <div className="cp-stat-label">DIET PLANS</div>
+                                        <div className="cp-stat-value">{sharedFiles.length} <small>PDFs</small></div>
                                     </div>
                                 </div>
 
@@ -702,28 +738,54 @@ export default function Chats() {
                                     </div>
                                 </div>
 
-                                <div className="cp-section-title" style={{ marginTop: '32px' }}>
-                                    SHARED FILES ({sharedFiles.length})
+                                {/* MEASUREMENT HISTORY (4 CONTAINER BOXES) */}
+                                <div className="cp-section-title" style={{ marginTop: '28px', marginBottom: '4px' }}>
+                                    MEASUREMENT HISTORY
                                 </div>
-                                <div className="cp-files-list">
-                                    {sharedFiles.length === 0 ? (
-                                        <div className="empty-state" style={{ padding: '10px 0' }}>
-                                            <p style={{ fontSize: '12px' }}>No plans shared yet.</p>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '14px', fontFamily: '"Inter", sans-serif' }}>
+                                    Track your progress over time
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    {/* Box 1: Weight */}
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0c2b75', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>
+                                            <i className="bx bx-dumbbell" style={{ fontSize: '15px', color: '#d20015' }}></i> Weight
                                         </div>
-                                    ) : (
-                                        sharedFiles.map((f) => (
-                                            <div
-                                                key={f.id}
-                                                className="cp-file-item"
-                                                onClick={() => f.templateId && navigate(`/diet-plans/view/${f.templateId}`)}
-                                            >
-                                                <div className="file-icon">
-                                                    <i className="bx bx-restaurant"></i>
-                                                </div>
-                                                <span className="file-name">{f.name}</span>
-                                            </div>
-                                        ))
-                                    )}
+                                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', fontFamily: '"Work Sans", sans-serif' }}>
+                                            {clientPanel.weight} <small style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>kg</small>
+                                        </div>
+                                    </div>
+
+                                    {/* Box 2: Sleep */}
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0c2b75', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>
+                                            <i className="bx bx-moon" style={{ fontSize: '15px', color: '#6366f1' }}></i> Sleep
+                                        </div>
+                                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', fontFamily: '"Work Sans", sans-serif' }}>
+                                            {clientPanel.sleep} <small style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>hrs</small>
+                                        </div>
+                                    </div>
+
+                                    {/* Box 3: Hydration */}
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0c2b75', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>
+                                            <i className="bx bx-droplet" style={{ fontSize: '15px', color: '#0284c7' }}></i> Hydration
+                                        </div>
+                                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', fontFamily: '"Work Sans", sans-serif' }}>
+                                            {clientPanel.hydration} <small style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>L</small>
+                                        </div>
+                                    </div>
+
+                                    {/* Box 4: Steps */}
+                                    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0c2b75', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>
+                                            <i className="bx bx-walk" style={{ fontSize: '15px', color: '#16a34a' }}></i> Steps
+                                        </div>
+                                        <div style={{ fontSize: '18px', fontWeight: 700, color: '#1e293b', fontFamily: '"Work Sans", sans-serif' }}>
+                                            {clientPanel.steps}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </>

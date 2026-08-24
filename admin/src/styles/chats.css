@@ -52,9 +52,11 @@
 .chats-wrapper {
     display: grid;
     grid-template-columns: 340px 1fr 320px;
-    margin: -24px;
-    width: calc(100% + 48px);
-    height: calc(100vh - 70px);
+    /* Offset the 32px padding from dashboard-content exactly */
+    margin: -32px;
+    width: calc(100% + 64px);
+    /* 112px is the exact height of your topbar */
+    height: calc(100vh - 112px);
     background-color: #ffffff;
     border-top: 1px solid #e2e8f0;
     overflow: hidden;
@@ -81,8 +83,6 @@
 @media (max-width: 768px) {
     .chats-wrapper {
         display: flex;
-        margin: -16px;
-        width: calc(100% + 32px);
     }
 
     .chats-left-panel {
@@ -402,7 +402,6 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    /* Spacing between trash can and profile */
 }
 
 .chat-header-actions button {
@@ -421,7 +420,6 @@
     color: #0c2b75;
 }
 
-/* Make the trash can red on hover */
 .chat-header-actions button.chat-delete-btn:hover {
     color: #d20015;
 }
