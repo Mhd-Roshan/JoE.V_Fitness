@@ -55,7 +55,7 @@ export default function Layout({
                         </button>
                     </div>
                 </header>
-                <main className="dashboard-content">{children}</main>
+                <main className="dashboard-content fade-in-page">{children}</main>
             </div>
         </div>
     );

@@ -164,7 +164,7 @@ export default function ManageAddons() {
 
     return (
         <Layout title="Packages">
-            <button className="profile-back-btn" onClick={() => navigate("/packages")}>
+            <button className="back-btn-outlined" onClick={() => navigate("/packages")}>
                 <i className="bx bx-arrow-back" /> Back to Packages
             </button>
 

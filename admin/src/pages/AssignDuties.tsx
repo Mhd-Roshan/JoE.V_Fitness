@@ -546,8 +546,8 @@ export default function AssignDuties() {
     return (
         <Layout title="Assign Duties">
             <div className="ad-nav-row">
-                <button className="ad-back-btn" onClick={() => navigate("/trainers")}>
-                    <i className="bx bx-arrow-back" style={{ fontSize: '18px' }} /> Back to Trainer
+                <button className="back-btn-outlined" onClick={() => navigate("/trainers")}>
+                    <i className="bx bx-arrow-back" style={{ fontSize: '18px' }} /> Back to Trainers
                 </button>
             </div>
 

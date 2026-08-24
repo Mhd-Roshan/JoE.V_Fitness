@@ -118,19 +118,25 @@ class _HealthInfoTabState extends State<HealthInfoTab>
         );
       }).toList();
 
-      if (procedures.isEmpty && userData['surgeries'] is List) {
-        final list = userData['surgeries'] as List;
-        for (int i = 0; i < list.length; i++) {
-          final item = list[i];
-          final name = item is Map ? (item['name'] ?? item['surgeryName']) : item.toString();
-          final date = item is Map ? item['date']?.toString() : null;
-          final recovery = item is Map ? item['recoveryStatus']?.toString() : null;
-          procedures.add(_Procedure(
-            id: 'u_$i',
-            name: name.toString(),
-            date: date,
-            recoveryStatus: recovery,
-          ));
+      final existingProcNames = procedures.map((p) => p.name.toLowerCase().trim()).toSet();
+
+      final rawSurgeries = userData['surgeries'] ?? userData['proceduresSurgeries'] ?? userData['procedures'];
+      if (rawSurgeries is List) {
+        for (int i = 0; i < rawSurgeries.length; i++) {
+          final item = rawSurgeries[i];
+          final name = item is Map ? (item['name'] ?? item['surgeryName'] ?? item['procedureName']) : item.toString();
+          final nameStr = name.toString().trim();
+          if (nameStr.isNotEmpty && !existingProcNames.contains(nameStr.toLowerCase())) {
+            existingProcNames.add(nameStr.toLowerCase());
+            final date = item is Map ? item['date']?.toString() : null;
+            final recovery = item is Map ? (item['recoveryStatus'] ?? (item['ongoingRehab'] == true ? 'Ongoing Rehab' : null))?.toString() : null;
+            procedures.add(_Procedure(
+              id: 'u_$i',
+              name: nameStr,
+              date: date,
+              recoveryStatus: recovery,
+            ));
+          }
         }
       }
 
@@ -149,12 +155,18 @@ class _HealthInfoTabState extends State<HealthInfoTab>
         );
       }).toList();
 
-      if (medications.isEmpty && userData['medications'] is List) {
-        final list = userData['medications'] as List;
-        for (int i = 0; i < list.length; i++) {
-          final item = list[i];
+      final existingMedNames = medications.map((m) => m.name.toLowerCase().trim()).toSet();
+
+      final rawMeds = userData['medications'] ?? userData['prescriptions'] ?? userData['drugs'];
+      if (rawMeds is List) {
+        for (int i = 0; i < rawMeds.length; i++) {
+          final item = rawMeds[i];
           final name = item is Map ? (item['name'] ?? item['medicationName']) : item.toString();
-          medications.add(_Medication(id: 'u_$i', name: name.toString()));
+          final nameStr = name.toString().trim();
+          if (nameStr.isNotEmpty && !existingMedNames.contains(nameStr.toLowerCase())) {
+            existingMedNames.add(nameStr.toLowerCase());
+            medications.add(_Medication(id: 'u_$i', name: nameStr));
+          }
         }
       }
 
@@ -175,22 +187,30 @@ class _HealthInfoTabState extends State<HealthInfoTab>
         );
       }).toList();
 
-      if (conditions.isEmpty) {
-        final rawConditions = userData['medicalConditions'] ?? userData['conditions'] ?? userData['healthConditions'];
-        if (rawConditions is List) {
-          for (int i = 0; i < rawConditions.length; i++) {
-            final item = rawConditions[i];
-            final name = item is Map ? (item['name'] ?? item['conditionName']) : item.toString();
-            final isSolved = resolvedConditions[name] == true || (item is Map && (item['isSolved'] == true || item['status'] == 'solved' || item['status'] == 'resolved'));
+      final existingConditionNames = conditions.map((c) => c.name.toLowerCase().trim()).toSet();
+
+      final rawConditions = userData['medicalConditions'] ?? userData['conditions'] ?? userData['healthConditions'] ?? userData['injuries'];
+      if (rawConditions is List) {
+        for (int i = 0; i < rawConditions.length; i++) {
+          final item = rawConditions[i];
+          final name = item is Map ? (item['name'] ?? item['conditionName'] ?? item['title']) : item.toString();
+          final nameStr = name.toString().trim();
+          if (nameStr.isNotEmpty && !existingConditionNames.contains(nameStr.toLowerCase())) {
+            existingConditionNames.add(nameStr.toLowerCase());
+            final isSolved = resolvedConditions[nameStr] == true || (item is Map && (item['isSolved'] == true || item['status'] == 'solved' || item['status'] == 'resolved'));
             conditions.add(_HealthCondition(
               id: 'u_$i',
-              name: name.toString(),
+              name: nameStr,
               isSolved: isSolved,
             ));
           }
-        } else if (rawConditions is String && rawConditions.isNotEmpty) {
-          final isSolved = resolvedConditions[rawConditions] == true;
-          conditions.add(_HealthCondition(id: 'u_0', name: rawConditions, isSolved: isSolved));
+        }
+      } else if (rawConditions is String && rawConditions.isNotEmpty) {
+        final nameStr = rawConditions.trim();
+        if (!existingConditionNames.contains(nameStr.toLowerCase())) {
+          existingConditionNames.add(nameStr.toLowerCase());
+          final isSolved = resolvedConditions[nameStr] == true;
+          conditions.add(_HealthCondition(id: 'u_0', name: nameStr, isSolved: isSolved));
         }
       }
 
@@ -198,13 +218,17 @@ class _HealthInfoTabState extends State<HealthInfoTab>
         final list = userData['physicalConstraints'] as List;
         for (int i = 0; i < list.length; i++) {
           final item = list[i];
-          final name = item is Map ? (item['name'] ?? item['title']) : item.toString();
-          final isSolved = resolvedConditions[name] == true || (item is Map && (item['isSolved'] == true || item['status'] == 'solved' || item['status'] == 'resolved'));
-          conditions.add(_HealthCondition(
-            id: 'pc_$i',
-            name: name.toString(),
-            isSolved: isSolved,
-          ));
+          final name = item is Map ? (item['name'] ?? item['title'] ?? item['area']) : item.toString();
+          final nameStr = name.toString().trim();
+          if (nameStr.isNotEmpty && !existingConditionNames.contains(nameStr.toLowerCase())) {
+            existingConditionNames.add(nameStr.toLowerCase());
+            final isSolved = resolvedConditions[nameStr] == true || (item is Map && (item['isSolved'] == true || item['status'] == 'solved' || item['status'] == 'resolved'));
+            conditions.add(_HealthCondition(
+              id: 'pc_$i',
+              name: nameStr,
+              isSolved: isSolved,
+            ));
+          }
         }
       }
 

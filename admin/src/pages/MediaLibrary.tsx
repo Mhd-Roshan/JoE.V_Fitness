@@ -164,7 +164,7 @@ export default function MediaLibrary() {
 
     return (
         <Layout title="Media Sessions">
-            <button className="profile-back-btn" onClick={() => navigate("/sessions")}>
+            <button className="back-btn-outlined" onClick={() => navigate("/sessions")}>
                 <i className="bx bx-arrow-back" /> Back to Sessions
             </button>
 

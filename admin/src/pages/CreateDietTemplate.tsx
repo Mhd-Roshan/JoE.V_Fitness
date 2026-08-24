@@ -388,8 +388,8 @@ export default function CreateDietTemplate() {
     return (
         <Layout title="Diet Plan">
             <div className="cdt-header">
-                <button className="profile-back-btn" onClick={() => navigate("/diet-plans")}>
-                    <i className="bx bx-arrow-back" /> Back to Diet Plan
+                <button className="back-btn-outlined" onClick={() => navigate("/diet-plans")}>
+                    <i className="bx bx-arrow-back" /> Back to Diet Plans
                 </button>
                 <div className="cdt-header-actions">
                     <button className="cdt-save-btn" onClick={handleSave} disabled={saving}>

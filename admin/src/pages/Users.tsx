@@ -13,6 +13,9 @@ interface UserRow {
     trainerName: string;
     joined: string;
     status: "Active" | "Due" | "Expired" | "No Subscription";
+    location?: string;
+    mapsUrl?: string;
+    photoURL?: string | null;
 }
 
 interface SubData {
@@ -105,6 +108,21 @@ export default function Users() {
                         });
                     }
 
+                    // LOCATION & MAPS LOGIC
+                    const loc = clientData.location || clientData.address || clientData.city || (typeof clientData.currentLocation === 'object' ? clientData.currentLocation?.address : clientData.currentLocation);
+                    const lat = clientData.lat || clientData.latitude || (typeof clientData.currentLocation === 'object' ? clientData.currentLocation?.lat : undefined);
+                    const lng = clientData.lng || clientData.longitude || (typeof clientData.currentLocation === 'object' ? clientData.currentLocation?.lng : undefined);
+                    let mapsUrl: string | undefined;
+                    let locStr: string | undefined = typeof loc === 'string' && loc.trim() ? loc.trim() : undefined;
+                    if (typeof lat === 'number' && typeof lng === 'number' && lat !== 0 && lng !== 0) {
+                        mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+                        if (!locStr) locStr = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                    } else if (locStr && locStr.toLowerCase() !== 'not set') {
+                        mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locStr)}`;
+                    }
+
+                    const photoURL = (clientData.photoURL || clientData.profileImage || clientData.avatar || clientData.avatarUrl || clientData.imageUrl || null) as string | null;
+
                     return {
                         id: clientDoc.id,
                         name: clientData.fullName || clientData.name || "Unnamed",
@@ -113,6 +131,9 @@ export default function Users() {
                         trainerName: finalTrainerName,
                         joined: joinedDate,
                         status: finalStatus,
+                        location: locStr,
+                        mapsUrl: mapsUrl,
+                        photoURL: photoURL,
                     };
                 });
 
@@ -225,7 +246,23 @@ export default function Users() {
                                 {!loading &&
                                     filteredRows.map((user) => (
                                         <tr key={user.id}>
-                                            <td className="fw-700 text-dark">{user.name}</td>
+                                            <td className="fw-700 text-dark">
+                                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                                    {user.photoURL ? (
+                                                        <img
+                                                            src={user.photoURL}
+                                                            alt={user.name}
+                                                            style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0" }}
+                                                            onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                                                        />
+                                                    ) : (
+                                                        <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#d20015", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700, flexShrink: 0 }}>
+                                                            {user.name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                                                        </div>
+                                                    )}
+                                                    <span>{user.name}</span>
+                                                </div>
+                                            </td>
                                             <td className="text-normal">{user.phone}</td>
                                             <td>
                                                 <span className="users-package-badge" style={{ opacity: user.packageName === "—" ? 0.5 : 1 }}>
@@ -248,6 +285,18 @@ export default function Users() {
                                             </td>
                                             <td>
                                                 <div className="users-actions-group">
+                                                    {user.mapsUrl && (
+                                                        <a
+                                                            href={user.mapsUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="users-action-btn"
+                                                            title={`View ${user.name}'s location on Google Maps`}
+                                                            style={{ color: "#16a34a" }}
+                                                        >
+                                                            <i className="bx bx-map" />
+                                                        </a>
+                                                    )}
                                                     <button
                                                         className="users-action-btn"
                                                         title="View profile"

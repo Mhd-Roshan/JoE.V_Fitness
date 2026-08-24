@@ -290,7 +290,7 @@ export default function AssignDietPlan() {
 
                 {/* Header Row */}
                 <div className="adp-header-row">
-                    <button className="btn-back-outline" onClick={() => navigate(`/users/${id}`)}>
+                    <button className="back-btn-outlined" onClick={() => navigate(`/users/${id}`)}>
                         <i className="bx bx-arrow-back" /> Back to Profile
                     </button>
                     <button className="btn-create-solid" onClick={() => navigate(`/diet-plans/add`)}>

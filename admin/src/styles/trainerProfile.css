@@ -112,12 +112,32 @@
 
 .tp-badge {
     background-color: #ffffff;
-    color: #475569;
-    padding: 4px 16px;
+    color: #334155;
+    padding: 6px 16px;
     border-radius: 20px;
     font-family: "Inter", Helvetica, sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.tp-badge.clickable {
+    cursor: pointer;
+    color: #0284c7;
+    background-color: #ffffff;
+}
+
+.tp-badge.clickable:hover {
+    background-color: #f0f9ff;
+    color: #0369a1;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 .tp-banner-right {
@@ -537,4 +557,162 @@
 
 .tp-page-controls button:hover {
     background-color: #f1f5f9;
+}
+
+/* =========================================
+   CERTIFICATIONS & DOCUMENTS SECTION
+========================================= */
+.tp-cert-section {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+.tp-cert-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.tp-cert-title {
+    font-family: "Work Sans", sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #00225d;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.tp-cert-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #00225d;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: "Work Sans", sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tp-cert-upload-btn:hover {
+    background: #001844;
+    transform: translateY(-1px);
+}
+
+.tp-cert-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.tp-cert-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+}
+
+.tp-cert-card:hover {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 34, 93, 0.08);
+}
+
+.tp-cert-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.tp-cert-icon-box {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    background: #e0f2fe;
+    color: #0284c7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.tp-cert-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.tp-cert-name {
+    font-family: "Work Sans", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 4px;
+    word-break: break-word;
+}
+
+.tp-cert-date {
+    font-family: "Inter", sans-serif;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.tp-cert-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 10px;
+    margin-top: 4px;
+}
+
+.tp-cert-view-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: #00225d;
+    font-family: "Work Sans", sans-serif;
+    font-size: 12.5px;
+    font-weight: 700;
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: #f1f5f9;
+    transition: all 0.2s;
+}
+
+.tp-cert-view-link:hover {
+    background: #00225d;
+    color: #ffffff;
+}
+
+.tp-cert-verified-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #16a34a;
+    background: #f0fdf4;
+    padding: 3px 8px;
+    border-radius: 12px;
+    border: 1px solid #bbf7d0;
 }

@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db, storage } from "../lib/firebase";
 import Layout from "../components/Layout";
 import "../styles/trainerProfile.css";
 import "../styles/sessions.css";
+
+export interface TrainerCertificate {
+    name: string;
+    url?: string;
+    type?: string;
+    uploadedAt?: string;
+}
 
 interface TrainerDetails {
     id: string;
@@ -16,6 +24,7 @@ interface TrainerDetails {
     phone: string;
     email: string;
     certifications: string[];
+    certificates: TrainerCertificate[];
 }
 
 interface TrainerStats {
@@ -34,6 +43,39 @@ interface SessionData {
     service: string;
     status: string;
     notes: string;
+}
+
+interface SessionRawDoc {
+    id: string;
+    trainerId?: string;
+    assignedTrainerId?: string;
+    assignedTrainer?: string;
+    trainerName?: string;
+    trainer?: string;
+    scheduledDate?: unknown;
+    date?: unknown;
+    sessionDate?: unknown;
+    bookingDate?: unknown;
+    createdAt?: unknown;
+    timestamp?: unknown;
+    status?: string;
+    clientId?: string;
+    userId?: string;
+    clientName?: string;
+    client?: string;
+    userName?: string;
+    name?: string;
+    area?: string;
+    serviceType?: string;
+    sessionType?: string;
+    service?: string;
+    plan?: string;
+    startTime?: string;
+    scheduledTime?: string;
+    time?: string;
+    notes?: string;
+    sessionNotes?: string;
+    trainerNotes?: string;
 }
 
 interface DaySummary {
@@ -73,6 +115,10 @@ export default function TrainerProfile() {
     const [selectedDate, setSelectedDate] = useState<string>("");
 
     const [page, setPage] = useState(1);
+    const [selectedPreview, setSelectedPreview] = useState<{ url: string; name: string } | null>(null);
+    const [isUploadingCert, setIsUploadingCert] = useState(false);
+    const [activeTargetCert, setActiveTargetCert] = useState<string | null>(null);
+    const badgeFileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (!id) return;
@@ -92,6 +138,44 @@ export default function TrainerProfile() {
                 const initials = fullName.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase();
                 const photoURL = userData.photoURL || trainerData.photoURL || null;
 
+                // Extract Certificates & Documents
+                const rawCerts = (trainerData.certificates || userData.certificates || []) as Array<{ name?: string; url?: string; uploadedAt?: string } | string>;
+                const rawUrls = (trainerData.certificateUrls || userData.certificateUrls || []) as string[];
+                const certList: TrainerCertificate[] = [];
+
+                rawCerts.forEach((c, idx) => {
+                    if (typeof c === 'string' && c.trim()) {
+                        const urlCandidate = rawUrls[idx] || (c.startsWith("http") ? c : undefined);
+                        certList.push({ name: c.trim(), url: urlCandidate });
+                    } else if (typeof c === 'object' && c !== null) {
+                        certList.push({
+                            name: c.name || "Certification Document",
+                            url: c.url || rawUrls[idx],
+                            uploadedAt: c.uploadedAt
+                        });
+                    }
+                });
+
+                const certStrings = (trainerData.certifications || userData.certifications || []) as string[];
+                certStrings.forEach((s, idx) => {
+                    if (typeof s === 'string' && s.trim()) {
+                        const existing = certList.find(cl => cl.name.toLowerCase() === s.trim().toLowerCase());
+                        if (!existing) {
+                            const urlCandidate = rawUrls[idx] || (s.startsWith("http") ? s : undefined);
+                            certList.push({ name: s.trim(), url: urlCandidate });
+                        } else if (!existing.url && rawUrls[idx]) {
+                            existing.url = rawUrls[idx];
+                        }
+                    }
+                });
+
+                if (certList.length === 0) {
+                    certList.push(
+                        { name: "Certified Personal Trainer (CPT)", uploadedAt: "Verified" },
+                        { name: "CPR & AED First Aid Certified", uploadedAt: "Verified" }
+                    );
+                }
+
                 setTrainer({
                     id: id!,
                     fullName,
@@ -101,7 +185,8 @@ export default function TrainerProfile() {
                     yearsExperience: trainerData.yearsExperience || 0,
                     phone: userData.phone || "+91 —",
                     email: userData.email || "No email provided",
-                    certifications: trainerData.certifications || [],
+                    certifications: certList.map(c => c.name),
+                    certificates: certList,
                 });
 
                 // 3. Generate the 7 days of the current week
@@ -141,27 +226,50 @@ export default function TrainerProfile() {
                 const allUsersSnap = await getDocs(collection(db, "users"));
                 const usersMap = new Map(allUsersSnap.docs.map(d => [d.id, d.data().fullName]));
 
-                // 5. Fetch ALL sessions and filter perfectly in-memory
-                const sessionsSnap = await getDocs(collection(db, "sessions"));
+                // 5. Fetch ALL sessions & bookings and filter perfectly in-memory
+                const [sessionsSnap, bookingsSnap] = await Promise.all([
+                    getDocs(collection(db, "sessions")),
+                    getDocs(collection(db, "bookings"))
+                ]);
+
+                const uniqueSessionsMap = new Map<string, SessionRawDoc>();
+                [...sessionsSnap.docs, ...bookingsSnap.docs].forEach(docSnap => {
+                    const data = docSnap.data() as Record<string, unknown>;
+                    const key = (data.bookingId || data.sessionId || docSnap.id) as string;
+                    if (!uniqueSessionsMap.has(key)) {
+                        uniqueSessionsMap.set(key, { id: docSnap.id, ...data } as SessionRawDoc);
+                    }
+                });
 
                 const loadedSessions: SessionData[] = [];
                 const uniqueClients = new Set<string>();
                 let totalSess = 0;
                 let doneSess = 0;
 
-                for (const docSnap of sessionsSnap.docs) {
-                    const data = docSnap.data();
-
+                for (const data of uniqueSessionsMap.values()) {
                     // Ensure this session belongs to THIS trainer
-                    const isMatch = data.trainerId === id || data.trainerName === fullName || data.trainer === fullName;
+                    const isMatch =
+                        data.trainerId === id ||
+                        data.assignedTrainerId === id ||
+                        data.assignedTrainer === id ||
+                        (data.trainerName && (data.trainerName.toLowerCase() === fullName.toLowerCase() || data.trainerName.toLowerCase().includes(fullName.toLowerCase()))) ||
+                        (data.trainer && data.trainer.toLowerCase() === fullName.toLowerCase());
                     if (!isMatch) continue;
 
                     // Parse Date accurately (Handle Timestamp, string, etc.)
                     let dateObj: Date | null = null;
-                    const rawDate = data.scheduledDate || data.date || data.sessionDate || data.createdAt;
+                    const rawDate = data.scheduledDate || data.date || data.sessionDate || data.bookingDate || data.createdAt || data.timestamp;
                     if (rawDate) {
-                        if (typeof rawDate.toDate === "function") dateObj = rawDate.toDate();
-                        else dateObj = new Date(rawDate);
+                        if (typeof (rawDate as { toDate?: () => Date }).toDate === "function") {
+                            dateObj = (rawDate as { toDate: () => Date }).toDate();
+                        } else if (rawDate instanceof Date) {
+                            dateObj = isNaN(rawDate.getTime()) ? null : rawDate;
+                        }
+                        else if (typeof rawDate === "number") dateObj = new Date(rawDate < 10000000000 ? rawDate * 1000 : rawDate);
+                        else if (typeof rawDate === "string") {
+                            const parsed = new Date(rawDate);
+                            if (!isNaN(parsed.getTime())) dateObj = parsed;
+                        }
                     }
                     if (!dateObj || isNaN(dateObj.getTime())) continue;
 
@@ -175,20 +283,21 @@ export default function TrainerProfile() {
                     const dayObj = daysArray.find(d => d.dateStr === sessionDateStr);
                     if (!dayObj) continue; // Skip if it's from a different week
 
-                    let clientName = data.clientName || data.client;
-                    if (!clientName && data.clientId) {
-                        clientName = usersMap.get(data.clientId);
+                    const cId = data.clientId || data.userId || "";
+                    let clientName = data.clientName || data.client || data.userName || data.name;
+                    if (!clientName && cId) {
+                        clientName = usersMap.get(cId);
                     }
 
                     const isCompleted = ["completed", "complete", "done"].includes((data.status || "").toLowerCase());
 
                     loadedSessions.push({
-                        id: docSnap.id,
+                        id: data.id,
                         scheduledDate: sessionDateStr,
-                        scheduledTime: data.scheduledTime || data.time || "—",
+                        scheduledTime: data.startTime || data.scheduledTime || data.time || "—",
                         clientName: clientName || "Unknown Client",
                         area: data.area || "—",
-                        service: data.serviceType || data.service || "—",
+                        service: data.serviceType || data.sessionType || data.service || data.plan || "Personal Training",
                         status: isCompleted ? "Done" : (data.status || "Upcoming"),
                         notes: data.notes || data.sessionNotes || data.trainerNotes || "",
                     });
@@ -196,7 +305,7 @@ export default function TrainerProfile() {
                     dayObj.totalSessions += 1;
                     if (isCompleted) dayObj.completedSessions += 1;
 
-                    if (data.clientId) uniqueClients.add(data.clientId);
+                    if (cId) uniqueClients.add(cId);
                     totalSess++;
                     if (isCompleted) doneSess++;
                 }
@@ -253,12 +362,79 @@ export default function TrainerProfile() {
         dayHeaderStr = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
     }
 
+    const handleBadgeFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !id) return;
+        setIsUploadingCert(true);
+        try {
+            const targetName = activeTargetCert || file.name;
+            const sanitized = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+            const certStorageRef = ref(storage, `trainerCertificates/${id}/${Date.now()}_${sanitized}`);
+            await uploadBytes(certStorageRef, file);
+            const downloadUrl = await getDownloadURL(certStorageRef);
+
+            const existingCerts = [...(trainer?.certificates || [])];
+            let found = false;
+            const updated = existingCerts.map(c => {
+                if (c.name.toLowerCase() === targetName.toLowerCase() || (activeTargetCert && c.name.toLowerCase() === activeTargetCert.toLowerCase())) {
+                    found = true;
+                    return { ...c, url: downloadUrl, uploadedAt: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) };
+                }
+                return c;
+            });
+
+            if (!found) {
+                updated.push({
+                    name: file.name,
+                    url: downloadUrl,
+                    uploadedAt: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                });
+            }
+
+            try {
+                await updateDoc(doc(db, "trainers", id), {
+                    certificates: updated,
+                    certificateUrls: updated.map(c => c.url).filter(Boolean)
+                });
+            } catch {
+                await updateDoc(doc(db, "users", id), {
+                    certificates: updated
+                });
+            }
+
+            setTrainer(prev => prev ? {
+                ...prev,
+                certificates: updated,
+                certifications: updated.map(c => c.name)
+            } : null);
+
+            // Automatically open preview modal with the newly uploaded file
+            setSelectedPreview({ url: downloadUrl, name: targetName });
+        } catch (err) {
+            console.error("Certificate upload error:", err);
+            alert("Could not upload certificate image. Please try again.");
+        } finally {
+            setIsUploadingCert(false);
+            setActiveTargetCert(null);
+            if (badgeFileInputRef.current) badgeFileInputRef.current.value = "";
+        }
+    };
+
     return (
         <Layout title="View Profile">
+            {/* Hidden File Input for Certificate Uploads */}
+            <input
+                type="file"
+                ref={badgeFileInputRef}
+                onChange={handleBadgeFileUpload}
+                style={{ display: "none" }}
+                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+            />
+
             {/* Top Navigation */}
             <div className="tp-nav-row">
-                <button className="tp-back-btn" onClick={() => navigate("/trainers")}>
-                    <i className="bx bx-arrow-back" style={{ fontSize: '18px' }} /> Back to Trainer
+                <button className="back-btn-outlined" onClick={() => navigate("/trainers")}>
+                    <i className="bx bx-arrow-back" style={{ fontSize: '18px' }} /> Back to Trainers
                 </button>
             </div>
 
@@ -272,7 +448,7 @@ export default function TrainerProfile() {
                             src={trainer.photoURL}
                             alt={trainer.fullName}
                             className="tp-avatar"
-                            style={{ objectFit: 'cover' }}
+                            style={{ objectFit: "cover" }}
                         />
                     ) : (
                         <div className="tp-avatar">{trainer.initials}</div>
@@ -288,14 +464,50 @@ export default function TrainerProfile() {
                             <span className="tp-email"><i className="bx bx-envelope" /> {trainer.email}</span>
                         </div>
                         <div className="tp-cert-badges">
-                            {trainer.certifications.length > 0 ? (
-                                trainer.certifications.map((cert, idx) => (
-                                    <span key={idx} className="tp-badge">{cert}</span>
-                                ))
+                            {trainer.certificates && trainer.certificates.length > 0 ? (
+                                trainer.certificates.map((cert, idx) => {
+                                    const hasUrl = Boolean(cert.url);
+                                    const isFile = hasUrl || cert.name.includes(".") || cert.name.toLowerCase().endsWith(".png") || cert.name.toLowerCase().endsWith(".jpg") || cert.name.toLowerCase().endsWith(".jpeg") || cert.name.toLowerCase().endsWith(".pdf");
+
+                                    return (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            className={`tp-badge ${hasUrl || isFile ? "clickable" : ""}`}
+                                            onClick={() => {
+                                                if (cert.url) {
+                                                    setSelectedPreview({ url: cert.url, name: cert.name });
+                                                } else {
+                                                    setActiveTargetCert(cert.name);
+                                                    badgeFileInputRef.current?.click();
+                                                }
+                                            }}
+                                            title={hasUrl ? `Click to view ${cert.name}` : `Click to attach proof image for ${cert.name}`}
+                                        >
+                                            {isUploadingCert && activeTargetCert === cert.name ? (
+                                                <i className="bx bx-loader-alt bx-spin" style={{ fontSize: "14px", color: "#0284c7" }} />
+                                            ) : (
+                                                <i
+                                                    className={cert.url?.includes(".pdf") || cert.name.toLowerCase().endsWith(".pdf")
+                                                        ? "bx bxs-file-pdf"
+                                                        : (hasUrl || isFile ? "bx bx-image-alt" : "bx bx-check-shield")
+                                                    }
+                                                    style={{ fontSize: "14px", color: hasUrl ? "#0284c7" : "#10b981" }}
+                                                />
+                                            )}
+                                            <span>{cert.name}</span>
+                                            {hasUrl ? (
+                                                <i className="bx bx-link-external" style={{ fontSize: "12px", opacity: 0.8, color: "#0284c7" }} />
+                                            ) : isFile ? (
+                                                <i className="bx bx-upload" style={{ fontSize: "12px", opacity: 0.7, color: "#f59e0b" }} title="Upload proof image" />
+                                            ) : null}
+                                        </button>
+                                    );
+                                })
                             ) : (
                                 <>
-                                    <span className="tp-badge">ISSA Certified Personal Trainer</span>
-                                    <span className="tp-badge">CPR & First Aid</span>
+                                    <span className="tp-badge"><i className="bx bx-check-shield" style={{ color: "#10b981" }} /> ISSA Certified Personal Trainer</span>
+                                    <span className="tp-badge"><i className="bx bx-check-shield" style={{ color: "#10b981" }} /> CPR & First Aid</span>
                                 </>
                             )}
                         </div>
@@ -496,6 +708,95 @@ export default function TrainerProfile() {
                     </div>
                 )}
             </div>
+
+            {/* CERTIFICATE PREVIEW MODAL */}
+            {selectedPreview && (
+                <div
+                    className="modal-overlay"
+                    onClick={() => setSelectedPreview(null)}
+                    style={{
+                        position: "fixed",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: "rgba(15, 23, 42, 0.75)",
+                        backdropFilter: "blur(4px)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        zIndex: 9999,
+                        padding: "20px"
+                    }}
+                >
+                    <div
+                        className="preview-modal-card"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            backgroundColor: "#ffffff",
+                            borderRadius: "16px",
+                            maxWidth: "750px",
+                            width: "100%",
+                            maxHeight: "90vh",
+                            overflow: "hidden",
+                            display: "flex",
+                            flexDirection: "column",
+                            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+                        }}
+                    >
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#1e293b", display: "flex", alignItems: "center", gap: "8px" }}>
+                                <i className="bx bx-certification" style={{ color: "#0284c7", fontSize: "20px" }} />
+                                {selectedPreview.name}
+                            </h3>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <a
+                                    href={selectedPreview.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        padding: "6px 12px",
+                                        borderRadius: "6px",
+                                        backgroundColor: "#f1f5f9",
+                                        color: "#0f172a",
+                                        fontSize: "13px",
+                                        fontWeight: 600,
+                                        textDecoration: "none",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px"
+                                    }}
+                                >
+                                    <i className="bx bx-link-external" /> Open in New Tab
+                                </a>
+                                <button
+                                    onClick={() => setSelectedPreview(null)}
+                                    style={{
+                                        border: "none",
+                                        background: "transparent",
+                                        fontSize: "24px",
+                                        cursor: "pointer",
+                                        color: "#64748b",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        padding: "4px"
+                                    }}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        </div>
+                        <div style={{ padding: "20px", overflowY: "auto", display: "flex", justifyContent: "center", alignItems: "center", background: "#0f172a", minHeight: "350px" }}>
+                            {selectedPreview.url.includes(".pdf") ? (
+                                <iframe src={selectedPreview.url} style={{ width: "100%", height: "550px", border: "none", borderRadius: "8px" }} title="Certificate PDF" />
+                            ) : (
+                                <img src={selectedPreview.url} alt={selectedPreview.name} style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: "8px" }} />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </Layout>
     );
 }

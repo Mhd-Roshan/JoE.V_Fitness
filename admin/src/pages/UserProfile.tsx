@@ -8,7 +8,12 @@ import {
     where,
     getDocs,
     updateDoc,
-    addDoc
+    addDoc,
+    type DocumentReference,
+    type Query,
+    type DocumentData,
+    type DocumentSnapshot,
+    type QuerySnapshot
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import Layout from "../components/Layout";
@@ -20,6 +25,7 @@ import "../styles/userProfile.css";
 interface ClientInfo {
     fullName: string;
     initials: string;
+    photoURL?: string | null;
 }
 
 interface ClientProfileData {
@@ -171,6 +177,12 @@ export default function UserProfile() {
     const [newTaskTitle, setNewTaskTitle] = useState("");
     const [addingTask, setAddingTask] = useState(false);
 
+    // Location & Coordinates State
+    const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+    const [locationInput, setLocationInput] = useState("");
+    const [savingLocation, setSavingLocation] = useState(false);
+
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -179,31 +191,58 @@ export default function UserProfile() {
 
         async function loadProfileFast() {
             try {
-                // Fetch all data (including both bookings & sessions collections)
+                const safeGetDoc = async (docRef: DocumentReference<DocumentData>) => {
+                    try {
+                        return await getDoc(docRef);
+                    } catch (e) {
+                        console.warn("Doc fetch error:", e);
+                        return { exists: () => false, data: () => ({}) } as unknown as DocumentSnapshot<DocumentData>;
+                    }
+                };
+                const safeGetDocs = async (queryRef: Query<DocumentData>) => {
+                    try {
+                        return await getDocs(queryRef);
+                    } catch (e) {
+                        console.warn("Docs fetch error:", e);
+                        return { empty: true, docs: [] } as unknown as QuerySnapshot<DocumentData>;
+                    }
+                };
+
+                // 1. Fetch User Record with fallbacks
+                let userSnap = await safeGetDoc(doc(db, "users", id!));
+                if (!userSnap.exists()) {
+                    const fallbackUser = await safeGetDocs(query(collection(db, "users"), where("uid", "==", id!)));
+                    if (!fallbackUser.empty) {
+                        userSnap = fallbackUser.docs[0];
+                    } else {
+                        userSnap = await safeGetDoc(doc(db, "clients", id!));
+                    }
+                }
+
+                // Fetch all related subcollections & associated data concurrently
                 const [
-                    userSnap, profileSnap, subSnap,
+                    profileSnap, subSnap,
                     bookingsUserSnap, bookingsClientSnap,
                     sessionsUserSnap, sessionsClientSnap,
                     progressSnap, dietSnap, conditionsSnap,
                     proceduresSnap, medsSnap, actionItemsSnap,
                     assessDocSnap, assessUserSnap, assessClientSnap
                 ] = await Promise.all([
-                    getDoc(doc(db, "users", id!)),
-                    getDoc(doc(db, "users", id!, "clientProfile", id!)),
-                    getDocs(query(collection(db, "subscriptions"), where("clientId", "==", id))),
-                    getDocs(query(collection(db, "bookings"), where("userId", "==", id))),
-                    getDocs(query(collection(db, "bookings"), where("clientId", "==", id))),
-                    getDocs(query(collection(db, "sessions"), where("userId", "==", id))),
-                    getDocs(query(collection(db, "sessions"), where("clientId", "==", id))),
-                    getDocs(collection(db, "users", id!, "progress_history")),
-                    getDocs(query(collection(db, "clientDietPlans"), where("clientId", "==", id), where("status", "==", "active"))),
-                    getDocs(collection(db, "users", id!, "healthConditions")),
-                    getDocs(collection(db, "users", id!, "proceduresSurgeries")),
-                    getDocs(collection(db, "users", id!, "medications")),
-                    getDocs(collection(db, "users", id!, "actionItems")),
-                    getDoc(doc(db, "assessments", id!)),
-                    getDocs(query(collection(db, "assessments"), where("userId", "==", id!))),
-                    getDocs(query(collection(db, "assessments"), where("clientId", "==", id!)))
+                    safeGetDoc(doc(db, "users", id!, "clientProfile", id!)),
+                    safeGetDocs(query(collection(db, "subscriptions"), where("clientId", "==", id))),
+                    safeGetDocs(query(collection(db, "bookings"), where("userId", "==", id))),
+                    safeGetDocs(query(collection(db, "bookings"), where("clientId", "==", id))),
+                    safeGetDocs(query(collection(db, "sessions"), where("userId", "==", id))),
+                    safeGetDocs(query(collection(db, "sessions"), where("clientId", "==", id))),
+                    safeGetDocs(collection(db, "users", id!, "progress_history")),
+                    safeGetDocs(query(collection(db, "clientDietPlans"), where("clientId", "==", id))),
+                    safeGetDocs(collection(db, "users", id!, "healthConditions")),
+                    safeGetDocs(collection(db, "users", id!, "proceduresSurgeries")),
+                    safeGetDocs(collection(db, "users", id!, "medications")),
+                    safeGetDocs(collection(db, "users", id!, "actionItems")),
+                    safeGetDoc(doc(db, "assessments", id!)),
+                    safeGetDocs(query(collection(db, "assessments"), where("userId", "==", id!))),
+                    safeGetDocs(query(collection(db, "assessments"), where("clientId", "==", id!)))
                 ]);
 
                 if (!userSnap.exists() && isMounted) {
@@ -225,26 +264,37 @@ export default function UserProfile() {
                     assessData = assessClientSnap.docs[0].data() as Record<string, unknown>;
                 }
 
-                const fullName = (userData.fullName || userData.name || "Unknown Client") as string;
-                const initials = fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
+                const fullName = (userData.fullName || userData.name || profileData.fullName || profileData.name || "Unknown Client") as string;
+                const initials = fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "CL";
+
+                const photoURL = (
+                    userData.photoURL || userData.profileImage || userData.avatar || userData.avatarUrl || userData.imageUrl || userData.photo ||
+                    profileData.photoURL || profileData.profileImage || profileData.avatar || profileData.avatarUrl || profileData.imageUrl || profileData.photo ||
+                    assessData.photoURL || assessData.profileImage
+                ) as string | null || null;
 
                 // -------------------------------------------------------------
-                // AGGRESSIVE DATA EXTRACTOR for Profile Info
+                // AGGRESSIVE DATA EXTRACTOR for Profile Info & Location
                 // -------------------------------------------------------------
+                let parsedCoords: { lat: number; lng: number } | null = null;
+
                 const findValue = (sources: unknown[], keys: string[]): string | undefined => {
                     for (const source of sources) {
                         if (!source || typeof source !== 'object') continue;
                         const srcObj = source as Record<string, unknown>;
                         for (const key of keys) {
                             const val = srcObj[key];
-                            if (typeof val === 'string' && val.trim() !== '') return val.trim();
-                            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string') return val[0].trim();
+                            if (typeof val === 'string' && val.trim() !== '' && val.toLowerCase() !== 'not set' && val.toLowerCase() !== 'null') return val.trim();
+                            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'string' && val[0].trim() !== '') return val[0].trim();
 
                             // If it's a nested object (e.g. { city: "Vytilla", state: "Kerala" })
                             if (typeof val === 'object' && val !== null) {
                                 const obj = val as Record<string, unknown>;
                                 if (typeof obj.city === 'string' && obj.city.trim() !== '') return obj.city.trim();
                                 if (typeof obj.address === 'string' && obj.address.trim() !== '') return obj.address.trim();
+                                if (typeof obj.locationAddress === 'string' && obj.locationAddress.trim() !== '') return obj.locationAddress.trim();
+                                if (typeof obj.place === 'string' && obj.place.trim() !== '') return obj.place.trim();
+                                if (typeof obj.placeName === 'string' && obj.placeName.trim() !== '') return obj.placeName.trim();
                                 if (typeof obj.name === 'string' && obj.name.trim() !== '') return obj.name.trim();
                                 if (typeof obj.title === 'string' && obj.title.trim() !== '') return obj.title.trim();
                                 if (typeof obj.value === 'string' && obj.value.trim() !== '') return obj.value.trim();
@@ -256,24 +306,65 @@ export default function UserProfile() {
 
                 const possibleSources = [
                     userData, profileData, assessData,
-                    userData.personalInfo, userData.personalDetails, userData.contactInfo, userData.address,
-                    profileData.personalInfo, profileData.personalDetails, profileData.address,
-                    assessData.personalInfo, assessData.fitnessGoals, assessData.personalDetails
+                    userData.personalInfo, userData.personalDetails, userData.contactInfo, userData.address, userData.location, userData.currentLocation, userData.profile,
+                    profileData.personalInfo, profileData.personalDetails, profileData.address, profileData.location, profileData.profile,
+                    assessData.personalInfo, assessData.fitnessGoals, assessData.personalDetails, assessData.location, assessData.generalInfo, assessData.lifestyle
                 ];
+
+                // Check for explicit GPS coordinates
+                possibleSources.forEach(s => {
+                    if (s && typeof s === 'object') {
+                        const obj = s as Record<string, unknown>;
+                        const lat = obj.latitude ?? obj.lat ?? (obj.coords as Record<string, unknown>)?.latitude ?? (obj.coords as Record<string, unknown>)?.lat;
+                        const lng = obj.longitude ?? obj.lng ?? (obj.coords as Record<string, unknown>)?.longitude ?? (obj.coords as Record<string, unknown>)?.lng;
+                        if (typeof lat === 'number' && typeof lng === 'number' && lat !== 0 && lng !== 0 && !parsedCoords) {
+                            parsedCoords = { lat, lng };
+                        }
+                    }
+                });
+
+                // Check booking / session coordinates if not found
+                const bookingDocs = [...bookingsUserSnap.docs, ...bookingsClientSnap.docs, ...sessionsUserSnap.docs, ...sessionsClientSnap.docs];
+                bookingDocs.forEach(bDoc => {
+                    const bData = bDoc.data();
+                    if (!parsedCoords) {
+                        const bLat = bData.locationLat ?? bData.lat ?? (bData.location as Record<string, unknown>)?.lat;
+                        const bLng = bData.locationLng ?? bData.lng ?? (bData.location as Record<string, unknown>)?.lng;
+                        if (typeof bLat === 'number' && typeof bLng === 'number' && bLat !== 0 && bLng !== 0) {
+                            parsedCoords = { lat: bLat, lng: bLng };
+                        }
+                    }
+                });
 
                 const extractedGoal = findValue(possibleSources, [
                     'primaryGoal', 'goal', 'fitnessGoal', 'goals', 'PrimaryGoal', 'objective', 'My Goals'
                 ]) || "Not set";
 
-                const extractedLocation = findValue(possibleSources, [
-                    'location', 'address', 'city', 'Location', 'Address', 'City', 'state', 'town'
-                ]) || "Not set";
+                let extractedLocation = findValue(possibleSources, [
+                    'location', 'address', 'city', 'Location', 'Address', 'City', 'currentLocation', 'locationAddress', 'locality', 'state', 'town', 'place', 'placeName', 'homeAddress', 'area', 'district', 'pincode', 'region'
+                ]);
+
+                if (!extractedLocation) {
+                    for (const bDoc of bookingDocs) {
+                        const bData = bDoc.data();
+                        const bLoc = bData.locationAddress || bData.locationTitle || bData.address || (typeof bData.location === 'string' ? bData.location : (bData.location as Record<string, unknown>)?.address);
+                        if (typeof bLoc === 'string' && bLoc.trim()) {
+                            extractedLocation = bLoc.trim();
+                            break;
+                        }
+                    }
+                }
+
+                if (!extractedLocation && parsedCoords) {
+                    extractedLocation = `${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)}`;
+                }
 
                 if (isMounted) {
-                    setClient({ fullName, initials });
+                    setClient({ fullName, initials, photoURL });
+                    setCoords(parsedCoords);
                     setProfile({
                         primaryGoal: extractedGoal,
-                        location: extractedLocation
+                        location: extractedLocation || "Not set"
                     });
                 }
 
@@ -381,23 +472,23 @@ export default function UserProfile() {
                     const extractStrings = (rawData: unknown): string[] => {
                         if (!rawData || rawData === "") return [];
                         if (typeof rawData === "string") {
-                            if (rawData.toLowerCase() === "none" || rawData.toLowerCase() === "na") return [];
+                            if (rawData.toLowerCase() === "none" || rawData.toLowerCase() === "na" || rawData.toLowerCase() === "null") return [];
                             return rawData.split(",").map(s => s.trim()).filter(Boolean);
                         }
                         const parseItem = (item: unknown): string | null => {
                             if (typeof item === "string") {
-                                if (item.toLowerCase() === "none" || item.toLowerCase() === "na") return null;
-                                return item;
+                                if (item.toLowerCase() === "none" || item.toLowerCase() === "na" || item.toLowerCase() === "null") return null;
+                                return item.trim() || null;
                             }
                             if (typeof item === "object" && item !== null) {
                                 const obj = item as Record<string, unknown>;
-                                const val = obj.conditionName || obj.name || obj.procedureName || obj.medicationName || obj.condition || obj.title;
-                                if (typeof val === "string") return val;
+                                const val = obj.name || obj.conditionName || obj.procedureName || obj.medicationName || obj.condition || obj.title || obj.type || obj.area;
+                                if (typeof val === "string" && val.trim()) return val.trim();
                             }
                             return null;
                         };
-                        if (Array.isArray(rawData)) return rawData.map(parseItem).filter(Boolean) as string[];
-                        if (typeof rawData === "object" && rawData !== null) return Object.values(rawData).map(parseItem).filter(Boolean) as string[];
+                        if (Array.isArray(rawData)) return rawData.map(parseItem).filter((s): s is string => Boolean(s));
+                        if (typeof rawData === "object" && rawData !== null) return Object.values(rawData).map(parseItem).filter((s): s is string => Boolean(s));
                         return [];
                     };
 
@@ -407,39 +498,86 @@ export default function UserProfile() {
                         return Array.from(new Set(combined));
                     };
 
-                    // Health Conditions
+                    // 1. Health Conditions & Constraints
                     const subConds = conditionsSnap.docs.map(d => d.data().conditionName || d.data().name || d.data().condition || "Unknown");
                     const allCondsStrs = combineFields(
-                        subConds, userData.healthConditions, profileData.healthConditions,
-                        assessData.healthConditions, assessData.medicalHistory,
-                        assessData.injuries, assessData.physicalConstraints, assessData.medicalConditions, assessData.limitations
+                        subConds,
+                        userData.healthConditions,
+                        userData.medicalConditions,
+                        userData.physicalConstraints,
+                        userData.injuries,
+                        userData.conditions,
+                        profileData.healthConditions,
+                        profileData.medicalConditions,
+                        profileData.physicalConstraints,
+                        profileData.injuries,
+                        assessData.healthConditions,
+                        assessData.medicalConditions,
+                        assessData.physicalConstraints,
+                        assessData.injuries,
+                        assessData.medicalHistory,
+                        assessData.limitations
                     );
                     setConditions(allCondsStrs.map((str, idx) => ({ id: `cond-${idx}`, conditionName: str })));
 
-                    // Medications
+                    // 2. Medications
                     const subMeds = medsSnap.docs.map(d => d.data().name || d.data().medicationName || "Unknown");
                     const allMedsStrs = combineFields(
-                        subMeds, userData.medications, profileData.medications,
-                        assessData.medications, assessData.currentMedications, assessData.supplements
+                        subMeds,
+                        userData.medications,
+                        userData.prescriptions,
+                        userData.drugs,
+                        profileData.medications,
+                        profileData.prescriptions,
+                        assessData.medications,
+                        assessData.currentMedications,
+                        assessData.supplements
                     );
                     setMedications(allMedsStrs.map((str, idx) => ({ id: `med-${idx}`, name: str })));
 
-                    // Procedures / Surgeries
+                    // 3. Procedures / Surgeries
                     const finalProcs: Procedure[] = proceduresSnap.docs.map(d => ({
                         id: d.id,
-                        procedureName: d.data().procedureName || d.data().name || "Unknown",
+                        procedureName: (d.data().procedureName || d.data().name || d.data().surgeryName || "Procedure") as string,
                         procedureDate: d.data().procedureDate || d.data().date,
                         recoveryStatus: d.data().recoveryStatus || d.data().status
                     }));
 
+                    const existingProcNames = new Set(finalProcs.map(p => p.procedureName.toLowerCase()));
+
+                    // Also extract detailed surgery objects directly from user / profile / assess data
+                    const rawSurgeriesArrays = [userData.surgeries, userData.proceduresSurgeries, profileData.surgeries, profileData.proceduresSurgeries, assessData.surgeries, assessData.procedures];
+                    rawSurgeriesArrays.forEach((arr) => {
+                        if (Array.isArray(arr)) {
+                            arr.forEach((item, idx) => {
+                                if (typeof item === "object" && item !== null) {
+                                    const obj = item as Record<string, unknown>;
+                                    const pName = (obj.name || obj.surgeryName || obj.procedureName || obj.procedure || "Surgery").toString().trim();
+                                    const pDate = (obj.date || obj.procedureDate || "").toString().trim();
+                                    const pRec = (obj.recoveryStatus || (obj.ongoingRehab ? "Ongoing Rehab" : "") || obj.status || "").toString().trim();
+                                    if (pName && !existingProcNames.has(pName.toLowerCase())) {
+                                        existingProcNames.add(pName.toLowerCase());
+                                        finalProcs.push({
+                                            id: `surg-obj-${idx}`,
+                                            procedureName: pName,
+                                            procedureDate: pDate || undefined,
+                                            recoveryStatus: pRec || undefined
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    });
+
                     const extraProcStrs = combineFields(
-                        userData.proceduresSurgeries, profileData.proceduresSurgeries,
+                        userData.surgeries, userData.proceduresSurgeries, userData.procedures, userData.operations,
+                        profileData.surgeries, profileData.proceduresSurgeries,
                         assessData.surgeries, assessData.procedures, assessData.pastSurgeries, assessData.operations
                     );
 
-                    const existingProcNames = new Set(finalProcs.map(p => p.procedureName.toLowerCase()));
                     extraProcStrs.forEach((str, idx) => {
                         if (!existingProcNames.has(str.toLowerCase())) {
+                            existingProcNames.add(str.toLowerCase());
                             finalProcs.push({ id: `extra-proc-${idx}`, procedureName: str });
                         }
                     });
@@ -447,7 +585,8 @@ export default function UserProfile() {
 
                     // Diet Plan
                     if (!dietSnap.empty) {
-                        const d = dietSnap.docs[0].data();
+                        const activePlanDoc = dietSnap.docs.find(d => d.data().status === "active") || dietSnap.docs[0];
+                        const d = activePlanDoc.data();
                         setDietPlan({
                             templateId: d.templateId,
                             templateName: d.templateName,
@@ -516,12 +655,62 @@ export default function UserProfile() {
     };
 
     // ------------------------------------------------------------------
+    // Location Management Handlers & Google Maps URL
+    // ------------------------------------------------------------------
+    const handleSaveLocation = async (customLoc?: string, customCoords?: { lat: number; lng: number }) => {
+        const locToSave = customLoc !== undefined ? customLoc : locationInput.trim();
+        if (!id || !locToSave) return;
+        setSavingLocation(true);
+        try {
+            const updateData: Record<string, unknown> = {
+                location: locToSave,
+                address: locToSave,
+            };
+            if (customCoords) {
+                updateData.lat = customCoords.lat;
+                updateData.lng = customCoords.lng;
+                updateData.latitude = customCoords.lat;
+                updateData.longitude = customCoords.lng;
+                setCoords(customCoords);
+            }
+            await updateDoc(doc(db, "users", id), updateData);
+            setProfile(prev => ({ ...prev, location: locToSave }));
+            setIsLocationModalOpen(false);
+        } catch (error) {
+            console.error("Error saving location:", error);
+        } finally {
+            setSavingLocation(false);
+        }
+    };
+
+    const handleDetectGps = () => {
+        if (!navigator.geolocation) {
+            alert("Geolocation is not supported by your browser.");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                const coordsStr = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+                setLocationInput(coordsStr);
+                setCoords({ lat: latitude, lng: longitude });
+            },
+            (err) => {
+                console.error("Geolocation error:", err);
+                alert("Could not fetch current device GPS location. Please check browser permissions.");
+            }
+        );
+    };
+
+    // ------------------------------------------------------------------
     // Computed Variables (Location & Measurements Filter)
     // ------------------------------------------------------------------
     const hasValidLocation = profile.location && profile.location.toLowerCase() !== "not set";
-    const googleMapsUrl = hasValidLocation
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.location as string)}`
-        : undefined;
+    const googleMapsUrl = coords
+        ? `https://www.google.com/maps?q=${coords.lat},${coords.lng}`
+        : (hasValidLocation
+            ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.location as string)}`
+            : undefined);
 
     // Filter measurements based on selected tab (Day = 3 items, Week = 7 items, Month = all items up to 30)
     const displayCount = timeFilter === "Day" ? 3 : timeFilter === "Week" ? 7 : 30;
@@ -559,24 +748,50 @@ export default function UserProfile() {
 
                 {/* Header Card */}
                 <div className="profile-header-card-v2">
-                    <div className="avatar-red">{client.initials}</div>
+                    {client.photoURL ? (
+                        <img
+                            src={client.photoURL}
+                            alt={client.fullName}
+                            className="avatar-red"
+                            onError={(e) => {
+                                (e.target as HTMLElement).style.display = "none";
+                            }}
+                        />
+                    ) : (
+                        <div className="avatar-red">{client.initials}</div>
+                    )}
 
                     <div className="header-info-v2">
                         <h2 className="name">{client.fullName}</h2>
                         <div className="header-meta-v2">
                             <span><i className="bx bx-target-lock icon-red" /> Primary Goal : {profile.primaryGoal}</span>
 
-                            {/* Clickable Location Link Opening Google Maps */}
-                            <a
-                                href={googleMapsUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`header-location-link ${!hasValidLocation ? 'disabled' : ''}`}
-                                onClick={(e) => !hasValidLocation && e.preventDefault()}
-                                title={hasValidLocation ? "View on Google Maps" : "No location provided"}
+                            {/* Interactive Clickable Location Button */}
+                            <button
+                                type="button"
+                                className="header-location-badge-btn"
+                                onClick={() => {
+                                    if (hasValidLocation && googleMapsUrl) {
+                                        window.open(googleMapsUrl, "_blank", "noopener,noreferrer");
+                                    } else {
+                                        setLocationInput(profile.location && profile.location !== "Not set" ? profile.location : "");
+                                        setIsLocationModalOpen(true);
+                                    }
+                                }}
+                                title={hasValidLocation ? "Click to open in Google Maps" : "Click to set client location"}
                             >
-                                <i className="bx bx-map icon-green" /> Location : {profile.location}
-                            </a>
+                                <i className="bx bx-map icon-green" />
+                                <span>Location : {profile.location}</span>
+                                <i
+                                    className="bx bx-edit-alt header-location-edit-icon"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setLocationInput(profile.location && profile.location !== "Not set" ? profile.location : "");
+                                        setIsLocationModalOpen(true);
+                                    }}
+                                    title="Edit / Set Location"
+                                />
+                            </button>
 
                             <span><i className="bx bx-user icon-grey" /> Trainer : {subscription?.trainerName}</span>
                         </div>
@@ -588,6 +803,63 @@ export default function UserProfile() {
                         </div>
                     )}
                 </div>
+
+                {/* Location Update Modal */}
+                {isLocationModalOpen && (
+                    <div className="location-modal-overlay" onClick={() => setIsLocationModalOpen(false)}>
+                        <div className="location-modal-card" onClick={(e) => e.stopPropagation()}>
+                            <div className="location-modal-header">
+                                <h3 className="location-modal-title">Client Location &amp; Maps</h3>
+                                <button className="location-modal-close" onClick={() => setIsLocationModalOpen(false)}>
+                                    &times;
+                                </button>
+                            </div>
+                            <p style={{ fontSize: "13.5px", color: "#64748b", margin: "0 0 16px 0", lineHeight: "1.5" }}>
+                                Enter the client's city, address, or GPS coordinates to view on Google Maps.
+                            </p>
+                            <input
+                                type="text"
+                                className="location-modal-input"
+                                placeholder="e.g. Kochi, Kerala or 9.9816, 76.2999"
+                                value={locationInput}
+                                onChange={(e) => setLocationInput(e.target.value)}
+                                autoFocus
+                            />
+                            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "16px" }}>
+                                <button type="button" className="location-modal-btn-gps" onClick={handleDetectGps}>
+                                    <i className="bx bx-current-location" /> Use Device GPS
+                                </button>
+                                {googleMapsUrl && hasValidLocation && (
+                                    <a
+                                        href={googleMapsUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ fontSize: "12.5px", color: "#0284c7", fontWeight: 600, textDecoration: "underline" }}
+                                    >
+                                        Open on Google Maps &rarr;
+                                    </a>
+                                )}
+                            </div>
+                            <div className="location-modal-actions">
+                                <button
+                                    type="button"
+                                    className="location-modal-btn-cancel"
+                                    onClick={() => setIsLocationModalOpen(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    className="location-modal-btn-save"
+                                    onClick={() => handleSaveLocation()}
+                                    disabled={savingLocation}
+                                >
+                                    {savingLocation ? "Saving..." : "Save Location"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Main Content Grid */}
                 <div className="profile-grid-3">

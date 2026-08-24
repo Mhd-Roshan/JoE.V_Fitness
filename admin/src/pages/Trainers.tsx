@@ -25,10 +25,12 @@ interface TrainerCard {
 interface ScheduleRow {
     id: string;
     time: string;
+    clientId: string;
     clientName: string;
     area: string;
     service: string;
     notes: string;
+    trainerId: string;
     trainerName: string;
     status: string;
 }
@@ -60,19 +62,45 @@ interface TrainerProfileData {
 interface SessionData {
     id: string;
     trainerId?: string;
+    assignedTrainerId?: string;
+    assignedTrainer?: string;
+    assignedTrainerName?: string;
     trainerName?: string;
-    scheduledDate?: string;
-    date?: string;
+    trainer?: string;
+    trainerEmail?: string;
+    scheduledDate?: unknown;
+    date?: unknown;
+    sessionDate?: unknown;
+    bookingDate?: unknown;
+    createdAt?: unknown;
+    timestamp?: unknown;
     status?: string;
     clientId?: string;
+    userId?: string;
+    client_id?: string;
+    user_id?: string;
+    uid?: string;
     clientName?: string;
+    client?: string;
+    userName?: string;
+    userFullName?: string;
+    customerName?: string;
+    name?: string;
+    userEmail?: string;
+    clientEmail?: string;
+    email?: string;
     area?: string;
     service?: string;
     serviceType?: string;
+    sessionType?: string;
+    plan?: string;
     time?: string;
+    startTime?: string;
     scheduledTime?: string;
     notes?: string;
     sessionNotes?: string;
+    trainerNotes?: string;
+    [key: string]: unknown;
 }
 
 interface SubscriptionData {
@@ -86,26 +114,54 @@ interface SubscriptionData {
 // ----------------------------------------------------
 // Helper Functions
 // ----------------------------------------------------
-function isToday(dateInput?: string) {
-    if (!dateInput) return false;
+function parseDateFlexible(val: unknown): Date | null {
+    if (!val) return null;
+    if (typeof (val as { toDate?: () => Date }).toDate === "function") {
+        return (val as { toDate: () => Date }).toDate();
+    }
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === "number") {
+        const ms = val < 10000000000 ? val * 1000 : val;
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof val === "string") {
+        const s = val.trim();
+        if (!s || s === "—") return null;
 
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) return parsed;
+
+        const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+        if (isoMatch) {
+            const y = parseInt(isoMatch[1], 10);
+            const m = parseInt(isoMatch[2], 10) - 1;
+            const d = parseInt(isoMatch[3], 10);
+            const res = new Date(y, m, d);
+            if (!isNaN(res.getTime())) return res;
+        }
+
+        const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+        if (dmyMatch) {
+            const d = parseInt(dmyMatch[1], 10);
+            const m = parseInt(dmyMatch[2], 10) - 1;
+            const y = parseInt(dmyMatch[3], 10);
+            const res = new Date(y, m, d);
+            if (!isNaN(res.getTime())) return res;
+        }
+    }
+    return null;
+}
+
+function isToday(dateInput?: unknown): boolean {
+    const d = parseDateFlexible(dateInput);
+    if (!d) return false;
     const today = new Date();
-    const iso = today.toISOString().slice(0, 10);
-
-    const d = String(today.getDate()).padStart(2, '0');
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const y = today.getFullYear();
-
-    const formats = [
-        iso,
-        `${y}/${m}/${d}`,
-        `${d}-${m}-${y}`,
-        `${d}/${m}/${y}`,
-        `${m}-${d}-${y}`,
-        `${m}/${d}/${y}`
-    ];
-
-    return formats.includes(dateInput);
+    return (
+        d.getFullYear() === today.getFullYear() &&
+        d.getMonth() === today.getMonth() &&
+        d.getDate() === today.getDate()
+    );
 }
 
 // ----------------------------------------------------
@@ -122,22 +178,52 @@ export default function Trainers() {
 
         async function loadData() {
             try {
-                // 1. Fetch EVERYTHING we need first 
-                const [usersSnap, trainersSnap, sessionsSnap, subsSnap] = await Promise.all([
+                // 1. Fetch EVERYTHING we need (users, trainers, sessions, bookings, subscriptions)
+                const [usersSnap, trainersSnap, sessionsSnap, bookingsSnap, subsSnap] = await Promise.all([
                     getDocs(collection(db, "users")),
                     getDocs(collection(db, "trainers")),
                     getDocs(collection(db, "sessions")),
+                    getDocs(collection(db, "bookings")),
                     getDocs(collection(db, "subscriptions"))
                 ]);
 
                 const allUsers = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserData));
                 const allTrainerProfiles = trainersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TrainerProfileData));
-                const allSessions = sessionsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SessionData));
                 const allSubs = subsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubscriptionData));
+
+                // Build comprehensive map of client IDs to real names
+                const userNamesMap: Record<string, string> = {};
+                usersSnap.docs.forEach((uDoc) => {
+                    const uData = uDoc.data();
+                    const name = (uData.fullName || uData.name || uData.displayName || uData.username || uData.email || uData.phone || "").toString().trim();
+                    if (name) {
+                        userNamesMap[uDoc.id] = name;
+                        if (uData.uid) userNamesMap[uData.uid] = name;
+                        if (uData.userId) userNamesMap[uData.userId] = name;
+                    }
+                });
+
+                // Merge & deduplicate sessions and bookings
+                const uniqueSessionsMap = new Map<string, SessionData>();
+                [...sessionsSnap.docs, ...bookingsSnap.docs].forEach(docSnap => {
+                    const data = docSnap.data() as Record<string, unknown>;
+                    const key = (data.bookingId || data.sessionId || docSnap.id) as string;
+                    if (!uniqueSessionsMap.has(key)) {
+                        uniqueSessionsMap.set(key, { id: docSnap.id, ...data } as SessionData);
+                    }
+                });
+                const allSessions = Array.from(uniqueSessionsMap.values());
 
                 // 2. Separate users into Trainers and Clients
                 const rawTrainersList = allUsers.filter(u => u.role?.toLowerCase() === "trainer");
                 const clientsList = allUsers.filter(u => u.role?.toLowerCase() !== "trainer");
+
+                // Build client-to-trainer map for fallback matching
+                const clientToTrainerMap: Record<string, string> = {};
+                clientsList.forEach(c => {
+                    const assigned = c.assignedTrainerId || c.assignedTrainer || c.trainerId || "";
+                    if (assigned) clientToTrainerMap[c.id] = assigned.toString().trim();
+                });
 
                 // Filter out and auto-clean phantom/orphan trainer documents that have no valid name or are unnamed
                 const trainersList: UserData[] = [];
@@ -165,6 +251,8 @@ export default function Trainers() {
                 // 3. Build Trainer Cards
                 const trainerRows = trainersList.map((trainer) => {
                     const tProfile = allTrainerProfiles.find(tp => tp.trainerId === trainer.id || tp.id === trainer.id) || {};
+                    const tName = (trainer.fullName || tProfile.fullName || trainer.name || "").toLowerCase().trim();
+                    const tEmail = (trainer.email || tProfile.email || "").toLowerCase().trim();
 
                     // COUNT CLIENTS
                     const clientSubs = allSubs.filter(sub =>
@@ -175,16 +263,29 @@ export default function Trainers() {
                     const clientUsers = clientsList.filter(c =>
                         c.trainerId === trainer.id ||
                         c.assignedTrainer === trainer.id ||
-                        c.assignedTrainerId === trainer.id
+                        c.assignedTrainerId === trainer.id ||
+                        clientToTrainerMap[c.id] === trainer.id
                     );
 
                     const totalClients = Math.max(clientSubs.length, clientUsers.length);
 
-                    // TODAY'S SESSIONS
-                    const trainerSessionsToday = allSessions.filter(s =>
-                        (s.trainerId === trainer.id || s.trainerName === trainer.fullName) &&
-                        isToday(s.scheduledDate || s.date)
-                    );
+                    // TODAY'S SESSIONS (from both sessions & bookings)
+                    const trainerSessionsToday = allSessions.filter(s => {
+                        const rawDate = s.scheduledDate || s.date || s.sessionDate || s.bookingDate || s.createdAt || s.timestamp;
+                        if (!isToday(rawDate)) return false;
+
+                        const sTrainerId = (s.trainerId || s.assignedTrainerId || s.assignedTrainer || "").toString().trim();
+                        const sTrainerName = (s.trainerName || "").toString().toLowerCase().trim();
+                        const sTrainerEmail = (s.trainerEmail || "").toString().toLowerCase().trim();
+                        const sClientId = (s.clientId || s.userId || "").toString().trim();
+
+                        return (
+                            sTrainerId === trainer.id ||
+                            (tEmail && sTrainerEmail === tEmail) ||
+                            (tName && (sTrainerName === tName || sTrainerName.includes(tName) || tName.includes(sTrainerName))) ||
+                            (sClientId && clientToTrainerMap[sClientId] === trainer.id)
+                        );
+                    });
 
                     const todayCount = trainerSessionsToday.length;
 
@@ -214,30 +315,59 @@ export default function Trainers() {
                     };
                 });
 
-                // 4. Build Today's Schedule Table
-                const todayAllSessions = allSessions.filter(s => isToday(s.scheduledDate || s.date));
+                // 4. Build Today's Schedule Table (across all sessions & bookings)
+                const todayAllSessions = allSessions.filter(s => {
+                    const rawDate = s.scheduledDate || s.date || s.sessionDate || s.bookingDate || s.createdAt || s.timestamp;
+                    return isToday(rawDate);
+                });
 
                 const scheduleRows = todayAllSessions.map(data => {
-                    let clientName = data.clientName;
-                    if (!clientName && data.clientId) {
-                        const clientMatch = allUsers.find(u => u.id === data.clientId);
-                        if (clientMatch) clientName = clientMatch.fullName;
+                    const clientId = (data.clientId || data.userId || data.client_id || data.user_id || data.uid || "").toString().trim();
+
+                    let clientName = (
+                        data.clientName ||
+                        data.userName ||
+                        data.name ||
+                        data.client ||
+                        data.userFullName ||
+                        data.customerName ||
+                        (clientId ? userNamesMap[clientId] : "") ||
+                        ""
+                    ).toString().trim();
+
+                    if (!clientName || clientName.toLowerCase() === "unknown client" || clientName.toLowerCase() === "unknown") {
+                        if (clientId && userNamesMap[clientId]) {
+                            clientName = userNamesMap[clientId];
+                        } else {
+                            const clientMatch = allUsers.find(u => u.id === clientId);
+                            if (clientMatch) {
+                                clientName = clientMatch.fullName || clientMatch.name || clientMatch.email || "Client";
+                            } else {
+                                clientName = "Client";
+                            }
+                        }
                     }
 
-                    let trainerName = data.trainerName;
-                    if (!trainerName && data.trainerId) {
-                        const trainerMatch = trainersList.find(u => u.id === data.trainerId);
-                        if (trainerMatch) trainerName = trainerMatch.fullName;
+                    const trainerId = (data.trainerId || data.assignedTrainerId || data.assignedTrainer || (clientId ? clientToTrainerMap[clientId] : "") || "").toString().trim();
+                    let trainerName = (data.trainerName || data.trainer || data.assignedTrainerName || "").toString().trim();
+                    if (!trainerName || trainerName.toLowerCase() === "unknown trainer") {
+                        if (trainerId) {
+                            const trainerMatch = trainersList.find(u => u.id === trainerId);
+                            if (trainerMatch) trainerName = trainerMatch.fullName || trainerMatch.name || "Assigned Trainer";
+                        }
                     }
+                    if (!trainerName) trainerName = "Assigned Trainer";
 
                     return {
                         id: data.id,
-                        time: (data.scheduledTime || data.time) ?? "—",
-                        clientName: clientName ?? "Unknown Client",
+                        time: (data.startTime || data.scheduledTime || data.time) ?? "—",
+                        clientId: clientId,
+                        clientName: clientName,
                         area: data.area ?? "—",
-                        service: (data.serviceType || data.service) ?? "—",
-                        notes: data.notes ?? data.sessionNotes ?? "",
-                        trainerName: trainerName ?? "Unknown Trainer",
+                        service: (data.serviceType || data.sessionType || data.service || data.plan) ?? "Personal Training",
+                        notes: data.notes ?? data.sessionNotes ?? data.trainerNotes ?? "",
+                        trainerId: trainerId,
+                        trainerName: trainerName,
                         status: data.status ?? "Scheduled",
                     };
                 });
@@ -466,12 +596,50 @@ export default function Trainers() {
                                             statusLower === "live" ? "live" : "upcoming";
 
                                     return (
-                                        <tr key={row.id}>
+                                        <tr 
+                                            key={row.id} 
+                                            onClick={() => navigate('/sessions')}
+                                            style={{ cursor: "pointer", transition: "background-color 0.15s ease" }}
+                                            title="Click to view in Sessions manager"
+                                        >
                                             <td className="sessions-mono" style={{ color: statusLower === 'live' || row.time.includes('10:00') ? '#bb0013' : 'inherit' }}>
                                                 {row.time}
                                             </td>
-                                            <td>{row.trainerName}</td>
-                                            <td className="sessions-bold">{row.clientName}</td>
+                                            <td>
+                                                <span 
+                                                    onClick={(e) => {
+                                                        if (row.trainerId) {
+                                                            e.stopPropagation();
+                                                            navigate(`/trainers/${row.trainerId}`);
+                                                        }
+                                                    }}
+                                                    style={{ 
+                                                        cursor: row.trainerId ? 'pointer' : 'inherit',
+                                                        fontWeight: 600,
+                                                        color: row.trainerId ? '#00225d' : 'inherit'
+                                                    }}
+                                                    title={row.trainerId ? "View trainer profile" : undefined}
+                                                >
+                                                    {row.trainerName}
+                                                </span>
+                                            </td>
+                                            <td className="sessions-bold">
+                                                <span
+                                                    onClick={(e) => {
+                                                        if (row.clientId) {
+                                                            e.stopPropagation();
+                                                            navigate(`/users/${row.clientId}`);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        cursor: row.clientId ? 'pointer' : 'inherit',
+                                                        color: row.clientId ? '#00225d' : 'inherit'
+                                                    }}
+                                                    title={row.clientId ? "View client profile" : undefined}
+                                                >
+                                                    {row.clientName}
+                                                </span>
+                                            </td>
                                             <td>
                                                 <span className="sessions-service-pill">
                                                     {row.service}

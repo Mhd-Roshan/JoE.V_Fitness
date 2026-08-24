@@ -109,8 +109,8 @@ export default function BrowseLibrary() {
 
     return (
         <Layout title="Diet Plan">
-            <button className="profile-back-btn" onClick={() => navigate("/diet-plans")}>
-                <i className="bx bx-arrow-back" /> Back to Diet Plan
+            <button className="back-btn-outlined" onClick={() => navigate("/diet-plans")}>
+                <i className="bx bx-arrow-back" /> Back to Diet Plans
             </button>
 
             <div className="library-toolbar">

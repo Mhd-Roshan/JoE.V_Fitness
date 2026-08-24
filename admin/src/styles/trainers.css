@@ -147,26 +147,23 @@
     align-items: center;
 }
 
-.stat-label {
+.trainer-stat-row .stat-label {
     font-family: "Work Sans", sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     color: #4b5563;
     text-transform: none;
 }
 
-/* FIX: Added letter-spacing and tabular-nums to space out squished digits */
-.stat-value {
-    font-family: "Work Sans", sans-serif !important;
-    font-style: normal !important;
-    font-size: 13px !important;
-    font-weight: 700 !important;
-    color: #111827 !important;
-    line-height: 1 !important;
-    letter-spacing: 1px !important;
-    /* Adds a nice gap between numbers */
-    font-variant-numeric: tabular-nums !important;
-    /* Keeps number widths perfectly even */
+.trainer-stat-row .stat-value {
+    font-family: "Work Sans", sans-serif;
+    font-style: normal;
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1;
+    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
 }
 
 .stat-progress-wrapper {

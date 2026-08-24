@@ -17,3 +17,56 @@
     all: unset;
   }
 }
+
+/* =========================================
+   STANDARD BACK BUTTON FOR ALL ADMIN PAGES
+========================================= */
+.back-btn-outlined {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: "Work Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #00225d;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 34, 93, 0.04);
+}
+
+.back-btn-outlined:hover {
+  background-color: #f8fafc;
+  border-color: #00225d;
+  color: #00225d;
+  transform: translateX(-3px);
+  box-shadow: 0 2px 6px rgba(0, 34, 93, 0.08);
+}
+
+.back-btn-outlined:active {
+  transform: translateX(0);
+}
+
+.back-btn-outlined i {
+  font-size: 18px;
+}
+
+/* Smooth page load fade-in */
+.fade-in-page {
+  animation: pageFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

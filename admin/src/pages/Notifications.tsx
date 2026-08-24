@@ -145,6 +145,8 @@ export default function Notifications() {
         setSendError(null);
     }
 
+    const [sentCount, setSentCount] = useState<number | null>(null);
+
     async function handleSendNow() {
         if (!title.trim() || !messageBody.trim()) {
             setSendError("Title and message body are required.");
@@ -153,22 +155,103 @@ export default function Notifications() {
         setSending(true);
         setSendError(null);
         setSendSuccess(false);
+        setSentCount(null);
+
         try {
-            await addDoc(collection(db, "pushNotificationRequests"), {
+            const finalTitle = title.trim();
+            const finalBody = messageBody.trim();
+
+            // 1. Determine Target Users
+            let recipientIds: string[] = [];
+
+            if (targetAudience === "trainers") {
+                const snap = await getDocs(query(collection(db, "users"), where("role", "==", "trainer")));
+                recipientIds = snap.docs.map((d) => d.id);
+            } else if (targetAudience === "active") {
+                const subSnap = await getDocs(query(collection(db, "subscriptions"), where("status", "==", "active")));
+                recipientIds = Array.from(new Set(subSnap.docs.map((d) => d.data().clientId || d.data().userId).filter(Boolean)));
+                if (recipientIds.length === 0) {
+                    const snap = await getDocs(query(collection(db, "users"), where("role", "==", "client")));
+                    recipientIds = snap.docs.map((d) => d.id);
+                }
+            } else if (targetAudience === "expiring") {
+                const subSnap = await getDocs(query(collection(db, "subscriptions"), where("status", "==", "due")));
+                recipientIds = Array.from(new Set(subSnap.docs.map((d) => d.data().clientId || d.data().userId).filter(Boolean)));
+            } else {
+                // "all" users
+                const snap = await getDocs(collection(db, "users"));
+                recipientIds = snap.docs.map((d) => d.id);
+            }
+
+            // 2. Deliver in-app notification to each user's notifications subcollection
+            const userNotifPromises = recipientIds.map((uid) =>
+                addDoc(collection(db, "users", uid, "notifications"), {
+                    title: finalTitle,
+                    message: finalBody,
+                    body: finalBody,
+                    type: notificationType,
+                    language: language,
+                    isRead: false,
+                    read: false,
+                    timestamp: serverTimestamp(),
+                    createdAt: serverTimestamp(),
+                }).catch((e) => console.warn(`Failed to deliver to user ${uid}:`, e))
+            );
+
+            // 3. Save to Global Notifications feed for Admin
+            const adminNotifPromise = addDoc(collection(db, "notifications"), {
+                type: notificationType,
+                title: finalTitle,
+                body: finalBody,
+                message: finalBody,
+                targetAudience,
+                language,
+                read: false,
+                sentToCount: recipientIds.length,
+                createdAt: serverTimestamp(),
+            });
+
+            // 4. Save to pushNotificationRequests
+            const requestPromise = addDoc(collection(db, "pushNotificationRequests"), {
                 targetAudience,
                 notificationType,
                 language,
-                title: title.trim(),
-                body: messageBody.trim(),
-                status: "queued",
+                title: finalTitle,
+                body: finalBody,
+                status: "sent",
+                sentCount: recipientIds.length,
                 requestedBy: auth.currentUser?.uid ?? null,
                 createdAt: serverTimestamp(),
             });
+
+            const [globalDoc] = await Promise.all([
+                adminNotifPromise,
+                requestPromise,
+                ...userNotifPromises,
+            ]);
+
+            // Update UI list immediately
+            if (globalDoc) {
+                setNotifications((prev) => [
+                    {
+                        id: globalDoc.id,
+                        type: notificationType,
+                        title: finalTitle,
+                        body: finalBody,
+                        read: false,
+                        createdAt: new Date(),
+                    },
+                    ...prev,
+                ]);
+                setUnreadCount((c) => c + 1);
+            }
+
+            setSentCount(recipientIds.length);
             setSendSuccess(true);
             resetComposer();
         } catch (err) {
-            console.error("Queue push notification failed:", err);
-            setSendError("Couldn't queue this notification. Try again.");
+            console.error("Sending notification failed:", err);
+            setSendError("Couldn't send this notification. Check your connection and try again.");
         } finally {
             setSending(false);
         }
@@ -238,7 +321,8 @@ export default function Notifications() {
 
                     {sendSuccess && (
                         <div className="notif-success-banner">
-                            Notification queued successfully.
+                            <i className="bx bx-check-circle" style={{ fontSize: "16px", marginRight: "6px" }} />
+                            Notification sent successfully to {sentCount ?? "all"} recipient(s)!
                         </div>
                     )}
                     {sendError && <div className="notif-error-banner">{sendError}</div>}

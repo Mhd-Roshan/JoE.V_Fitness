@@ -108,8 +108,8 @@ export default function TemplateDetails() {
     if (!template) {
         return (
             <Layout title="Diet Plan">
-                <button className="profile-back-btn" onClick={() => navigate("/diet-plans")}>
-                    <i className="bx bx-arrow-back" /> Back to Diet Plan
+                <button className="back-btn-outlined" onClick={() => navigate("/diet-plans")}>
+                    <i className="bx bx-arrow-back" /> Back to Diet Plans
                 </button>
                 <div className="profile-empty" style={{ padding: 24 }}>
                     Template not found.
@@ -121,8 +121,8 @@ export default function TemplateDetails() {
     return (
         <Layout title="Diet Plan">
             <div className="td-header">
-                <button className="profile-back-btn" onClick={() => navigate("/diet-plans")}>
-                    <i className="bx bx-arrow-back" /> Back to Diet Plan
+                <button className="back-btn-outlined" onClick={() => navigate("/diet-plans")}>
+                    <i className="bx bx-arrow-back" /> Back to Diet Plans
                 </button>
                 <button
                     className="td-edit-btn"

@@ -184,16 +184,37 @@ class _BookingScreenState extends State<BookingScreen> {
 
       if (placemarks.isNotEmpty && mounted) {
         Placemark place = placemarks.first;
+        final locTitle = place.locality ?? place.subLocality ?? 'Current Location';
+        final locAddr = '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.administrativeArea ?? ''}'
+            .trim()
+            .replaceAll(RegExp(r'^,\s*|,\s*$|,(?=\s*,)'), '');
         setState(() {
-          _locationTitle =
-              place.locality ?? place.subLocality ?? 'Current Location';
-          _locationAddress =
-              '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.administrativeArea ?? ''}'
-                  .trim()
-                  .replaceAll(RegExp(r'^,\s*|,\s*$|,(?=\s*,)'), '');
+          _locationTitle = locTitle;
+          _locationAddress = locAddr;
           _locationLat = position.latitude;
           _locationLng = position.longitude;
         });
+
+        // Sync location to user document so admin can view client location on Google Maps
+        final userUid = FirebaseAuth.instance.currentUser?.uid;
+        if (userUid != null && userUid.isNotEmpty) {
+          FirebaseFirestore.instance.collection('users').doc(userUid).set({
+            'location': locAddr.isNotEmpty ? locAddr : locTitle,
+            'address': locAddr,
+            'city': place.locality ?? place.subLocality ?? '',
+            'currentLocation': {
+              'address': locAddr,
+              'title': locTitle,
+              'lat': position.latitude,
+              'lng': position.longitude,
+            },
+            'lat': position.latitude,
+            'lng': position.longitude,
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'lastLocationUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
       }
     } catch (e) {
       debugPrint("Geocoding error: $e");
@@ -561,6 +582,26 @@ class _BookingScreenState extends State<BookingScreen> {
           _locationLat = lat;
           _locationLng = lng;
         });
+
+        // Sync location to user document so admin can view client location on Google Maps
+        final userUid = FirebaseAuth.instance.currentUser?.uid;
+        if (userUid != null && userUid.isNotEmpty) {
+          FirebaseFirestore.instance.collection('users').doc(userUid).set({
+            'location': p.description ?? _locationTitle,
+            'address': p.description ?? '',
+            'currentLocation': {
+              'address': p.description ?? '',
+              'title': _locationTitle,
+              'lat': lat,
+              'lng': lng,
+            },
+            'lat': lat,
+            'lng': lng,
+            'latitude': lat,
+            'longitude': lng,
+            'lastLocationUpdated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
       }
     }
   }

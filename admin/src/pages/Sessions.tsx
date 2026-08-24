@@ -67,7 +67,7 @@ export default function Sessions() {
     const [allSessions, setAllSessions] = useState<SessionRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
-    const [activeTab, setActiveTab] = useState<"Today" | "This Week" | "History" | "All" | "Rescheduled">(
+    const [activeTab, setActiveTab] = useState<"Today" | "This Week" | "All" | "Rescheduled">(
         clientIdParam ? "All" : "Today"
     );
     const [filteredClientName, setFilteredClientName] = useState<string>("");
@@ -203,12 +203,6 @@ export default function Sessions() {
                 return true;
             }
 
-            if (activeTab === "History") {
-                const statusDone = session.status.toLowerCase() === "done" || session.status.toLowerCase() === "completed";
-                const isPast = session.dateObj ? session.dateObj < todayStart : false;
-                return statusDone || isPast;
-            }
-
             if (!session.dateObj || isNaN(session.dateObj.getTime())) {
                 return false;
             }
@@ -224,7 +218,7 @@ export default function Sessions() {
             return true;
         });
 
-        // Sort: newest first for History/All/Rescheduled, chronological for Today/This Week
+        // Sort: newest first for All/Rescheduled, chronological for Today/This Week
         return filtered.sort((a, b) => {
             const timeA = a.dateObj ? a.dateObj.getTime() : 0;
             const timeB = b.dateObj ? b.dateObj.getTime() : 0;
@@ -253,18 +247,18 @@ export default function Sessions() {
             <div className="sessions-header">
                 <div>
                     <h2 className="sessions-title">
-                        {clientIdParam ? "Client Session History" : "Sessions Management"}
+                        {clientIdParam ? "Client Sessions" : "Sessions Management"}
                     </h2>
                     <p className="sessions-subtitle">
                         {clientIdParam
-                            ? `Viewing all scheduled and completed training sessions for ${filteredClientName || "client"}.`
+                            ? `Viewing all scheduled training sessions for ${filteredClientName || "client"}.`
                             : "Monitor real-time training activity, booked sessions, and trainer notes."}
                     </p>
                 </div>
 
                 {/* TABS */}
                 <div className="sessions-tabs">
-                    {(["Today", "This Week", "History", "All", "Rescheduled"] as const).map((tab) => (
+                    {(["Today", "This Week", "All", "Rescheduled"] as const).map((tab) => (
                         <button
                             key={tab}
                             onClick={() => {

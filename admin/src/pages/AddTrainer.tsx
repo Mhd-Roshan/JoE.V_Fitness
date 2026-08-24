@@ -463,6 +463,31 @@ export default function AddTrainer() {
                 }
             }
 
+            // Step 2b: Upload Certificates to Storage
+            const uploadedCertFiles: Array<{ name: string; url: string; uploadedAt: string }> = [];
+            if (form.certFiles && form.certFiles.length > 0) {
+                for (const file of form.certFiles) {
+                    try {
+                        const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+                        const certRef = ref(storage, `trainerCertificates/${trainerId}/${Date.now()}_${sanitizedName}`);
+                        await uploadBytes(certRef, file);
+                        const certUrl = await getDownloadURL(certRef);
+                        uploadedCertFiles.push({
+                            name: file.name,
+                            url: certUrl,
+                            uploadedAt: new Date().toISOString(),
+                        });
+                    } catch (certUploadErr) {
+                        console.warn("[onboarding] Certificate upload failed, continuing with file record:", certUploadErr);
+                        uploadedCertFiles.push({
+                            name: file.name,
+                            url: "",
+                            uploadedAt: new Date().toISOString(),
+                        });
+                    }
+                }
+            }
+
             // Step 3: Write Profile Details to Firestore
             try {
                 console.log("[onboarding] writing Firestore docs...");
@@ -475,6 +500,7 @@ export default function AddTrainer() {
                     phone: `+91${form.phone}`,
                     dob: form.dob,
                     photoURL: photoURL ?? null,
+                    certificates: uploadedCertFiles,
                     createdAt: serverTimestamp(),
                 });
 
@@ -490,6 +516,8 @@ export default function AddTrainer() {
                         ...form.certBodies,
                         ...form.certFiles.map((f) => f.name),
                     ],
+                    certificates: uploadedCertFiles,
+                    certificateUrls: uploadedCertFiles.map((c) => c.url).filter(Boolean),
                     status: "active",
                     rating: 0,
                     ratingCount: 0,
@@ -552,8 +580,8 @@ export default function AddTrainer() {
 
     return (
         <Layout title="Add New Trainers">
-            <button className="profile-back-btn" onClick={() => navigate("/trainers")}>
-                <i className="bx bx-arrow-back" /> Back to Trainer
+            <button className="back-btn-outlined" onClick={() => navigate("/trainers")}>
+                <i className="bx bx-arrow-back" /> Back to Trainers
             </button>
 
             <div className="step-indicator-card">

@@ -132,6 +132,10 @@ export default function EditPackage() {
 
     return (
         <Layout title="Packages">
+            <button className="back-btn-outlined" onClick={() => navigate("/packages")}>
+                <i className="bx bx-arrow-back" /> Back to Packages
+            </button>
+
             <div className="add-pkg-header">
                 <div className="add-pkg-title">Edit Package</div>
                 <div className="add-pkg-subtitle">
