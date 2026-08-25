@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'notification_screen.dart';
+import '../theme/app_theme_controller.dart';
 
 class RescheduleScreen extends StatefulWidget {
   final String bookingId;
@@ -28,6 +29,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
 
   bool _isChecking = false;
   bool _isUpdating = false;
+  bool _hasCheckedAvailability = false;
   String _availabilityStatus = 'none';
 
   // BookingScreen Theme Colors
@@ -107,6 +109,36 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     return h * 60 + m;
   }
 
+  bool _canRescheduleSession() {
+    try {
+      final String? dateStr =
+          widget.bookingData['scheduledDate'] ?? widget.bookingData['date'];
+      final String? timeStr =
+          widget.bookingData['startTime'] ?? widget.bookingData['time'];
+      if (dateStr == null || timeStr == null) return true;
+
+      final parts = dateStr.split('-');
+      if (parts.length < 3) return true;
+      final int year = int.parse(parts[0]);
+      final int month = int.parse(parts[1]);
+      final int day = int.parse(parts[2]);
+
+      final int minutes = _parseTimeToMinutes(timeStr);
+      final DateTime sessionDt =
+          DateTime(year, month, day, minutes ~/ 60, minutes % 60);
+
+      final DateTime now = DateTime.now();
+      final differenceInMinutes = sessionDt.difference(now).inMinutes;
+
+      // Rescheduling is strictly only allowed before 2 hours of actual session time (>= 120 minutes)
+      return differenceInMinutes >= 120;
+    } catch (e) {
+      return true;
+    }
+  }
+
+
+
   String _formatTimeStrict(TimeOfDay time) {
     final now = DateTime.now();
     final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
@@ -127,20 +159,51 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     setState(() {
       _selectedTime = picked;
       _availabilityStatus = 'none';
+      _hasCheckedAvailability = false;
     });
   }
 
   // --- 60-MINUTE NON-OVERLAPPING CONFLICT ENGINE ---
   Future<void> _checkAvailability() async {
-    if (_selectedTime == null || _selectedDate == null) {
+    if (_selectedDate == null) {
+      return;
+    }
+
+    // 2-hour window check on original session
+    if (!_canRescheduleSession()) {
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+          _hasCheckedAvailability = true;
+          _availabilityStatus = 'past';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Rescheduling is only allowed at least 2 hours before the scheduled session time.',
+            ),
+            backgroundColor: Color(0xFFC62828),
+          ),
+        );
+      }
       return;
     }
 
     HapticFeedback.mediumImpact();
     setState(() {
       _isChecking = true;
+      _hasCheckedAvailability = true;
       _availabilityStatus = 'none';
     });
+
+    if (_selectedTime == null) {
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+        });
+      }
+      return;
+    }
 
     try {
       final DateTime now = DateTime.now();
@@ -257,6 +320,18 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
 
   // --- CONFIRM RESCHEDULE & NOTIFY TRAINER/ADMIN ---
   Future<void> _confirmReschedule() async {
+    if (!_canRescheduleSession()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Rescheduling is only allowed at least 2 hours before the scheduled session time.',
+          ),
+          backgroundColor: Color(0xFFC62828),
+        ),
+      );
+      return;
+    }
+
     if (_selectedDate == null || _selectedTime == null) {
       return;
     }
@@ -394,47 +469,449 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     }
   }
 
+  Widget _buildTimeSelectionCard() {
+    if (_selectedDate == null) {
+      return const SizedBox.shrink();
+    }
+    final String newDateStr = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+    final String trainerId = widget.bookingData['trainerId']?.toString() ?? '';
+
+    final Query bookingsQuery = trainerId.isNotEmpty
+        ? FirebaseFirestore.instance
+            .collection('bookings')
+            .where('trainerId', isEqualTo: trainerId)
+            .where('date', isEqualTo: newDateStr)
+        : FirebaseFirestore.instance
+            .collection('bookings')
+            .where('date', isEqualTo: newDateStr);
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: bookingsQuery.snapshots(),
+      builder: (context, snapshot) {
+        final existingDocs = snapshot.data?.docs ?? [];
+        final now = DateTime.now();
+
+        // Timing range from 03:00 AM to 11:00 PM (hour 3 to 23)
+        final List<TimeOfDay> dailySlots = List.generate(
+          21,
+          (i) => TimeOfDay(hour: 3 + i, minute: 0),
+        );
+
+        bool isSlotPast(TimeOfDay slot) {
+          final slotDt = DateTime(
+            _selectedDate!.year,
+            _selectedDate!.month,
+            _selectedDate!.day,
+            slot.hour,
+            slot.minute,
+          );
+          return slotDt.isBefore(now);
+        }
+
+        bool isSlotTaken(TimeOfDay slot) {
+          int slotStart = slot.hour * 60 + slot.minute;
+          int slotEnd = slotStart + 60;
+          for (var doc in existingDocs) {
+            // Exclude current session being rescheduled
+            if (doc.id == widget.bookingId) continue;
+            final data = doc.data() as Map<String, dynamic>;
+            final status = (data['status'] ?? '').toString().toLowerCase();
+            if (status == 'cancelled' || status == 'rejected') continue;
+            int bStart = data['startMinutes'] ??
+                _parseTimeToMinutes(
+                    data['startTime'] ?? data['time'] ?? '00:00');
+            int bEnd = data['endMinutes'] ??
+                (bStart + (data['durationMinutes'] ?? 60));
+            if (slotStart < bEnd && slotEnd > bStart) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        // Only show AVAILABLE slots (excluding past and booked)
+        final List<TimeOfDay> availableSlots = dailySlots
+            .where((s) => !isSlotPast(s) && !isSlotTaken(s))
+            .toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'select_time_title'.tr(),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: _textMain,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // "Enter the time" label
+            Text(
+              'Enter the time',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Time input box + Check button
+            Row(
+              children: [
+                Expanded(
+                  child: _BouncingButton(
+                    onTap: _pickTime,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _bgColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.blueGrey.shade200,
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            _selectedTime == null
+                                ? 'select_time_btn'.tr()
+                                : _formatTimeStrict(_selectedTime!),
+                            style: const TextStyle(
+                              color: _textMain,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Icon(
+                            Icons.access_time_rounded,
+                            color: Colors.blueGrey.shade500,
+                            size: 22,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _BouncingButton(
+                  onTap: _isChecking ? null : _checkAvailability,
+                  child: Container(
+                    height: 52,
+                    padding: const EdgeInsets.symmetric(horizontal: 22),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _redButtonColor,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _redButtonColor.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: _isChecking
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'btn_check'.tr(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+
+            if (_availabilityStatus == 'available') ...[
+              const SizedBox(height: 14),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'time_available'.tr(),
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (_availabilityStatus == 'taken') ...[
+              const SizedBox(height: 14),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.cancel,
+                      color: Colors.red,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'slot_booked'.tr(),
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else if (_availabilityStatus == 'past') ...[
+              const SizedBox(height: 14),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.access_time_filled,
+                      color: Colors.orange,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'cannot_book_past'.tr(),
+                      style: const TextStyle(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (_hasCheckedAvailability) ...[
+              const SizedBox(height: 24),
+
+              // Available Slots Header with Count
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Available Time Slots',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: _textMain,
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${availableSlots.length} Open',
+                      style: const TextStyle(
+                        color: Color(0xFF2E7D32),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // ONLY AVAILABLE SLOTS GRID
+              if (availableSlots.isEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Text(
+                    'No available slots on this date. Please pick another date or custom time.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: availableSlots.map((slot) {
+                    final bool isSelected = _selectedTime?.hour == slot.hour &&
+                        _selectedTime?.minute == slot.minute;
+                    final String timeText = _formatTimeStrict(slot);
+
+                    return _BouncingButton(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() {
+                          _selectedTime = slot;
+                          _availabilityStatus = 'available';
+                        });
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected ? _redButtonColor : _bgColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? _redButtonColor
+                                : Colors.grey.shade300,
+                            width: 1.2,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color:
+                                        _redButtonColor.withValues(alpha: 0.25),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected) ...[
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: Colors.white,
+                                size: 15,
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              timeText,
+                              style: TextStyle(
+                                color: isSelected ? Colors.white : _textMain,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildTopAppBar() {
+    final bool isDark = AppThemeController.isDark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: _textMain,
-                  size: 20,
+          Expanded(
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_ios_new,
+                    color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.pop(context);
+                  },
                 ),
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  Navigator.pop(context);
-                },
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'reschedule_title'.tr(),
-                style: const TextStyle(
-                  color: _textMain,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'reschedule_title'.tr(),
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF262626)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                 size: 24,
               ),
               onPressed: () async {
@@ -483,12 +960,15 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
 
     String trainerName = widget.bookingData['trainerName'] ?? 'unassigned'.tr();
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 40),
-          physics: const BouncingScrollPhysics(),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 40),
+              physics: const BouncingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -500,10 +980,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   'current_session'.tr(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: _textMain,
+                    color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                     letterSpacing: -0.5,
                   ),
                 ),
@@ -513,11 +993,16 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF121212) : Colors.white,
                   borderRadius: BorderRadius.circular(24),
+                  border: isDark
+                      ? Border.all(color: const Color(0xFF262626), width: 1.2)
+                      : null,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.25 : 0.03,
+                      ),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -530,7 +1015,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: _activeBlue.withValues(alpha: 0.1),
+                            color: _activeBlue.withValues(alpha: isDark ? 0.2 : 0.1),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: const Icon(
@@ -547,10 +1032,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                               Text(
                                 widget.bookingData['sessionType'] ??
                                     'training_default'.tr(),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 18,
-                                  color: _textMain,
+                                  color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -559,7 +1044,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                                   Icon(
                                     Icons.person_outline,
                                     size: 14,
-                                    color: Colors.grey.shade600,
+                                    color: isDark
+                                        ? const Color(0xFFA8A8A8)
+                                        : Colors.grey.shade600,
                                   ),
                                   const SizedBox(width: 4),
                                   Expanded(
@@ -568,7 +1055,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                                         namedArgs: {'trainerName': trainerName},
                                       ),
                                       style: TextStyle(
-                                        color: Colors.grey.shade600,
+                                        color: isDark
+                                            ? const Color(0xFFA8A8A8)
+                                            : Colors.grey.shade600,
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -589,7 +1078,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    Divider(color: Colors.grey.shade200, height: 1),
+                    Divider(
+                      color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                      height: 1,
+                    ),
                     const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -601,14 +1093,18 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                               children: [
                                 Icon(
                                   Icons.calendar_month,
-                                  color: Colors.grey.shade500,
+                                  color: isDark
+                                      ? const Color(0xFFA8A8A8)
+                                      : Colors.grey.shade500,
                                   size: 16,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'date_label'.tr(),
                                   style: TextStyle(
-                                    color: Colors.grey.shade500,
+                                    color: isDark
+                                        ? const Color(0xFFA8A8A8)
+                                        : Colors.grey.shade500,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -618,8 +1114,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                             const SizedBox(height: 6),
                             Text(
                               oldDateDisplay,
-                              style: const TextStyle(
-                                color: _textMain,
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 15,
                               ),
@@ -633,14 +1129,18 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                               children: [
                                 Icon(
                                   Icons.access_time,
-                                  color: Colors.grey.shade500,
+                                  color: isDark
+                                      ? const Color(0xFFA8A8A8)
+                                      : Colors.grey.shade500,
                                   size: 16,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'time_label'.tr(),
                                   style: TextStyle(
-                                    color: Colors.grey.shade500,
+                                    color: isDark
+                                        ? const Color(0xFFA8A8A8)
+                                        : Colors.grey.shade500,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -652,8 +1152,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                               widget.bookingData['time'] ??
                                   widget.bookingData['startTime'] ??
                                   '',
-                              style: const TextStyle(
-                                color: _textMain,
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 15,
                               ),
@@ -666,7 +1166,57 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                 ),
               ),
 
-              const SizedBox(height: 40),
+              if (!_canRescheduleSession()) ...[
+                const SizedBox(height: 20),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF330C10) : const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFCDD2),
+                      width: 1.2,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.timer_off_outlined,
+                        color: isDark ? const Color(0xFFF87171) : const Color(0xFFC62828),
+                        size: 26,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Rescheduling Locked',
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFC62828),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14.5,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Sessions can only be rescheduled at least 2 hours before the scheduled session start time.',
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFFFECACA) : const Color(0xFFB71C1C),
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 32),
 
               // Date Selection
               Padding(
@@ -676,19 +1226,19 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                   children: [
                     Text(
                       'select_new_date'.tr(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: _textMain,
+                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                         letterSpacing: -0.5,
                       ),
                     ),
                     Text(
                       currentMonthYear,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: _textMain,
+                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -721,13 +1271,17 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                           width: 58,
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: isSelected ? _activeBlue : Colors.white,
+                            color: isSelected
+                                ? _activeBlue
+                                : (isDark ? const Color(0xFF141414) : Colors.white),
                             borderRadius: BorderRadius.circular(35),
                             border: Border.all(
                               color: isSelected
                                   ? Colors.transparent
-                                  : Colors.grey.shade300,
-                              width: 1,
+                                  : (isDark
+                                      ? const Color(0xFF262626)
+                                      : Colors.grey.shade300),
+                              width: 1.2,
                             ),
                             boxShadow: isSelected
                                 ? [
@@ -747,7 +1301,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                                 style: TextStyle(
                                   color: isSelected
                                       ? Colors.white
-                                      : Colors.grey.shade500,
+                                      : (isDark
+                                          ? const Color(0xFFA8A8A8)
+                                          : Colors.grey.shade500),
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -759,14 +1315,20 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                                 decoration: BoxDecoration(
                                   color: isSelected
                                       ? Colors.white
-                                      : Colors.grey.shade100,
+                                      : (isDark
+                                          ? const Color(0xFF1E1E1E)
+                                          : Colors.grey.shade100),
                                   shape: BoxShape.circle,
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
                                   DateFormat('d').format(date),
                                   style: TextStyle(
-                                    color: isSelected ? _activeBlue : _textMain,
+                                    color: isSelected
+                                        ? _activeBlue
+                                        : (isDark
+                                            ? const Color(0xFFF5F5F5)
+                                            : _textMain),
                                     fontSize: 15,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -788,11 +1350,16 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF121212) : Colors.white,
                   borderRadius: BorderRadius.circular(24),
+                  border: isDark
+                      ? Border.all(color: const Color(0xFF262626), width: 1.2)
+                      : null,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.25 : 0.03,
+                      ),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     ),
@@ -801,193 +1368,43 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'select_time_title'.tr(),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: _textMain,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _BouncingButton(
-                            onTap: _pickTime,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 14,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _bgColor,
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    _selectedTime == null
-                                        ? 'select_time_btn'.tr()
-                                        : _formatTimeStrict(_selectedTime!),
-                                    style: const TextStyle(
-                                      color: _textMain,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  Icon(
-                                    Icons.access_time,
-                                    color: Colors.grey.shade400,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        _BouncingButton(
-                          onTap: _isChecking ? null : _checkAvailability,
-                          child: Container(
-                            height: 52,
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: _redButtonColor,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: _isChecking
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : Text(
-                                    'btn_check'.tr(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_availabilityStatus == 'available') ...[
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'time_available'.tr(),
-                              style: const TextStyle(
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ] else if (_availabilityStatus == 'taken') ...[
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.cancel,
-                              color: Colors.red,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'slot_booked'.tr(),
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ] else if (_availabilityStatus == 'past') ...[
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.access_time_filled,
-                              color: Colors.orange,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'cannot_book_past'.tr(),
-                              style: const TextStyle(
-                                color: Colors.orange,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    _buildTimeSelectionCard(),
 
                     const SizedBox(height: 32),
-                    Divider(color: Colors.grey.shade200, height: 1),
+                    Divider(
+                      color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                      height: 1,
+                    ),
                     const SizedBox(height: 24),
 
                     Text(
                       'reason_optional'.tr(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: _textMain,
+                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                       ),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       decoration: BoxDecoration(
-                        color: _bgColor,
+                        color: isDark ? const Color(0xFF1E1E1E) : _bgColor,
                         borderRadius: BorderRadius.circular(16),
+                        border: isDark
+                            ? Border.all(color: const Color(0xFF333333), width: 1)
+                            : null,
                       ),
                       child: TextField(
                         controller: _reasonController,
                         maxLines: 3,
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                          fontSize: 14,
+                        ),
                         decoration: InputDecoration(
                           hintText: 'reason_hint'.tr(),
                           hintStyle: TextStyle(
-                            color: Colors.grey.shade400,
+                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade400,
                             fontSize: 14,
                           ),
                           border: OutlineInputBorder(
@@ -1008,19 +1425,33 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: _BouncingButton(
-                  onTap: (_availabilityStatus == 'available' && !_isUpdating)
+                  onTap: (_canRescheduleSession() &&
+                          _availabilityStatus == 'available' &&
+                          !_isUpdating)
                       ? () {
                           HapticFeedback.mediumImpact();
                           _confirmReschedule();
                         }
-                      : null,
+                      : () {
+                          if (!_canRescheduleSession()) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Rescheduling is locked: only allowed at least 2 hours before session start time.',
+                                ),
+                                backgroundColor: Color(0xFFC62828),
+                              ),
+                            );
+                          }
+                        },
                   child: Container(
                     width: double.infinity,
                     height: 56,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color:
-                          (_availabilityStatus == 'available' && !_isUpdating)
+                      color: (_canRescheduleSession() &&
+                              _availabilityStatus == 'available' &&
+                              !_isUpdating)
                           ? _redButtonColor
                           : Colors.grey.shade400,
                       borderRadius: BorderRadius.circular(28),
@@ -1049,6 +1480,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }

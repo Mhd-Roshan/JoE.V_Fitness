@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../order_summary_screen.dart';
+import '../welcome_screen.dart';
 
 const navy = Color(0xFF00225D);
 const cyan = Color(0xFF01BCE3);
@@ -130,8 +132,17 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
         ),
       );
 
-      //navigationof checkordersummary
-      // Navigator.push(context, MaterialPageRoute(builder: (_) => OrderSummaryScreen(...)));
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => OrderSummaryScreen(
+            packageData: selectedPackageData,
+            packageId: _selectedPackageId!,
+            initialAutoRenew: _autoRenew,
+            isOnboarding: true,
+          ),
+        ),
+      );
     } catch (e) {
       if (mounted) {
         _showModernSnackBar('Error selecting package: $e');
@@ -143,16 +154,36 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final canPop = Navigator.canPop(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA), // Very light grey
       appBar: AppBar(
         backgroundColor: const Color(0xFFF8F9FA),
         elevation: 0,
+        automaticallyImplyLeading: canPop,
         iconTheme: const IconThemeData(color: navy),
         title: Text(
-          'Packages',
+          'Choose Membership',
           style: GoogleFonts.poppins(color: navy, fontWeight: FontWeight.w600),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, color: Colors.grey, size: 20),
+            tooltip: 'Log Out',
+            onPressed: () async {
+              HapticFeedback.mediumImpact();
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(

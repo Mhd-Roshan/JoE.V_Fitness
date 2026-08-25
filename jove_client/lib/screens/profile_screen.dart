@@ -18,23 +18,25 @@ import 'subscription_screen.dart';
 import 'notification_settings_screen.dart';
 import 'app_language_screen.dart';
 import 'support_screen.dart';
-import 'notification_screen.dart';
 import 'welcome_screen.dart'; // <-- ADDED WELCOME SCREEN IMPORT
+import 'connected_devices_screen.dart';
+import '../theme/app_theme_controller.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final bool showBottomNav;
+  const ProfileScreen({super.key, this.showBottomNav = true});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with AutomaticKeepAliveClientMixin {
   // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _navBgColor = Color(0xFF00215F);
   static const Color _iconBg = Color(0xFFF0F2F5);
-  // _redButton was removed since it is no longer needed
 
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
   final ValueNotifier<Map<String, dynamic>> _userDataNotifier = ValueNotifier(
@@ -46,6 +48,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isNavigating = false;
   bool _hasPromptedFeedback = false;
+
+  bool get _isDarkMode => AppThemeController.isDark;
 
   // OPTIMIZATION: Prevents redundant UI rebuilds if incoming Firestore data hasn't actually changed.
   String _lastDataHash = '';
@@ -74,12 +78,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (_lastDataHash != newHash) {
               _lastDataHash = newHash;
               _userDataNotifier.value = data;
+              AppThemeController.initFromUserData(data);
 
               // Process feedback in the background
               Future.microtask(() => _checkPackageExpirationForFeedback(data));
             }
           }
         });
+  }
+
+  void _toggleTheme() {
+    AppThemeController.toggleTheme();
+    setState(() {});
+  }
+
+  Widget _buildThemeToggle() {
+    return GestureDetector(
+      onTap: _toggleTheme,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        width: 64,
+        height: 34,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: _isDarkMode ? const Color(0xFF262626) : const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _isDarkMode ? const Color(0xFF3F3F46) : const Color(0xFFCBD5E1),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: _isDarkMode ? 0.35 : 0.06),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Icon(
+                    Icons.wb_sunny_rounded,
+                    size: 15,
+                    color: _isDarkMode ? Colors.grey.shade600 : const Color(0xFFF59E0B),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Icon(
+                    Icons.nightlight_round,
+                    size: 14,
+                    color: _isDarkMode ? const Color(0xFF818CF8) : Colors.grey.shade400,
+                  ),
+                ),
+              ],
+            ),
+            AnimatedAlign(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutBack,
+              alignment: _isDarkMode ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _isDarkMode ? const Color(0xFF121212) : Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _isDarkMode ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                  size: 14,
+                  color: _isDarkMode ? const Color(0xFF818CF8) : const Color(0xFFF59E0B),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -410,9 +500,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
+    final Color currentBg = _isDarkMode ? const Color(0xFF000000) : _bgColor;
+
     return Scaffold(
-      backgroundColor: _bgColor,
+      backgroundColor: currentBg,
       body: Stack(
         children: [
           SafeArea(
@@ -447,6 +543,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           appLangCode,
                         );
 
+                        final connectedDeviceMap =
+                            userData['connectedDevice'] as Map<String, dynamic>?;
+                        final String connectedDeviceDisplay =
+                            connectedDeviceMap?['name'] != null
+                                ? connectedDeviceMap!['name'].toString().split(' ').first
+                                : 'Connect';
+
                         return Column(
                           children: [
                             RepaintBoundary(
@@ -476,6 +579,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 title: 'health_profile'.tr(),
                                 onTap: () =>
                                     _pushScreen(const HealthProfileScreen()),
+                              ),
+                              _MenuItemData(
+                                icon: Icons.watch_outlined,
+                                title: 'Connected Devices & Smart Bands',
+                                trailingText: connectedDeviceDisplay,
+                                onTap: () =>
+                                    _pushScreen(const ConnectedDevicesScreen()),
                               ),
                               _MenuItemData(
                                 icon: Icons.credit_card_outlined,
@@ -530,97 +640,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
 
-          Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
+          if (widget.showBottomNav)
+            Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
         ],
       ),
     );
   }
 
   Widget _buildTopAppBar() {
+    final Color textMain = _isDarkMode ? const Color(0xFFF5F5F5) : _textMain;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new,
-                    color: _textMain,
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    HapticFeedback.selectionClick();
-                    Navigator.canPop(context)
-                        ? Navigator.pop(context)
-                        : _navigate(const HomeDashboardScreen());
-                  },
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'view_profile'.tr(),
-                    style: const TextStyle(
-                      color: _textMain,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            child: Text(
+              'view_profile'.tr(),
+              style: TextStyle(
+                color: textMain,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(
-                Icons.notifications_none_rounded,
-                color: _textMain,
-                size: 24,
-              ),
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                Future.delayed(const Duration(milliseconds: 50), () {
-                  if (mounted) {
-                    Navigator.push(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (context, a, b) =>
-                            const NotificationScreen(),
-                        transitionsBuilder:
-                            (context, animation, secondaryAnimation, child) {
-                              return FadeTransition(
-                                opacity: CurvedAnimation(
-                                  parent: animation,
-                                  curve: Curves.easeOut,
-                                ),
-                                child: child,
-                              );
-                            },
-                        transitionDuration: const Duration(milliseconds: 150),
-                      ),
-                    );
-                  }
-                });
-              },
-            ),
-          ),
+          _buildThemeToggle(),
         ],
       ),
     );
   }
 
   Widget _buildProfileHeader(String name, String package, String photoUrl) {
+    final Color textMain = _isDarkMode ? const Color(0xFFF5F5F5) : _textMain;
+    final Color textSub = _isDarkMode ? const Color(0xFFA8A8A8) : Colors.grey.shade600;
+    final Color ringColor = _isDarkMode
+        ? const Color(0xFF262626)
+        : _navBgColor.withValues(alpha: 0.1);
+
     return Column(
       children: [
         Container(
@@ -628,13 +689,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: _navBgColor.withValues(alpha: 0.1),
+              color: ringColor,
               width: 3,
             ),
           ),
           child: CircleAvatar(
             radius: 50,
-            backgroundColor: Colors.grey.shade300,
+            backgroundColor: _isDarkMode ? const Color(0xFF262626) : Colors.grey.shade300,
             onBackgroundImageError: photoUrl.isNotEmpty ? (_, _) {} : null,
             backgroundImage: photoUrl.isNotEmpty
                 ? NetworkImage(photoUrl)
@@ -657,10 +718,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Text(
             name,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w900,
-              color: _textMain,
+              color: textMain,
               letterSpacing: -0.5,
             ),
             maxLines: 1,
@@ -681,7 +742,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.grey.shade600,
+                    color: textSub,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -695,16 +756,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
+    final Color sectionColor = _isDarkMode ? const Color(0xFFF5F5F5) : _navBgColor;
+
     return Padding(
       padding: const EdgeInsets.only(left: 28, bottom: 12),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            color: _navBgColor,
+            color: sectionColor,
           ),
         ),
       ),
@@ -712,19 +775,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildMenuCard(List<_MenuItemData> items) {
+    final Color cardBg = _isDarkMode ? const Color(0xFF121212) : Colors.white;
+    final Color iconBg = _isDarkMode ? const Color(0xFF262626) : _iconBg;
+    final Color iconColor = _isDarkMode ? Colors.white : _navBgColor;
+    final Color textMain = _isDarkMode ? const Color(0xFFF5F5F5) : _textMain;
+    final Color textSub = _isDarkMode ? const Color(0xFFA8A8A8) : Colors.grey.shade500;
+    final Color chevronBg = _isDarkMode ? const Color(0xFF1F1F1F) : Colors.grey.shade100;
+    final Color chevronColor = _isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400;
+    final Color dividerColor = _isDarkMode ? const Color(0xFF1F1F1F) : Colors.grey.shade100;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: _isDarkMode
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: _isDarkMode ? 0.2 : 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Material(
-        color: Colors.white,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(20),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -744,19 +821,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: _iconBg,
+                            color: iconBg,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Icon(item.icon, size: 20, color: _navBgColor),
+                          child: Icon(item.icon, size: 20, color: iconColor),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Text(
                             item.title,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: _textMain,
+                              color: textMain,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -771,7 +848,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade500,
+                                color: textSub,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -782,13 +859,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Container(
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
+                            color: chevronBg,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Icon(
                             Icons.arrow_forward_ios_rounded,
                             size: 12,
-                            color: Colors.grey.shade400,
+                            color: chevronColor,
                           ),
                         ),
                       ],
@@ -799,7 +876,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Divider(
                     height: 1,
                     thickness: 1,
-                    color: Colors.grey.shade100,
+                    color: dividerColor,
                     indent: 56,
                     endIndent: 16,
                   ),
@@ -812,7 +889,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildSignOutButton() {
-    final Color lightRed = Colors.red.shade400;
+    final Color lightRed = _isDarkMode ? const Color(0xFFEF4444) : Colors.red.shade400;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -847,15 +924,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildBottomNavBar() {
+    final Color navBg = _isDarkMode ? const Color(0xFF121212) : _navBgColor;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
-        color: _navBgColor,
+        color: navBg,
         borderRadius: BorderRadius.circular(40),
+        border: _isDarkMode
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: _isDarkMode ? 0.35 : 0.15),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
+import '../theme/app_theme_controller.dart';
 
 // --- Notification Model ---
 class NotificationModel {
@@ -200,67 +201,73 @@ class _NotificationScreenState extends State<NotificationScreen> {
     // Cache the 'now' time ONCE per frame instead of on every list item scroll
     final DateTime now = DateTime.now();
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildTopAppBar(),
-            _buildFilterPills(),
-            const SizedBox(height: 8),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildTopAppBar(),
+                _buildFilterPills(),
+                const SizedBox(height: 8),
 
-            Expanded(
-              child: RepaintBoundary(
-                // Prevents list scrolling from repainting the App Bar
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: _activeBlue),
-                      )
-                    : _filteredNotifications.isEmpty
-                    ? _buildEmptyState()
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(
-                          top: 8,
-                          bottom: 40,
-                          left: 24,
-                          right: 24,
-                        ),
-                        physics: const BouncingScrollPhysics(
-                          parent: AlwaysScrollableScrollPhysics(),
-                        ),
-                        itemCount: _filteredNotifications.length,
-                        itemBuilder: (context, index) {
-                          final notification = _filteredNotifications[index];
-                          return _NotificationCard(
-                            key: ValueKey(
-                              notification.id,
-                            ), // crucial for efficient UI updates
-                            notification: notification,
-                            now: now,
-                            onRead: () => _markAsRead(notification),
-                            onDelete: () =>
-                                _deleteNotification(notification.id),
-                          );
-                        },
-                      ),
-              ),
+                Expanded(
+                  child: RepaintBoundary(
+                    // Prevents list scrolling from repainting the App Bar
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(color: _activeBlue),
+                          )
+                        : _filteredNotifications.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(
+                              top: 8,
+                              bottom: 40,
+                              left: 24,
+                              right: 24,
+                            ),
+                            physics: const BouncingScrollPhysics(
+                              parent: AlwaysScrollableScrollPhysics(),
+                            ),
+                            itemCount: _filteredNotifications.length,
+                            itemBuilder: (context, index) {
+                              final notification = _filteredNotifications[index];
+                              return _NotificationCard(
+                                key: ValueKey(
+                                  notification.id,
+                                ), // crucial for efficient UI updates
+                                notification: notification,
+                                now: now,
+                                onRead: () => _markAsRead(notification),
+                                onDelete: () =>
+                                    _deleteNotification(notification.id),
+                              );
+                            },
+                          ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildTopAppBar() {
+    final bool isDark = AppThemeController.isDark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(
+            icon: Icon(
               Icons.arrow_back_ios_new,
-              color: _textMain,
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
               size: 20,
             ),
             onPressed: () {
@@ -269,13 +276,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
             },
           ),
           const SizedBox(width: 8),
-          Text(
-            'notifications_title'.tr(),
-            style: const TextStyle(
-              color: _textMain,
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
+          Expanded(
+            child: Text(
+              'notifications_title'.tr(),
+              style: TextStyle(
+                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -285,15 +296,19 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   // --- UPDATED FILTER ROW (Filters on left, Mark All Read on right) ---
   Widget _buildFilterPills() {
+    final bool isDark = AppThemeController.isDark;
     bool hasUnread = _allNotifications.any((n) => !n.isRead);
 
-    return Padding(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Left Side: Filter Pills (All / Unread)
           Row(
+            mainAxisSize: MainAxisSize.min,
             children: _filters.map((filter) {
               final isSelected = _selectedFilter == filter;
               return GestureDetector(
@@ -308,11 +323,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   ),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: isSelected ? _activeBlue : Colors.white,
+                    color: isSelected
+                        ? _activeBlue
+                        : (isDark ? const Color(0xFF141414) : Colors.white),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSelected ? _activeBlue : Colors.grey.shade300,
-                      width: 1,
+                      color: isSelected
+                          ? _activeBlue
+                          : (isDark
+                              ? const Color(0xFF262626)
+                              : Colors.grey.shade300),
+                      width: 1.2,
                     ),
                     boxShadow: isSelected
                         ? [
@@ -327,12 +348,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   child: Text(
                     filter.tr(),
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.grey.shade600,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDark
+                              ? const Color(0xFFA8A8A8)
+                              : Colors.grey.shade600),
                       fontWeight: isSelected
                           ? FontWeight.w700
                           : FontWeight.w600,
                       fontSize: 14,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               );
@@ -349,25 +376,30 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: _activeBlue.withValues(alpha: 0.1),
+                  color: _activeBlue.withValues(alpha: isDark ? 0.25 : 0.1),
                   borderRadius: BorderRadius.circular(20),
+                  border: isDark
+                      ? Border.all(color: const Color(0xFF1E3A8A), width: 1)
+                      : null,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.done_all_rounded,
-                      color: _activeBlue,
+                      color: isDark ? const Color(0xFF60A5FA) : _activeBlue,
                       size: 16,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'mark_read'.tr(),
-                      style: const TextStyle(
-                        color: _activeBlue,
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFF60A5FA) : _activeBlue,
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -379,6 +411,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Widget _buildEmptyState() {
+    final bool isDark = AppThemeController.isDark;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -387,27 +420,30 @@ class _NotificationScreenState extends State<NotificationScreen> {
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF141414) : Colors.white,
               shape: BoxShape.circle,
+              border: isDark
+                  ? Border.all(color: const Color(0xFF262626), width: 1.2)
+                  : null,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.03),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.notifications_off_rounded,
-              color: _activeBlue,
+              color: isDark ? const Color(0xFF60A5FA) : _activeBlue,
               size: 40,
             ),
           ),
           const SizedBox(height: 24),
           Text(
             'empty_notifications_title'.tr(),
-            style: const TextStyle(
-              color: _textMain,
+            style: TextStyle(
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
               fontSize: 20,
               fontWeight: FontWeight.w800,
             ),
@@ -419,7 +455,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               'empty_notifications_subtitle'.tr(),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.grey.shade500,
+                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 height: 1.4,
@@ -480,6 +516,7 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = AppThemeController.isDark;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Dismissible(
@@ -508,18 +545,22 @@ class _NotificationCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: notification.isRead
-                  ? Colors.white
-                  : const Color(0xFFF0F5FF),
+                  ? (isDark ? const Color(0xFF121212) : Colors.white)
+                  : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F5FF)),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: notification.isRead
-                    ? Colors.grey.shade200
-                    : const Color(0xFF003AA3).withValues(alpha: 0.3),
+                    ? (isDark ? const Color(0xFF262626) : Colors.grey.shade200)
+                    : (isDark
+                        ? const Color(0xFF1E3A8A)
+                        : const Color(0xFF003AA3).withValues(alpha: 0.3)),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
+                  color: Colors.black.withValues(
+                    alpha: isDark ? 0.25 : 0.02,
+                  ),
                   blurRadius: 10,
                   offset: const Offset(0, 5),
                 ),
@@ -534,15 +575,17 @@ class _NotificationCard extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: notification.isRead
-                        ? Colors.grey.shade100
-                        : _getIconColor().withValues(alpha: 0.1),
+                        ? (isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100)
+                        : _getIconColor().withValues(alpha: isDark ? 0.2 : 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     _getIcon(),
                     color: notification.isRead
-                        ? Colors.grey.shade500
-                        : _getIconColor(),
+                        ? (isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500)
+                        : (isDark && notification.type == 'system'
+                            ? const Color(0xFF60A5FA)
+                            : _getIconColor()),
                     size: 24,
                   ),
                 ),
@@ -560,7 +603,9 @@ class _NotificationCard extends StatelessWidget {
                             child: Text(
                               notification.title,
                               style: TextStyle(
-                                color: const Color(0xFF1A1A1A),
+                                color: isDark
+                                    ? const Color(0xFFF5F5F5)
+                                    : const Color(0xFF1A1A1A),
                                 fontSize: 15,
                                 fontWeight: notification.isRead
                                     ? FontWeight.w700
@@ -574,7 +619,9 @@ class _NotificationCard extends StatelessWidget {
                           Text(
                             _formatTimestamp(),
                             style: TextStyle(
-                              color: Colors.grey.shade500,
+                              color: isDark
+                                  ? const Color(0xFFA8A8A8)
+                                  : Colors.grey.shade500,
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                             ),
@@ -586,8 +633,12 @@ class _NotificationCard extends StatelessWidget {
                         notification.message,
                         style: TextStyle(
                           color: notification.isRead
-                              ? Colors.grey.shade600
-                              : const Color(0xFF1A1A1A).withValues(alpha: 0.8),
+                              ? (isDark
+                                  ? const Color(0xFFA8A8A8)
+                                  : Colors.grey.shade600)
+                              : (isDark
+                                  ? const Color(0xFFE2E8F0)
+                                  : const Color(0xFF1A1A1A).withValues(alpha: 0.8)),
                           fontSize: 13,
                           height: 1.4,
                           fontWeight: notification.isRead
@@ -608,8 +659,10 @@ class _NotificationCard extends StatelessWidget {
                     margin: const EdgeInsets.only(top: 6),
                     width: 10,
                     height: 10,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF003AA3),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF38BDF8)
+                          : const Color(0xFF003AA3),
                       shape: BoxShape.circle,
                     ),
                   ),

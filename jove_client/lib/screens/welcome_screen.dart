@@ -422,8 +422,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   const SizedBox(height: 35),
 
                   // --- LOGIN LINK ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'already_have_account'.tr(),
@@ -434,6 +435,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           fontSize: 14,
                         ),
                       ),
+                      const SizedBox(width: 4),
                       GestureDetector(
                         onTap: () {
                           HapticFeedback.selectionClick();

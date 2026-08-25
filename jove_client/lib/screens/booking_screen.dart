@@ -17,6 +17,8 @@ import 'home_dashboard_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
+import 'auth/package_select_screen.dart';
+import '../theme/app_theme_controller.dart';
 
 class _Formatters {
   static final Map<String, DateFormat> _time = {};
@@ -40,14 +42,21 @@ class _Formatters {
 class BookingScreen extends StatefulWidget {
   final Trainer? trainer;
   final String? trainerId;
+  final bool showBottomNav;
 
-  const BookingScreen({super.key, this.trainer, this.trainerId});
+  const BookingScreen({
+    super.key,
+    this.trainer,
+    this.trainerId,
+    this.showBottomNav = true,
+  });
 
   @override
   State<BookingScreen> createState() => _BookingScreenState();
 }
 
-class _BookingScreenState extends State<BookingScreen> {
+class _BookingScreenState extends State<BookingScreen>
+    with AutomaticKeepAliveClientMixin {
   Trainer? _trainer;
   bool _isLoadingTrainer = false;
 
@@ -67,6 +76,7 @@ class _BookingScreenState extends State<BookingScreen> {
 
   bool _isChecking = false;
   bool _isNavigating = false;
+  bool _hasCheckedAvailability = false;
   String _availabilityStatus = 'none';
 
   List<Map<String, dynamic>> _trainerSessions = [];
@@ -224,18 +234,20 @@ class _BookingScreenState extends State<BookingScreen> {
   void _initializeScreen() {
     final DateTime now = DateTime.now();
     final DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime tomorrow = today.add(const Duration(days: 1));
     _cachedVisibleDates = [];
 
-    for (int i = -15; i <= 30; i++) {
+    // Current day is not available for booking - bookings strictly start from tomorrow
+    for (int i = 1; i <= 30; i++) {
       DateTime date = today.add(Duration(days: i));
       if (date.weekday != DateTime.sunday) {
         _cachedVisibleDates.add(date);
       }
     }
 
-    _selectedDate = today.weekday == DateTime.sunday
-        ? today.add(const Duration(days: 1))
-        : today;
+    _selectedDate = tomorrow.weekday == DateTime.sunday
+        ? tomorrow.add(const Duration(days: 1))
+        : tomorrow;
 
     _loadTrainerSpecializations();
     _selectedTime = const TimeOfDay(hour: 8, minute: 30);
@@ -424,20 +436,31 @@ class _BookingScreenState extends State<BookingScreen> {
     setState(() {
       _selectedTime = picked;
       _availabilityStatus = 'none';
+      _hasCheckedAvailability = false;
     });
   }
 
   // --- 60-MINUTE NON-OVERLAPPING CONFLICT ENGINE ---
   Future<void> _checkAvailability() async {
-    if (_selectedTime == null || _selectedDate == null || _trainer == null) {
+    if (_selectedDate == null || _trainer == null) {
       return;
     }
 
     HapticFeedback.mediumImpact();
     setState(() {
       _isChecking = true;
+      _hasCheckedAvailability = true;
       _availabilityStatus = 'none';
     });
+
+    if (_selectedTime == null) {
+      if (mounted) {
+        setState(() {
+          _isChecking = false;
+        });
+      }
+      return;
+    }
 
     try {
       final DateTime now = DateTime.now();
@@ -448,6 +471,32 @@ class _BookingScreenState extends State<BookingScreen> {
         _selectedTime!.hour,
         _selectedTime!.minute,
       );
+
+      // Check if trying to book same day (must book at least 1 day in advance)
+      final DateTime todayMidnight = DateTime(now.year, now.month, now.day);
+      final DateTime selectedDateMidnight = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+      );
+
+      if (!selectedDateMidnight.isAfter(todayMidnight)) {
+        if (mounted) {
+          setState(() {
+            _isChecking = false;
+            _availabilityStatus = 'past';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Same-day booking is not available. Please book at least 1 day in advance.',
+              ),
+              backgroundColor: Color(0xFFC62828),
+            ),
+          );
+        }
+        return;
+      }
 
       // Check if time is in the past
       if (selectedDateTime.isBefore(now)) {
@@ -768,6 +817,402 @@ class _BookingScreenState extends State<BookingScreen> {
         );
       },
     );
+  }
+
+  void _showPackageRequiredSheet() {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3CD),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Color(0xFFD97706),
+                  size: 38,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Membership Package Required',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1A1A1A),
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your ₹99 App Access Pass is for app preview & fitness tracking. To book 1-on-1 sessions with your personal trainer, please choose a membership package.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFBB0013),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 4,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PackageSelectScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text(
+                    'Select Membership Package',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Maybe Later',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isLocationInErnakulam() {
+    // If coordinates are set and within Ernakulam district bounding box:
+    // Ernakulam district bounds: approx Lat 9.70 to 10.35, Lng 76.15 to 76.90
+    if (_locationLat != 0.0 && _locationLng != 0.0) {
+      if (_locationLat >= 9.70 &&
+          _locationLat <= 10.35 &&
+          _locationLng >= 76.15 &&
+          _locationLng <= 76.90) {
+        return true;
+      }
+    }
+
+    final combinedText = '$_locationTitle $_locationAddress'.toLowerCase();
+
+    // Default initial placeholder
+    if (_locationTitle == 'Current Location' && _locationAddress.isEmpty) {
+      return true;
+    }
+
+    // List of regions, towns, and keywords belonging to Ernakulam District
+    const ernakulamKeywords = [
+      'ernakulam',
+      'kochi',
+      'cochin',
+      'kakkanad',
+      'aluva',
+      'edappally',
+      'edapally',
+      'fort kochi',
+      'mattancherry',
+      'tripunithura',
+      'thrippunithura',
+      'kalamassery',
+      'angamaly',
+      'perumbavoor',
+      'kothamangalam',
+      'muvattupuzha',
+      'paravur',
+      'north paravur',
+      'vyttila',
+      'vytilla',
+      'maradu',
+      'cheranallur',
+      'cheranelloor',
+      'eloor',
+      'thrikkakara',
+      'thrikakkara',
+      'kaloor',
+      'palarivattom',
+      'panampilly',
+      'ravipuram',
+      'thevara',
+      'kundannoor',
+      'infopark',
+      'kadavanthra',
+      'vazhakkala',
+      'piravom',
+      'kolenchery',
+      'chottanikkara',
+      'mulanthuruthy',
+      'puthencruz',
+      'pampakuda',
+      'koothattukulam',
+      'vengola',
+      'choornikkara',
+      'kizhakkambalam',
+      'nedumbassery',
+      'malayattoor',
+      'kalady',
+      'cherai',
+      'kadamakkudy',
+      'kumbalangi',
+      'chellanam',
+      'marine drive',
+      'mg road',
+      'willingdon island',
+      'bolgatty',
+      'vallarpadam',
+      'varapuzha',
+    ];
+
+    for (final kw in ernakulamKeywords) {
+      if (combinedText.contains(kw)) {
+        return true;
+      }
+    }
+
+    // If coordinates are set and outside bounding box and no keywords match:
+    if (_locationLat != 0.0 && _locationLng != 0.0) {
+      return false;
+    }
+
+    // If address text clearly specifies other districts/cities outside Ernakulam
+    const otherDistricts = [
+      'thiruvananthapuram',
+      'trivandrum',
+      'kollam',
+      'pathanamthitta',
+      'alappuzha',
+      'alleppey',
+      'kottayam',
+      'idukki',
+      'thrissur',
+      'trichur',
+      'palakkad',
+      'malappuram',
+      'kozhikode',
+      'calicut',
+      'wayanad',
+      'kannur',
+      'kasaragod',
+      'bengaluru',
+      'bangalore',
+      'chennai',
+      'mumbai',
+      'delhi',
+      'hyderabad',
+      'pune',
+      'coimbatore',
+    ];
+    for (final od in otherDistricts) {
+      if (combinedText.contains(od)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _showLocationOutsideErnakulamSheet() {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.25),
+                      blurRadius: 18,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.location_off_rounded,
+                  color: Color(0xFFDC2626),
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Service Currently Not Available',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1A1A1A),
+                  letterSpacing: -0.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'JoE.V in-person personal training is currently available exclusively across Ernakulam District (Kochi, Kakkanad, Aluva, etc.).',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Color(0xFF0284C7), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Selected: $_locationTitle',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF334155),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00225D),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 3,
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _openLocationSearch();
+                  },
+                  child: const Text(
+                    'Select Location in Ernakulam',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Dismiss',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleProceedToBook(String locale) async {
+    HapticFeedback.selectionClick();
+
+    // 1. Check if location is in Ernakulam
+    if (!_isLocationInErnakulam()) {
+      _showLocationOutsideErnakulamSheet();
+      return;
+    }
+
+    // 2. Check if user has active membership package
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final uDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final userData = uDoc.data() ?? {};
+        final bool hasActiveSubscription = userData['hasActiveSubscription'] == true ||
+            (userData['subscription'] is Map &&
+                userData['subscription']['status'] == 'Active');
+
+        if (!hasActiveSubscription) {
+          _showPackageRequiredSheet();
+          return;
+        }
+      } catch (e) {
+        debugPrint("Error verifying subscription for booking: $e");
+      }
+    }
+    _showConfirmationBottomSheet(locale);
   }
 
   void _showConfirmationBottomSheet(String locale) {
@@ -1373,47 +1818,452 @@ class _BookingScreenState extends State<BookingScreen> {
     );
   }
 
-  Widget _buildTopAppBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: _textMain,
-                  size: 20,
-                ),
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  Navigator.pop(context);
-                },
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'booking_title'.tr(),
-                style: const TextStyle(
-                  color: _textMain,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
+  Widget _buildTimeSelectionCard(String locale) {
+    if (_selectedDate == null) {
+      return const SizedBox.shrink();
+    }
+    final String dbDate = _formatIsoDate(_selectedDate!);
+
+    final Query bookingsQuery = _trainer != null
+        ? FirebaseFirestore.instance
+            .collection('bookings')
+            .where('trainerId', isEqualTo: _trainer!.id)
+            .where('date', isEqualTo: dbDate)
+        : FirebaseFirestore.instance
+            .collection('bookings')
+            .where('date', isEqualTo: dbDate);
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: bookingsQuery.snapshots(),
+      builder: (context, snapshot) {
+        final existingDocs = snapshot.data?.docs ?? [];
+        final now = DateTime.now();
+
+        // Timing range from 03:00 AM to 11:00 PM (hour 3 to 23)
+        final List<TimeOfDay> dailySlots = List.generate(
+          21,
+          (i) => TimeOfDay(hour: 3 + i, minute: 0),
+        );
+
+        bool isSlotPast(TimeOfDay slot) {
+          final slotDt = DateTime(
+            _selectedDate!.year,
+            _selectedDate!.month,
+            _selectedDate!.day,
+            slot.hour,
+            slot.minute,
+          );
+          return slotDt.isBefore(now);
+        }
+
+        bool isSlotTaken(TimeOfDay slot) {
+          int slotStart = slot.hour * 60 + slot.minute;
+          int slotEnd = slotStart + 60;
+          for (var doc in existingDocs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final status = (data['status'] ?? '').toString().toLowerCase();
+            if (status == 'cancelled' || status == 'rejected') continue;
+            int bStart = data['startMinutes'] ??
+                _parseTimeToMinutes(
+                    data['startTime'] ?? data['time'] ?? '00:00');
+            int bEnd = data['endMinutes'] ??
+                (bStart + (data['durationMinutes'] ?? 60));
+            if (slotStart < bEnd && slotEnd > bStart) {
+              return true;
+            }
+          }
+          return false;
+        }
+
+        final List<TimeOfDay> availableSlots = dailySlots
+            .where((s) => !isSlotPast(s) && !isSlotTaken(s))
+            .toList();
+
+        final bool isDark = AppThemeController.isDark;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF121212) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDark ? const Color(0xFF262626) : Colors.transparent,
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
           ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'select_time'.tr(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Text(
+                'Enter the time',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: _BouncingButton(
+                      onTap: _pickTime,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E1E1E) : _bgColor,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF38383A)
+                                : Colors.blueGrey.shade200,
+                            width: 1.2,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              _selectedTime == null
+                                  ? 'choose'.tr()
+                                  : _formatTimeStrict(_selectedTime!, locale),
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Icon(
+                              Icons.access_time_rounded,
+                              color: isDark
+                                  ? const Color(0xFFA8A8A8)
+                                  : Colors.blueGrey.shade500,
+                              size: 22,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _BouncingButton(
+                    onTap: _isChecking
+                        ? null
+                        : () {
+                            if (_selectedTime == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Please select a time first before checking.',
+                                  ),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              return;
+                            }
+                            _checkAvailability();
+                          },
+                    child: Container(
+                      height: 52,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: _redButtonColor,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [
+                          BoxShadow(
+                            color: _redButtonColor.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: _isChecking
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Check',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+
+              if (_hasCheckedAvailability && _selectedTime != null) ...[
+                const SizedBox(height: 12),
+                if (_availabilityStatus == 'available')
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF81C784),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: Color(0xFF2E7D32),
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Time slot is available for booking!',
+                            style: TextStyle(
+                              color: Color(0xFF1B5E20),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_availabilityStatus == 'taken')
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEBEE),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFE57373),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.cancel_rounded,
+                          color: Color(0xFFC62828),
+                          size: 18,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Slot already booked. Please check another time.',
+                            style: TextStyle(
+                              color: Color(0xFFB71C1C),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+
+              if (_hasCheckedAvailability) ...[
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Available Times',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? const Color(0xFFA8A8A8)
+                            : Colors.grey.shade700,
+                      ),
+                    ),
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${availableSlots.length} Open',
+                        style: const TextStyle(
+                          color: Color(0xFF2E7D32),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                if (availableSlots.isEmpty) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF9FAFB),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                      ),
+                    ),
+                    child: Text(
+                      'No available slots on this date. Please pick another date or custom time.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: availableSlots.map((slot) {
+                      final bool isSelected = _selectedTime?.hour == slot.hour &&
+                          _selectedTime?.minute == slot.minute;
+                      final String timeText = _formatTimeStrict(slot, locale);
+
+                      return _BouncingButton(
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() {
+                            _selectedTime = slot;
+                            _availabilityStatus = 'available';
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? _redButtonColor
+                                : (isDark ? const Color(0xFF1E1E1E) : _bgColor),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected
+                                  ? _redButtonColor
+                                  : (isDark
+                                      ? const Color(0xFF333333)
+                                      : Colors.grey.shade300),
+                              width: 1.2,
+                            ),
+                            boxShadow: isSelected
+                                ? [
+                                    BoxShadow(
+                                      color:
+                                          _redButtonColor.withValues(alpha: 0.25),
+                                      blurRadius: 6,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isSelected) ...[
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Colors.white,
+                                  size: 15,
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              Text(
+                                timeText,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : (isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : _textMain),
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTopAppBar() {
+    final bool isDark = AppThemeController.isDark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'booking_title'.tr(),
+            style: TextStyle(
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
           Container(
-            margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF262626)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                 size: 24,
               ),
               onPressed: () async {
@@ -1446,18 +2296,60 @@ class _BookingScreenState extends State<BookingScreen> {
   }
 
   Widget _buildLocationCard() {
+    final bool isDark = AppThemeController.isDark;
+    final bool isInErnakulam = _isLocationInErnakulam();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            'session_location'.tr(),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: _textMain,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'session_location'.tr(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isInErnakulam
+                      ? const Color(0xFF10B981).withValues(alpha: 0.12)
+                      : const Color(0xFFEF4444).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isInErnakulam
+                        ? const Color(0xFF10B981).withValues(alpha: 0.3)
+                        : const Color(0xFFEF4444).withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isInErnakulam ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                      size: 13,
+                      color: isInErnakulam ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isInErnakulam ? 'Ernakulam District' : 'Outside Ernakulam',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: isInErnakulam ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -1465,12 +2357,17 @@ class _BookingScreenState extends State<BookingScreen> {
           margin: const EdgeInsets.symmetric(horizontal: 24),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF121212) : Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200, width: 1.5),
+            border: Border.all(
+              color: !isInErnakulam
+                  ? const Color(0xFFFCA5A5)
+                  : (isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -1481,7 +2378,7 @@ class _BookingScreenState extends State<BookingScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: _bgColor,
+                  color: isDark ? const Color(0xFF1E1E1E) : _bgColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: _isFetchingLocation
@@ -1493,9 +2390,9 @@ class _BookingScreenState extends State<BookingScreen> {
                           strokeWidth: 2,
                         ),
                       )
-                    : const Icon(
+                    : Icon(
                         Icons.my_location_rounded,
-                        color: _textMain,
+                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                         size: 20,
                       ),
               ),
@@ -1506,10 +2403,10 @@ class _BookingScreenState extends State<BookingScreen> {
                   children: [
                     Text(
                       _locationTitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: _activeBlue,
+                        color: isDark ? const Color(0xFF60A5FA) : _activeBlue,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1517,7 +2414,9 @@ class _BookingScreenState extends State<BookingScreen> {
                       _locationAddress,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: isDark
+                            ? const Color(0xFFA8A8A8)
+                            : Colors.grey.shade600,
                         fontWeight: FontWeight.w500,
                       ),
                       maxLines: 1,
@@ -1549,16 +2448,88 @@ class _BookingScreenState extends State<BookingScreen> {
             ],
           ),
         ),
+
+        // WARNING BANNER IF OUTSIDE ERNAKULAM
+        if (!isInErnakulam) ...[
+          const SizedBox(height: 10),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF2F2),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Color(0xFFDC2626),
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Service Currently Not Available in Your Area',
+                        style: TextStyle(
+                          color: Color(0xFF991B1B),
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        'In-person trainer booking is available exclusively across whole Ernakulam District (Kochi, Kakkanad, Aluva, etc.). Please select a location in Ernakulam to book.',
+                        style: TextStyle(
+                          color: Color(0xFFB91C1C),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11.5,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        onTap: _openLocationSearch,
+                        child: const Text(
+                          'Change Location to Ernakulam →',
+                          style: TextStyle(
+                            color: Color(0xFF00225D),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_isLoadingTrainer || _trainer == null) {
-      return const Scaffold(
-        backgroundColor: _bgColor,
-        body: Center(child: CircularProgressIndicator(color: _activeBlue)),
+      return ValueListenableBuilder<bool>(
+        valueListenable: AppThemeController.isDarkMode,
+        builder: (context, isDark, _) {
+          return Scaffold(
+            backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
+            body: const Center(child: CircularProgressIndicator(color: _activeBlue)),
+          );
+        },
       );
     }
 
@@ -1567,477 +2538,318 @@ class _BookingScreenState extends State<BookingScreen> {
       locale,
     ).format(_selectedDate!);
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      extendBody: true,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 120),
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RepaintBoundary(child: _buildTopAppBar()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'schedule'.tr(),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: _textMain,
-                            letterSpacing: -0.5,
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
+          extendBody: true,
+          body: Stack(
+            children: [
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 120),
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RepaintBoundary(child: _buildTopAppBar()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'schedule'.tr(),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            Text(
+                              monthYear,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      RepaintBoundary(
+                        child: SizedBox(
+                          height: 88,
+                          width: double.infinity,
+                          child: SingleChildScrollView(
+                            controller: _dateScrollController,
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Row(
+                              children: _cachedVisibleDates.map((date) {
+                                final bool isSelected =
+                                    _selectedDate!.year == date.year &&
+                                    _selectedDate!.month == date.month &&
+                                    _selectedDate!.day == date.day;
+                                final String dayName = _Formatters.dayName(
+                                  locale,
+                                ).format(date);
+                                final String dayNumber = _Formatters.dayNum(
+                                  locale,
+                                ).format(date);
+
+                                return _BouncingButton(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedDate = date;
+                                      _availabilityStatus = 'none';
+                                      _hasCheckedAvailability = false;
+                                    });
+                                    _scrollToSelectedDate();
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    curve: Curves.easeOutCubic,
+                                    margin: const EdgeInsets.only(right: 12),
+                                    width: 58,
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? _activeBlue
+                                          : (isDark
+                                              ? const Color(0xFF141414)
+                                              : Colors.white),
+                                      borderRadius: BorderRadius.circular(35),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? Colors.transparent
+                                            : (isDark
+                                                ? const Color(0xFF262626)
+                                                : Colors.grey.shade300),
+                                        width: 1,
+                                      ),
+                                      boxShadow: isSelected
+                                          ? [
+                                              BoxShadow(
+                                                color: _activeBlue.withValues(
+                                                  alpha: 0.3,
+                                                ),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ]
+                                          : [],
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          dayName,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? Colors.white
+                                                : (isDark
+                                                    ? const Color(0xFFA8A8A8)
+                                                    : Colors.grey.shade500),
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? Colors.white
+                                                : (isDark
+                                                    ? const Color(0xFF222222)
+                                                    : Colors.grey.shade100),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            dayNumber,
+                                            style: TextStyle(
+                                              color: isSelected
+                                                  ? _activeBlue
+                                                  : (isDark
+                                                      ? const Color(0xFFF5F5F5)
+                                                      : _textMain),
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
                           ),
                         ),
-                        Text(
-                          monthYear,
-                          style: const TextStyle(
+                      ),
+
+                      const SizedBox(height: 44),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          'available_sessions'.tr(),
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            color: _textMain,
-                            letterSpacing: -0.5,
+                            color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      RepaintBoundary(
+                        child: _SessionSelectionList(
+                          trainerSessions: _trainerSessions,
+                          onSessionSelected: (sessionName) {
+                            setState(() => _selectedSession = sessionName);
+                          },
+                        ),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // ---> REAL-TIME LIVE TIME SLOTS GRID <---
+                      _buildTimeSelectionCard(locale),
+
+                      const SizedBox(height: 32),
+
+                      _buildLocationCard(),
+
+                      if (_availabilityStatus == 'available') ...[
+                        const SizedBox(height: 32),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: _BouncingButton(
+                            onTap: () => _handleProceedToBook(locale),
+                            child: Container(
+                              width: double.infinity,
+                              height: 55,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: _redButtonColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'proceed_to_book'.tr(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
+                ),
+              ),
 
-                  RepaintBoundary(
-                    child: SizedBox(
-                      height: 88,
-                      width: double.infinity,
-                      child: SingleChildScrollView(
-                        controller: _dateScrollController,
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Row(
-                          children: _cachedVisibleDates.map((date) {
-                            final bool isSelected =
-                                _selectedDate!.year == date.year &&
-                                _selectedDate!.month == date.month &&
-                                _selectedDate!.day == date.day;
-                            final String dayName = _Formatters.dayName(
-                              locale,
-                            ).format(date);
-                            final String dayNumber = _Formatters.dayNum(
-                              locale,
-                            ).format(date);
-
-                            return _BouncingButton(
-                              onTap: () {
-                                setState(() {
-                                  _selectedDate = date;
-                                  _availabilityStatus = 'none';
-                                });
-                                _scrollToSelectedDate();
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                curve: Curves.easeOutCubic,
-                                margin: const EdgeInsets.only(right: 12),
-                                width: 58,
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? _activeBlue
-                                      : Colors.white,
-                                  borderRadius: BorderRadius.circular(35),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? Colors.transparent
-                                        : Colors.grey.shade300,
-                                    width: 1,
-                                  ),
-                                  boxShadow: isSelected
-                                      ? [
-                                          BoxShadow(
-                                            color: _activeBlue.withValues(
-                                              alpha: 0.3,
-                                            ),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ]
-                                      : [],
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      dayName,
-                                      style: TextStyle(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey.shade500,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? Colors.white
-                                            : Colors.grey.shade100,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        dayNumber,
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? _activeBlue
-                                              : _textMain,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
+              if (widget.showBottomNav)
+                RepaintBoundary(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
                     ),
-                  ),
-
-                  const SizedBox(height: 44),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      'available_sessions'.tr(),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: _textMain,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  RepaintBoundary(
-                    child: _SessionSelectionList(
-                      trainerSessions: _trainerSessions,
-                      onSessionSelected: (sessionName) {
-                        setState(() => _selectedSession = sessionName);
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // ---> TIME SELECTION CARD <---
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      color: isDark
+                          ? const Color(0xFF121212)
+                          : const Color(0xFF00215F),
+                      borderRadius: BorderRadius.circular(32),
+                      border: isDark
+                          ? Border.all(color: const Color(0xFF262626), width: 1.2)
+                          : null,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.35 : 0.15,
+                          ),
                           blurRadius: 20,
                           offset: const Offset(0, 10),
                         ),
                       ],
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'select_time'.tr(),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: _textMain,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _selectedIndexNotifier,
+                      builder: (context, selectedIndex, _) {
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            Expanded(
-                              child: _BouncingButton(
-                                onTap: _pickTime,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _bgColor,
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        _selectedTime == null
-                                            ? 'choose'.tr()
-                                            : _formatTimeStrict(
-                                                _selectedTime!,
-                                                locale,
-                                              ),
-                                        style: const TextStyle(
-                                          color: _textMain,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      Icon(
-                                        Icons.access_time,
-                                        color: Colors.grey.shade400,
-                                        size: 20,
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                            _NavItem(
+                              index: 0,
+                              icon: Icons.home_rounded,
+                              label: 'home_nav'.tr(),
+                              selectedIndex: selectedIndex,
+                              onTap: () => _handleStandardNavigation(
+                                const HomeDashboardScreen(),
+                                0,
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            _BouncingButton(
-                              onTap: _isChecking ? null : _checkAvailability,
-                              child: Container(
-                                height: 52,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                ),
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: _redButtonColor,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: _isChecking
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : Text(
-                                        'check'.tr(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                            _NavItem(
+                              index: 1,
+                              icon: Icons.calendar_today_rounded,
+                              label: 'booking_nav'.tr(),
+                              selectedIndex: selectedIndex,
+                              onTap: () {},
+                            ),
+                            _NavItem(
+                              index: 2,
+                              icon: Icons.bar_chart_rounded,
+                              label: 'stats_nav'.tr(),
+                              selectedIndex: selectedIndex,
+                              onTap: () => _handleStandardNavigation(
+                                const ProgressScreen(),
+                                2,
+                              ),
+                            ),
+                            _NavItem(
+                              index: 3,
+                              icon: Icons.chat_bubble_outline_rounded,
+                              label: 'chats_nav'.tr(),
+                              selectedIndex: selectedIndex,
+                              onTap: () =>
+                                  _handleStandardNavigation(const ChatScreen(), 3),
+                            ),
+                            _NavItem(
+                              index: 4,
+                              icon: Icons.person_outline_rounded,
+                              label: 'profile_nav'.tr(),
+                              selectedIndex: selectedIndex,
+                              onTap: () => _handleStandardNavigation(
+                                const ProfileScreen(),
+                                4,
                               ),
                             ),
                           ],
-                        ),
-
-                        if (_availabilityStatus == 'available') ...[
-                          const SizedBox(height: 20),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'time_available'.tr(),
-                                  style: const TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else if (_availabilityStatus == 'taken') ...[
-                          const SizedBox(height: 20),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.cancel,
-                                  color: Colors.red,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'slot_booked'.tr(),
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else if (_availabilityStatus == 'past') ...[
-                          const SizedBox(height: 20),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.access_time_filled,
-                                  color: Colors.orange,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'cannot_book_past'.tr(),
-                                  style: const TextStyle(
-                                    color: Colors.orange,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
+                        );
+                      },
                     ),
                   ),
-
-                  const SizedBox(height: 32),
-
-                  _buildLocationCard(),
-
-                  if (_availabilityStatus == 'available') ...[
-                    const SizedBox(height: 32),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: _BouncingButton(
-                        onTap: () => _showConfirmationBottomSheet(locale),
-                        child: Container(
-                          width: double.infinity,
-                          height: 55,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: _redButtonColor,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            'proceed_to_book'.tr(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          RepaintBoundary(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 0, 33, 95),
-                  borderRadius: BorderRadius.circular(40),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: ValueListenableBuilder<int>(
-                  valueListenable: _selectedIndexNotifier,
-                  builder: (context, selectedIndex, child) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _NavItem(
-                          index: 0,
-                          icon: Icons.home_filled,
-                          label: 'home_nav'.tr(),
-                          selectedIndex: selectedIndex,
-                          onTap: () => _handleStandardNavigation(
-                            const HomeDashboardScreen(),
-                            0,
-                          ),
-                        ),
-                        _NavItem(
-                          index: 1,
-                          icon: Icons.calendar_today_rounded,
-                          label: 'booking_nav'.tr(),
-                          selectedIndex: selectedIndex,
-                          onTap: () {},
-                        ),
-                        _NavItem(
-                          index: 2,
-                          icon: Icons.bar_chart_rounded,
-                          label: 'stats_nav'.tr(),
-                          selectedIndex: selectedIndex,
-                          onTap: () => _handleStandardNavigation(
-                            const ProgressScreen(),
-                            2,
-                          ),
-                        ),
-                        _NavItem(
-                          index: 3,
-                          icon: Icons.chat_bubble_outline_rounded,
-                          label: 'chats_nav'.tr(),
-                          selectedIndex: selectedIndex,
-                          onTap: () =>
-                              _handleStandardNavigation(const ChatScreen(), 3),
-                        ),
-                        _NavItem(
-                          index: 4,
-                          icon: Icons.person_outline_rounded,
-                          label: 'profile_nav'.tr(),
-                          selectedIndex: selectedIndex,
-                          onTap: () => _handleStandardNavigation(
-                            const ProfileScreen(),
-                            4,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -2068,6 +2880,7 @@ class _SessionSelectionListState extends State<_SessionSelectionList> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = AppThemeController.isDark;
     return SizedBox(
       height: 52,
       child: SingleChildScrollView(
@@ -2089,12 +2902,16 @@ class _SessionSelectionListState extends State<_SessionSelectionList> {
                 margin: const EdgeInsets.only(right: 12),
                 padding: const EdgeInsets.fromLTRB(6, 6, 20, 6),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFFD4FF4E) : Colors.white,
+                  color: isSelected
+                      ? const Color(0xFFD4FF4E)
+                      : (isDark ? const Color(0xFF141414) : Colors.white),
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(
                     color: isSelected
                         ? Colors.transparent
-                        : Colors.grey.shade300,
+                        : (isDark
+                            ? const Color(0xFF262626)
+                            : Colors.grey.shade300),
                     width: 1,
                   ),
                   boxShadow: isSelected
@@ -2116,20 +2933,32 @@ class _SessionSelectionListState extends State<_SessionSelectionList> {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.grey.shade100,
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark
+                                ? const Color(0xFF222222)
+                                : Colors.grey.shade100),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
                         session['icon'],
-                        color: Colors.black87,
+                        color: isSelected
+                            ? Colors.black87
+                            : (isDark
+                                ? const Color(0xFFF5F5F5)
+                                : Colors.black87),
                         size: 20,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Text(
                       session['name'],
-                      style: const TextStyle(
-                        color: Color(0xFF1A1A1A),
+                      style: TextStyle(
+                        color: isSelected
+                            ? const Color(0xFF1A1A1A)
+                            : (isDark
+                                ? const Color(0xFFF5F5F5)
+                                : const Color(0xFF1A1A1A)),
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
@@ -2195,42 +3024,52 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isSelected = selectedIndex == index;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-            : const EdgeInsets.all(10.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white,
-              size: 20,
+    bool isSelected = selectedIndex == index;
+    return Expanded(
+      flex: isSelected ? 4 : 2,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          color: Colors.transparent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
             ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
-              ),
-            ],
-          ],
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

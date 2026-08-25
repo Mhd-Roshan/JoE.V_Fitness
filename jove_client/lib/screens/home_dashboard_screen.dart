@@ -12,6 +12,9 @@ import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'health_profile_screen.dart';
+import '../services/wearable_sync_manager.dart';
+import '../services/main_tab_controller.dart';
+import '../theme/app_theme_controller.dart';
 
 class _Formatters {
   static final DateFormat date = DateFormat('yyyy-MM-dd');
@@ -56,139 +59,126 @@ class _Formatters {
 }
 
 class HomeDashboardScreen extends StatefulWidget {
-  const HomeDashboardScreen({super.key});
+  final int initialTab;
+  const HomeDashboardScreen({super.key, this.initialTab = 0});
 
   @override
   State<HomeDashboardScreen> createState() => _HomeDashboardScreenState();
 }
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
-  final User? currentUser = FirebaseAuth.instance.currentUser;
-  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(0);
+  @override
+  void initState() {
+    super.initState();
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    WearableSyncManager.instance.initialize();
+    _markFirstSessionPreviewSeen(uid);
 
+    if (widget.initialTab != 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        MainTabController.switchTab(widget.initialTab);
+      });
+    }
+  }
+
+  void _markFirstSessionPreviewSeen(String uid) {
+    if (uid.isEmpty) return;
+    FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
+      if (doc.exists && doc.data()?['hasSeenFirstPreview'] != true) {
+        FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'hasSeenFirstPreview': true,
+          'firstPreviewSeenAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+    }).catchError((_) {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF000000) : const Color(0xFFFAFAFA),
+          extendBody: true,
+          body: Stack(
+            children: [
+              // --- SWIPABLE PAGES (ZERO JANK, 120HZ SMOOTH) ---
+              PageView(
+                controller: MainTabController.pageController,
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                onPageChanged: (index) {
+                  if (MainTabController.selectedIndex.value != index) {
+                    HapticFeedback.selectionClick();
+                    MainTabController.selectedIndex.value = index;
+                  }
+                },
+                children: const [
+                  // Page 0: Home Tab
+                  _HomeTabView(),
+
+                  // Page 1: Booking Tab
+                  _BookingTabWrapper(),
+
+                  // Page 2: Progress Tab
+                  ProgressScreen(showBottomNav: false),
+
+                  // Page 3: Chat Tab
+                  ChatScreen(showBottomNav: false),
+
+                  // Page 4: Profile Tab
+                  ProfileScreen(showBottomNav: false),
+                ],
+              ),
+
+              // --- PERSISTENT FLOATING BOTTOM NAV BAR ---
+              RepaintBoundary(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _FloatingNavBar(
+                    selectedIndexNotifier: MainTabController.selectedIndex,
+                    onTabTap: (index) => MainTabController.switchTab(index),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HomeTabView extends StatefulWidget {
+  const _HomeTabView();
+
+  @override
+  State<_HomeTabView> createState() => _HomeTabViewState();
+}
+
+class _HomeTabViewState extends State<_HomeTabView>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  final User? currentUser = FirebaseAuth.instance.currentUser;
   late final Stream<DocumentSnapshot> _userStream;
   late final Stream<QuerySnapshot> _bookingStream;
-  late final Stream<QuerySnapshot> _dietStream;
-
-  bool _isNavigating = false;
 
   @override
   void initState() {
     super.initState();
     final String uid = currentUser?.uid ?? '';
-
     _userStream = FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .snapshots();
-
     _bookingStream = FirebaseFirestore.instance
         .collection('bookings')
         .where('userId', isEqualTo: uid)
         .snapshots();
-
-    _dietStream = FirebaseFirestore.instance
-        .collection('diet_plans')
-        .where('userId', isEqualTo: uid)
-        .snapshots();
-  }
-
-  @override
-  void dispose() {
-    _selectedIndexNotifier.dispose();
-    super.dispose();
-  }
-
-  Future<void> _handleStandardNavigation(Widget screen, int index) async {
-    if (_isNavigating) {
-      return;
-    }
-
-    HapticFeedback.selectionClick();
-    setState(() => _isNavigating = true);
-    _selectedIndexNotifier.value = index;
-
-    if (!mounted) {
-      return;
-    }
-
-    await Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, a, b) => screen,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: child,
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 150),
-      ),
-    );
-
-    if (mounted) {
-      setState(() => _isNavigating = false);
-    }
-  }
-
-  Future<void> _handleBookingNavigation([
-    Map<String, dynamic>? userData,
-  ]) async {
-    if (_isNavigating) {
-      return;
-    }
-
-    HapticFeedback.selectionClick();
-    setState(() => _isNavigating = true);
-    _selectedIndexNotifier.value = 1;
-
-    try {
-      if (userData == null) {
-        final uid = currentUser?.uid ?? '';
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .get();
-        userData = doc.data() ?? {};
-      }
-
-      String? trainerId = userData['assignedTrainerId'];
-      Widget nextScreen = (trainerId == null || trainerId.isEmpty)
-          ? const SelectTrainerScreen()
-          : BookingScreen(trainerId: trainerId);
-
-      if (!mounted) {
-        return;
-      }
-
-      await Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, a, b) => nextScreen,
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeTransition(
-              opacity: CurvedAnimation(
-                parent: animation,
-                curve: Curves.easeOut,
-              ),
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('error_loading_data'.tr())));
-      }
-    } finally {
-      if (mounted) {
-        _selectedIndexNotifier.value = 0;
-        setState(() => _isNavigating = false);
-      }
-    }
   }
 
   void _handleRescheduleClick(
@@ -292,86 +282,121 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      extendBody: true,
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: _userStream,
-        builder: (context, userSnapshot) {
-          if (!userSnapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.black),
-            );
-          }
+    super.build(context);
+    final bool isDark = AppThemeController.isDark;
 
-          final userData =
-              userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
-
-          return Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 120),
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _HeaderSection(
-                      userData: userData,
-                      onProfileTap: () =>
-                          _handleStandardNavigation(const ProfileScreen(), 4),
-                    ),
-                    _UpcomingSessionSection(
-                      bookingStream: _bookingStream,
-                      onReschedule: _handleRescheduleClick,
-                      onComplete: _handleCompleteSession,
-                    ),
-                    _QuickActionsSection(
-                      onBookingTap: () => _handleBookingNavigation(userData),
-                      onHealthTap: () {
-                        HapticFeedback.lightImpact();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const HealthProfileScreen(),
-                          ),
-                        );
-                      },
-                      onDietTap: () =>
-                          _handleStandardNavigation(const ChatScreen(), 3),
-                    ),
-                    _TodayProgressSection(
-                      userData: userData,
-                      onProgressTap: () =>
-                          _handleStandardNavigation(const ProgressScreen(), 2),
-                    ),
-                    _DietPlansSection(dietStream: _dietStream),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-
-              RepaintBoundary(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: _FloatingNavBar(
-                    selectedIndexNotifier: _selectedIndexNotifier,
-                    onBookingTap: () => _handleBookingNavigation(userData),
-                    onStatsTap: () =>
-                        _handleStandardNavigation(const ProgressScreen(), 2),
-                    onChatsTap: () =>
-                        _handleStandardNavigation(const ChatScreen(), 3),
-                    onProfileTap: () =>
-                        _handleStandardNavigation(const ProfileScreen(), 4),
-                    isNavigating: _isNavigating,
-                  ),
-                ),
-              ),
-            ],
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _userStream,
+      builder: (context, userSnapshot) {
+        if (!userSnapshot.hasData) {
+          return Center(
+            child: CircularProgressIndicator(
+              color: isDark ? Colors.white : Colors.black,
+            ),
           );
-        },
-      ),
+        }
+
+        final userData =
+            userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 120),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RepaintBoundary(
+                child: _HeaderSection(
+                  userData: userData,
+                  onProfileTap: () => MainTabController.switchTab(4),
+                ),
+              ),
+              RepaintBoundary(
+                child: _UpcomingSessionSection(
+                  bookingStream: _bookingStream,
+                  onReschedule: _handleRescheduleClick,
+                  onComplete: _handleCompleteSession,
+                ),
+              ),
+              RepaintBoundary(
+                child: _QuickActionsSection(
+                  onBookingTap: () => MainTabController.switchTab(1),
+                  onHealthTap: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HealthProfileScreen(),
+                      ),
+                    );
+                  },
+                  onDietTap: () => MainTabController.switchTab(3),
+                ),
+              ),
+              RepaintBoundary(
+                child: _TodayProgressSection(
+                  userData: userData,
+                  onProgressTap: () => MainTabController.switchTab(2),
+                ),
+              ),
+              RepaintBoundary(
+                child: _DietPlansSection(
+                  userId: currentUser?.uid ?? '',
+                  onSeeAllTap: () => MainTabController.switchTab(3),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BookingTabWrapper extends StatefulWidget {
+  const _BookingTabWrapper();
+
+  @override
+  State<_BookingTabWrapper> createState() => _BookingTabWrapperState();
+}
+
+class _BookingTabWrapperState extends State<_BookingTabWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  late final Stream<DocumentSnapshot> _userStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    _userStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .snapshots();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _userStream,
+      builder: (context, snapshot) {
+        final userData =
+            snapshot.data?.data() as Map<String, dynamic>? ?? {};
+        final String? assignedTrainerId = userData['assignedTrainerId'];
+        if (assignedTrainerId != null && assignedTrainerId.isNotEmpty) {
+          return BookingScreen(
+            trainerId: assignedTrainerId,
+            showBottomNav: false,
+          );
+        }
+        return const SelectTrainerScreen();
+      },
     );
   }
 }
@@ -384,13 +409,20 @@ class _HeaderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final User? currentUser = FirebaseAuth.instance.currentUser;
     final String userName =
         userData['fullName'] ??
         userData['name'] ??
         userData['firstName'] ??
+        currentUser?.displayName ??
         'athlete_fallback'.tr();
     final String profilePic =
-        userData['profilePic'] ?? userData['imageUrl'] ?? '';
+        userData['photoURL'] ??
+        userData['photoUrl'] ??
+        userData['profilePic'] ??
+        userData['imageUrl'] ??
+        currentUser?.photoURL ??
+        '';
     final String todayDate = _Formatters.fullDate.format(DateTime.now());
 
     return Padding(
@@ -403,35 +435,49 @@ class _HeaderSection extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                todayDate,
-                style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  todayDate,
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                userName,
-                style: const TextStyle(
-                  color: Colors.black87,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
+                const SizedBox(height: 4),
+                Text(
+                  userName,
+                  style: TextStyle(
+                    color: AppThemeController.isDark
+                        ? const Color(0xFFF5F5F5)
+                        : Colors.black87,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          const SizedBox(width: 12),
           _BouncingButton(
             onTap: onProfileTap,
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
+                border: Border.all(
+                  color: AppThemeController.isDark
+                      ? const Color(0xFF262626)
+                      : Colors.white,
+                  width: 2,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.1),
@@ -443,6 +489,7 @@ class _HeaderSection extends StatelessWidget {
               child: CircleAvatar(
                 radius: 26,
                 backgroundColor: Colors.grey.shade200,
+                onBackgroundImageError: profilePic.isNotEmpty ? (_, _) {} : null,
                 backgroundImage: profilePic.isNotEmpty
                     ? NetworkImage(profilePic)
                     : null,
@@ -590,15 +637,20 @@ class _UpcomingSessionSection extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      cardHeaderTitle,
-                      style: TextStyle(
-                        color: Colors.black.withValues(alpha: 0.7),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                    Expanded(
+                      child: Text(
+                        cardHeaderTitle,
+                        style: TextStyle(
+                          color: Colors.black.withValues(alpha: 0.7),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (hasBooking)
+                    if (hasBooking) ...[
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
@@ -615,8 +667,11 @@ class _UpcomingSessionSection extends StatelessWidget {
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -783,8 +838,627 @@ class _UpcomingSessionSection extends StatelessWidget {
 }
 
 class _DietPlansSection extends StatelessWidget {
-  final Stream<QuerySnapshot> dietStream;
-  const _DietPlansSection({required this.dietStream});
+  final String userId;
+  final VoidCallback onSeeAllTap;
+
+  const _DietPlansSection({
+    required this.userId,
+    required this.onSeeAllTap,
+  });
+
+  // --- FETCH TEMPLATE + SUBCOLLECTION MEALS FROM FIREBASE ---
+  static Future<Map<String, dynamic>> _fetchDietPlanData(
+    String templateId,
+    Map<String, dynamic> fallbackData,
+  ) async {
+    try {
+      if (templateId.isNotEmpty) {
+        final docSnap = await FirebaseFirestore.instance
+            .collection('dietPlanTemplates')
+            .doc(templateId)
+            .get();
+
+        if (docSnap.exists) {
+          final mealsSnap = await FirebaseFirestore.instance
+              .collection('dietPlanTemplates')
+              .doc(templateId)
+              .collection('meals')
+              .get();
+
+          final data = docSnap.data() ?? <String, dynamic>{};
+          if (mealsSnap.docs.isNotEmpty) {
+            data['meals'] = mealsSnap.docs.map((d) => d.data()).toList();
+          }
+          return data;
+        }
+      }
+      return fallbackData;
+    } catch (e) {
+      return fallbackData;
+    }
+  }
+
+  // --- HYPER-AGGRESSIVE MEAL EXTRACTION ---
+  static List<dynamic> _extractMealsAggressively(Map<String, dynamic> data) {
+    final possibleKeys = [
+      'meals',
+      'mealSequence',
+      'mealPlan',
+      'schedule',
+      'dailyMeals',
+      'items',
+      'foodItems',
+      'meal',
+      'sequence',
+      'list',
+    ];
+
+    for (String key in possibleKeys) {
+      if (data[key] != null) {
+        if (data[key] is List) {
+          return data[key] as List<dynamic>;
+        } else if (data[key] is Map) {
+          return (data[key] as Map).values.toList();
+        }
+      }
+    }
+
+    for (var val in data.values) {
+      if (val is List && val.isNotEmpty && val.first is Map) {
+        return val;
+      } else if (val is Map && val.isNotEmpty && val.values.first is Map) {
+        return val.values.toList();
+      }
+    }
+
+    return [];
+  }
+
+  static void _showDietPlanDashboard(
+    BuildContext context,
+    String templateId,
+    String title,
+    Map<String, dynamic> rawData,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.85,
+          padding: const EdgeInsets.only(top: 12),
+          child: Column(
+            children: [
+              // Handle Bar
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Title Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00225D).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.restaurant_menu_rounded,
+                        color: Color(0xFF00225D),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.grey),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 16),
+
+              // Fetch Data & Display Dashboard
+              Expanded(
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _fetchDietPlanData(templateId, rawData),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF00225D),
+                        ),
+                      );
+                    }
+
+                    var data = snapshot.data ?? rawData;
+
+                    String calories = data['calories']?.toString() ?? '0';
+                    String protein = data['protein']?.toString() ?? '0';
+                    String fats =
+                        data['fat']?.toString() ??
+                        data['fats']?.toString() ??
+                        '0';
+                    String carbs =
+                        data['carbs']?.toString() ??
+                        data['netCarbsLimit']?.toString() ??
+                        '0';
+
+                    String fastingWindow =
+                        data['fastingWindow']?.toString() ?? '';
+                    String hydrationGoal =
+                        data['hydrationGoal']?.toString() ?? '';
+                    List<dynamic> prohibitions = data['prohibitions'] ?? [];
+
+                    List<dynamic> meals = _extractMealsAggressively(data);
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. MACRO STATS GRID
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildMacroCard(
+                                  "Daily Calories",
+                                  calories,
+                                  "kcal",
+                                  Icons.local_fire_department,
+                                  Colors.orange,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildMacroCard(
+                                  "Protein",
+                                  protein,
+                                  "g",
+                                  Icons.fitness_center,
+                                  const Color(0xFF00225D),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildMacroCard(
+                                  "Healthy Fats",
+                                  fats,
+                                  "g",
+                                  Icons.water_drop_outlined,
+                                  Colors.lightBlue,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildMacroCard(
+                                  "Net Carbs",
+                                  carbs,
+                                  "g",
+                                  Icons.eco_outlined,
+                                  Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+
+                          // 2. EXTRA INFO
+                          if (fastingWindow.isNotEmpty ||
+                              hydrationGoal.isNotEmpty)
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (fastingWindow.isNotEmpty)
+                                  Expanded(
+                                    child: _buildInfoCard(
+                                      "Fasting Window",
+                                      fastingWindow,
+                                      "Fasting Protocol",
+                                      Colors.indigo.shade100,
+                                    ),
+                                  ),
+                                if (fastingWindow.isNotEmpty &&
+                                    hydrationGoal.isNotEmpty)
+                                  const SizedBox(width: 12),
+                                if (hydrationGoal.isNotEmpty)
+                                  Expanded(
+                                    child: _buildInfoCard(
+                                      "Hydration Goal",
+                                      hydrationGoal,
+                                      "Include electrolytes",
+                                      Colors.cyan.shade100,
+                                    ),
+                                  ),
+                              ],
+                            ),
+
+                          if (prohibitions.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                border: Border.all(
+                                  color: Colors.grey.shade200,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    "Prohibitions",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF00225D),
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ...prohibitions.map(
+                                    (rule) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Row(
+                                        children: [
+                                          const Icon(
+                                            Icons.cancel_outlined,
+                                            color: Color(0xFFBA0C19),
+                                            size: 16,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              rule.toString(),
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 32),
+                          const Text(
+                            "Meal Sequence",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00225D),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // 3. MEAL SEQUENCE LIST
+                          if (meals.isEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                "Balanced meals scheduled for this plan.",
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
+                          ] else ...[
+                            ...meals.map((mealData) {
+                              if (mealData is! Map) {
+                                return const SizedBox();
+                              }
+
+                              final m = mealData as Map<String, dynamic>;
+
+                              final name =
+                                  m['name'] ??
+                                  m['mealName'] ??
+                                  m['meal'] ??
+                                  m['title'] ??
+                                  '-';
+                              final time =
+                                  m['time'] ?? m['mealTime'] ?? '';
+                              final items =
+                                  m['ingredients'] ??
+                                  m['items'] ??
+                                  m['food'] ??
+                                  m['description'] ??
+                                  '-';
+                              final mealImage =
+                                  m['image'] ??
+                                  m['imageUrl'] ??
+                                  m['photoUrl'] ??
+                                  m['imageURL'] ??
+                                  '';
+
+                              String p =
+                                  m['protein']?.toString() ??
+                                  m['p']?.toString() ??
+                                  '0';
+                              String c =
+                                  m['carbs']?.toString() ??
+                                  m['c']?.toString() ??
+                                  '0';
+                              String f =
+                                  m['fats']?.toString() ??
+                                  m['fat']?.toString() ??
+                                  m['f']?.toString() ??
+                                  '0';
+
+                              if (m['macros'] != null &&
+                                  m['macros'] is Map) {
+                                final mac = m['macros'] as Map;
+                                p = mac['protein']?.toString() ?? p;
+                                c = mac['carbs']?.toString() ?? c;
+                                f =
+                                    mac['fats']?.toString() ??
+                                    mac['fat']?.toString() ??
+                                    f;
+                              }
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 50,
+                                      height: 50,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                      ),
+                                      child: mealImage
+                                              .toString()
+                                              .isNotEmpty
+                                          ? ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: Image.network(
+                                                mealImage.toString(),
+                                                fit: BoxFit.cover,
+                                                errorBuilder:
+                                                    (context, error, stackTrace) =>
+                                                        const Icon(
+                                                  Icons.restaurant_rounded,
+                                                  color: Colors.grey,
+                                                ),
+                                              ),
+                                            )
+                                          : const Icon(
+                                              Icons.restaurant_rounded,
+                                              color: Colors.grey,
+                                            ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            name,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                              color: Color(0xFF1A1A1A),
+                                            ),
+                                          ),
+                                          if (time.toString().isNotEmpty)
+                                            Text(
+                                              time.toString(),
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            items.toString(),
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey.shade700,
+                                            ),
+                                            maxLines: 2,
+                                            overflow:
+                                                TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            "P: ${p}g  •  C: ${c}g  •  F: ${f}g",
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey.shade500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                          const SizedBox(height: 32),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _buildMacroCard(
+    String title,
+    String value,
+    String unit,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _buildInfoCard(
+    String title,
+    String value,
+    String subtitle,
+    Color accentColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -803,146 +1477,96 @@ class _DietPlansSection extends StatelessWidget {
                   color: Colors.black87,
                 ),
               ),
-              const Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.black87,
-                size: 20,
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onSeeAllTap,
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.black87,
+                    size: 20,
+                  ),
+                ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: 90,
+          height: 94,
           child: StreamBuilder<QuerySnapshot>(
-            stream: dietStream,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF5F7FA),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.restaurant_menu_rounded,
-                        color: Colors.grey.shade400,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'no_diet_plans'.tr(),
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+            stream: userId.isNotEmpty
+                ? FirebaseFirestore.instance
+                    .collection('clientDietPlans')
+                    .where('clientId', isEqualTo: userId)
+                    .snapshots()
+                : null,
+            builder: (context, clientSnap) {
+              final clientDocs = clientSnap.data?.docs ?? [];
+              if (clientDocs.isNotEmpty) {
+                return _buildDietList(context, clientDocs, isClientPlan: true);
               }
-              return ListView.builder(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                itemCount: snapshot.data!.docs.length,
-                itemBuilder: (context, index) {
-                  final data =
-                      snapshot.data!.docs[index].data() as Map<String, dynamic>;
-                  final String title = data['title'] ?? 'Diet Plan';
-                  final String date = data['createdAt'] != null
-                      ? _Formatters.fullDate.format(
-                          (data['createdAt'] as Timestamp).toDate(),
-                        )
-                      : 'Recent';
-                  return _BouncingButton(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Opening PDF...')),
+
+              // Fallback to dietPlanTemplates
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('dietPlanTemplates')
+                    .limit(10)
+                    .snapshots(),
+                builder: (context, tplSnap) {
+                  final tplDocs = tplSnap.data?.docs ?? [];
+                  if (tplDocs.isNotEmpty) {
+                    return _buildDietList(context, tplDocs, isClientPlan: false);
+                  }
+
+                  // Fallback to legacy diet_plans
+                  return StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('diet_plans')
+                        .limit(10)
+                        .snapshots(),
+                    builder: (context, legSnap) {
+                      final legDocs = legSnap.data?.docs ?? [];
+                      if (legDocs.isNotEmpty) {
+                        return _buildDietList(
+                          context,
+                          legDocs,
+                          isClientPlan: false,
+                        );
+                      }
+
+                      return Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 24),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F7FA),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.grey.shade200,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.restaurant_menu_rounded,
+                              color: Colors.grey.shade400,
+                              size: 24,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'no_diet_plans'.tr(),
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
-                    child: Container(
-                      width: 260,
-                      margin: const EdgeInsets.only(right: 16),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.grey.shade200,
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 50,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF0F1),
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Icon(
-                              Icons.picture_as_pdf_rounded,
-                              color: Color(0xFFE53935),
-                              size: 26,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                    fontSize: 15,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  date,
-                                  style: TextStyle(
-                                    color: Colors.grey.shade500,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade50,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   );
                 },
               );
@@ -950,6 +1574,139 @@ class _DietPlansSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDietList(
+    BuildContext context,
+    List<QueryDocumentSnapshot> docs, {
+    required bool isClientPlan,
+  }) {
+    return ListView.builder(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      itemCount: docs.length,
+      itemBuilder: (context, index) {
+        final doc = docs[index];
+        final data = doc.data() as Map<String, dynamic>;
+
+        final String title =
+            data['templateName'] ??
+            data['title'] ??
+            data['name'] ??
+            'Diet Plan';
+        final String templateId =
+            data['templateId']?.toString() ?? doc.id;
+
+        String subtitle = 'Active Plan';
+        if (data['calories'] != null) {
+          subtitle = '${data['calories']} kcal';
+        } else if (data['goal'] != null) {
+          subtitle = data['goal'].toString();
+        } else if (data['category'] != null) {
+          subtitle = data['category'].toString();
+        } else if (data['assignedAt'] != null) {
+          subtitle = _Formatters.fullDate.format(
+            (data['assignedAt'] as Timestamp).toDate(),
+          );
+        } else if (data['createdAt'] != null) {
+          subtitle = _Formatters.fullDate.format(
+            (data['createdAt'] as Timestamp).toDate(),
+          );
+        }
+
+        return _BouncingButton(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _showDietPlanDashboard(
+              context,
+              templateId,
+              title,
+              data,
+            );
+          },
+          child: Container(
+            width: 260,
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Colors.grey.shade200,
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.restaurant_menu_rounded,
+                    color: Color(0xFF2E7D32),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                          fontSize: 15,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 12,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -973,10 +1730,12 @@ class _QuickActionsSection extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Text(
             'quick_action_title'.tr(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: AppThemeController.isDark
+                  ? const Color(0xFFF5F5F5)
+                  : Colors.black87,
             ),
           ),
         ),
@@ -1028,8 +1787,6 @@ class _TodayProgressSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double exactCardWidth =
-        (MediaQuery.of(context).size.width - 48 - 16) / 2;
     final String today = _Formatters.date.format(DateTime.now());
 
     final dailyWeightMap = userData['dailyWeight'] as Map<String, dynamic>?;
@@ -1039,16 +1796,10 @@ class _TodayProgressSection extends StatelessWidget {
         '0';
 
     final dailySleepMap = userData['dailySleep'] as Map<String, dynamic>?;
-    final String sleep =
-        dailySleepMap?[today]?.toString() ??
-        userData['sleep']?.toString() ??
-        '0';
+    final String sleep = dailySleepMap?[today]?.toString() ?? '0';
 
     final dailyStepsMap = userData['dailySteps'] as Map<String, dynamic>?;
-    final String steps =
-        dailyStepsMap?[today]?.toString() ??
-        userData['steps']?.toString() ??
-        '0';
+    final String steps = dailyStepsMap?[today]?.toString() ?? '0';
 
     final dailyHydrationMap =
         userData['dailyHydration'] as Map<String, dynamic>?;
@@ -1068,17 +1819,21 @@ class _TodayProgressSection extends StatelessWidget {
             children: [
               Text(
                 'today_progress'.tr(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: AppThemeController.isDark
+                      ? const Color(0xFFF5F5F5)
+                      : Colors.black87,
                 ),
               ),
               GestureDetector(
                 onTap: onProgressTap,
-                child: const Icon(
+                child: Icon(
                   Icons.arrow_forward_rounded,
-                  color: Colors.black87,
+                  color: AppThemeController.isDark
+                      ? const Color(0xFFF5F5F5)
+                      : Colors.black87,
                   size: 20,
                 ),
               ),
@@ -1093,39 +1848,59 @@ class _TodayProgressSection extends StatelessWidget {
           child: Row(
             children: [
               _ProgressCard(
-                exactWidth: exactCardWidth,
-                title: 'weight_progress'.tr(),
-                value: weight,
-                unit: 'kg_unit'.tr(),
-                icon: Icons.monitor_weight_outlined,
-                iconColor: const Color(0xFFFF9500),
+                title: 'Activity',
+                subtitle: steps != '0' ? '$steps steps' : '+3 points',
+                icon: Icons.directions_run_rounded,
+                cardBgColor: const Color(0xFFFEF3C7),
+                darkCardBgColor: const Color(0xFF261D02),
+                darkBorderColor: const Color(0xFF8C6D08),
+                iconColor: const Color(0xFF8C7000),
+                darkIconColor: const Color(0xFFFFC107),
+                titleColor: const Color(0xFF5A4400),
+                subtitleColor: const Color(0xFF8A6D00),
+                darkSubtitleColor: const Color(0xFFFFD54F),
                 onTap: onProgressTap,
               ),
               _ProgressCard(
-                exactWidth: exactCardWidth,
-                title: 'daily_hydration'.tr(),
-                value: hydration,
-                unit: 'liters_unit'.tr(),
-                icon: Icons.water_drop_outlined,
-                iconColor: const Color(0xFF007AFF),
+                title: 'Body',
+                subtitle: weight != '0' ? '$weight kg' : '+1 point',
+                icon: Icons.accessibility_new_rounded,
+                cardBgColor: const Color(0xFFEDE9FE),
+                darkCardBgColor: const Color(0xFF1E1238),
+                darkBorderColor: const Color(0xFF6D3FB8),
+                iconColor: const Color(0xFF5B3FB0),
+                darkIconColor: const Color(0xFFA78BFA),
+                titleColor: const Color(0xFF331F75),
+                subtitleColor: const Color(0xFF5B3FB0),
+                darkSubtitleColor: const Color(0xFFDDD6FE),
                 onTap: onProgressTap,
               ),
               _ProgressCard(
-                exactWidth: exactCardWidth,
-                title: 'sleep_duration'.tr(),
-                value: sleep,
-                unit: 'hours_unit'.tr(),
-                icon: Icons.nightlight_outlined,
-                iconColor: const Color(0xFFAF52DE),
+                title: 'Hydration',
+                subtitle: hydration != '0' ? '$hydration L' : '+2 points',
+                icon: Icons.water_drop_rounded,
+                cardBgColor: const Color(0xFFE0F2FE),
+                darkCardBgColor: const Color(0xFF032238),
+                darkBorderColor: const Color(0xFF0284C7),
+                iconColor: const Color(0xFF0284C7),
+                darkIconColor: const Color(0xFF38BDF8),
+                titleColor: const Color(0xFF075985),
+                subtitleColor: const Color(0xFF0369A1),
+                darkSubtitleColor: const Color(0xFF7DD3FC),
                 onTap: onProgressTap,
               ),
               _ProgressCard(
-                exactWidth: exactCardWidth,
-                title: 'daily_steps'.tr(),
-                value: steps,
-                unit: 'steps_unit'.tr(),
-                icon: Icons.directions_walk_outlined,
-                iconColor: const Color(0xFF34C759),
+                title: 'Sleep',
+                subtitle: sleep != '0' ? '$sleep hrs' : '+1 point',
+                icon: Icons.nightlight_round,
+                cardBgColor: const Color(0xFFF3E8FF),
+                darkCardBgColor: const Color(0xFF260D38),
+                darkBorderColor: const Color(0xFF9333EA),
+                iconColor: const Color(0xFF7E22CE),
+                darkIconColor: const Color(0xFFC084FC),
+                titleColor: const Color(0xFF581C87),
+                subtitleColor: const Color(0xFF7E22CE),
+                darkSubtitleColor: const Color(0xFFE879F9),
                 onTap: onProgressTap,
               ),
             ],
@@ -1138,40 +1913,56 @@ class _TodayProgressSection extends StatelessWidget {
 }
 
 class _ProgressCard extends StatelessWidget {
-  final double exactWidth;
-  final String title, value, unit;
+  final String title;
+  final String subtitle;
   final IconData icon;
+  final Color cardBgColor;
+  final Color darkCardBgColor;
+  final Color darkBorderColor;
   final Color iconColor;
+  final Color darkIconColor;
+  final Color titleColor;
+  final Color subtitleColor;
+  final Color darkSubtitleColor;
   final VoidCallback onTap;
+
   const _ProgressCard({
-    required this.exactWidth,
     required this.title,
-    required this.value,
-    required this.unit,
+    required this.subtitle,
     required this.icon,
+    required this.cardBgColor,
+    required this.darkCardBgColor,
+    required this.darkBorderColor,
     required this.iconColor,
+    required this.darkIconColor,
+    required this.titleColor,
+    required this.subtitleColor,
+    required this.darkSubtitleColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = AppThemeController.isDark;
     return _BouncingButton(
       onTap: onTap,
       child: Container(
-        width: exactWidth,
-        margin: const EdgeInsets.only(right: 16),
+        width: 155,
+        height: 140,
+        margin: const EdgeInsets.only(right: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: iconColor.withValues(alpha: 0.25),
-            width: 1.5,
-          ),
+          color: isDark ? darkCardBgColor : cardBgColor,
+          borderRadius: BorderRadius.circular(22),
+          border: isDark
+              ? Border.all(color: darkBorderColor.withValues(alpha: 0.5), width: 1.4)
+              : null,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
+              color: isDark
+                  ? darkBorderColor.withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: 0.03),
+              blurRadius: isDark ? 12 : 10,
               offset: const Offset(0, 4),
             ),
           ],
@@ -1180,49 +1971,48 @@ class _ProgressCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.grey.shade800,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    height: 1.2,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF5F5F5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, color: iconColor, size: 20),
-                ),
-              ],
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? darkBorderColor.withValues(alpha: 0.25)
+                    : Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                color: isDark ? darkIconColor : iconColor,
+                size: 24,
+              ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  unit,
+                  title,
                   style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    color: isDark
+                        ? const Color(0xFFF1F5F9)
+                        : titleColor.withValues(alpha: 0.85),
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.1,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: isDark ? darkSubtitleColor : subtitleColor,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -1302,19 +2092,11 @@ class _QuickActionPill extends StatelessWidget {
 
 class _FloatingNavBar extends StatelessWidget {
   final ValueNotifier<int> selectedIndexNotifier;
-  final VoidCallback onBookingTap;
-  final VoidCallback onStatsTap;
-  final VoidCallback onChatsTap;
-  final VoidCallback onProfileTap;
-  final bool isNavigating;
+  final Function(int) onTabTap;
 
   const _FloatingNavBar({
     required this.selectedIndexNotifier,
-    required this.onBookingTap,
-    required this.onStatsTap,
-    required this.onChatsTap,
-    required this.onProfileTap,
-    required this.isNavigating,
+    required this.onTabTap,
   });
 
   @override
@@ -1323,11 +2105,18 @@ class _FloatingNavBar extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(255, 0, 33, 95),
+        color: AppThemeController.isDark
+            ? const Color(0xFF121212)
+            : const Color.fromARGB(255, 0, 33, 95),
         borderRadius: BorderRadius.circular(40),
+        border: AppThemeController.isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(
+              alpha: AppThemeController.isDark ? 0.35 : 0.15,
+            ),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1345,10 +2134,8 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'home_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 0 && !isNavigating) {
-                    HapticFeedback.selectionClick();
-                    selectedIndexNotifier.value = 0;
-                  }
+                  HapticFeedback.selectionClick();
+                  onTabTap(0);
                 },
               ),
               _NavItem(
@@ -1357,9 +2144,8 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'booking_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 1 && !isNavigating) {
-                    onBookingTap();
-                  }
+                  HapticFeedback.selectionClick();
+                  onTabTap(1);
                 },
               ),
               _NavItem(
@@ -1368,9 +2154,8 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'stats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 2 && !isNavigating) {
-                    onStatsTap();
-                  }
+                  HapticFeedback.selectionClick();
+                  onTabTap(2);
                 },
               ),
               _NavItem(
@@ -1379,9 +2164,8 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'chats_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 3 && !isNavigating) {
-                    onChatsTap();
-                  }
+                  HapticFeedback.selectionClick();
+                  onTabTap(3);
                 },
               ),
               _NavItem(
@@ -1390,9 +2174,8 @@ class _FloatingNavBar extends StatelessWidget {
                 label: 'profile_nav'.tr(),
                 selectedIndex: selectedIndex,
                 onTap: () {
-                  if (selectedIndex != 4 && !isNavigating) {
-                    onProfileTap();
-                  }
+                  HapticFeedback.selectionClick();
+                  onTabTap(4);
                 },
               ),
             ],
@@ -1419,42 +2202,52 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isSelected = selectedIndex == index;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-            : const EdgeInsets.all(10.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white
-              : Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white,
-              size: 20,
+    bool isSelected = selectedIndex == index;
+    return Expanded(
+      flex: isSelected ? 4 : 2,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          color: Colors.transparent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
             ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
-              ),
-            ],
-          ],
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

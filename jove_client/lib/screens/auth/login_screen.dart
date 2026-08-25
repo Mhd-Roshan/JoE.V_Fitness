@@ -649,8 +649,9 @@ class _LoginScreenState extends State<LoginScreen>
                                 bottom: 40.0,
                                 top: 20,
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Text(
                                     "dont_have_account".tr(),

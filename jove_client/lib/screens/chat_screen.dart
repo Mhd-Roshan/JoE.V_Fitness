@@ -11,15 +11,18 @@ import 'progress_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
+import '../theme/app_theme_controller.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final bool showBottomNav;
+  const ChatScreen({super.key, this.showBottomNav = true});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen>
+    with AutomaticKeepAliveClientMixin {
   // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
@@ -1058,22 +1061,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
   // Helper inside state for formatting the image fallback exactly like the screenshot
   Widget _buildFallbackImage() {
+    final bool isDark = AppThemeController.isDark;
     return Container(
       height: 180,
       width: double.infinity,
-      color: const Color(0xFFF4F5F7), // Light grey background
+      color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF4F5F7),
       child: Center(
-        child: Icon(Icons.restaurant, color: Colors.grey.shade400, size: 48),
+        child: Icon(
+          Icons.restaurant,
+          color: isDark ? const Color(0xFF555555) : Colors.grey.shade400,
+          size: 48,
+        ),
       ),
     );
   }
 
   // Helper inside state for formatting the macro box exactly like the screenshot
   Widget _buildMacroBox(String label, String value) {
+    final bool isDark = AppThemeController.isDark;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F5F7),
+        color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF4F5F7),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -1082,17 +1091,17 @@ class _ChatScreenState extends State<ChatScreen> {
             label,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey.shade600,
+              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w900,
-              color: Color(0xFF00215F),
+              color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF00215F),
             ),
           ),
         ],
@@ -1113,6 +1122,7 @@ class _ChatScreenState extends State<ChatScreen> {
     required String cPct,
     required String timeString,
   }) {
+    final bool isDark = AppThemeController.isDark;
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: GestureDetector(
@@ -1128,12 +1138,15 @@ class _ChatScreenState extends State<ChatScreen> {
           margin: const EdgeInsets.only(bottom: 12),
           width: MediaQuery.of(context).size.width * 0.75,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF121212) : Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200, width: 1),
+            border: Border.all(
+              color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+              width: 1.2,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -1194,10 +1207,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   children: [
                     Text(
                       fileName.toLowerCase(),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF00215F),
+                        color: isDark
+                            ? const Color(0xFFF5F5F5)
+                            : const Color(0xFF00215F),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -1205,7 +1220,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.grey.shade500,
+                        color: isDark
+                            ? const Color(0xFFA8A8A8)
+                            : Colors.grey.shade500,
                         height: 1.4,
                       ),
                       maxLines: 2,
@@ -1230,7 +1247,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: Text(
                         timeString,
                         style: TextStyle(
-                          color: Colors.grey.shade400,
+                          color: isDark
+                              ? const Color(0xFFA8A8A8)
+                              : Colors.grey.shade400,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -1502,6 +1521,8 @@ class _ChatScreenState extends State<ChatScreen> {
       timeString = DateFormat('h:mm a', context.locale.languageCode).format(dt);
     }
 
+    final bool isDark = AppThemeController.isDark;
+
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -1511,13 +1532,18 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isMe ? _userBubbleColor : _adminBubbleColor,
+          color: isMe
+              ? (isDark ? const Color(0xFF003AA3) : _userBubbleColor)
+              : (isDark ? const Color(0xFF1E1E1E) : _adminBubbleColor),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
             bottomLeft: Radius.circular(isMe ? 16 : 4),
             bottomRight: Radius.circular(isMe ? 4 : 16),
           ),
+          border: isDark && !isMe
+              ? Border.all(color: const Color(0xFF2E2E2E), width: 1)
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1525,7 +1551,9 @@ class _ChatScreenState extends State<ChatScreen> {
             Text(
               message,
               style: TextStyle(
-                color: isMe ? Colors.white : _textMain,
+                color: isMe
+                    ? Colors.white
+                    : (isDark ? const Color(0xFFF5F5F5) : _textMain),
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 height: 1.3,
@@ -1535,7 +1563,9 @@ class _ChatScreenState extends State<ChatScreen> {
             Text(
               timeString,
               style: TextStyle(
-                color: isMe ? Colors.white60 : Colors.grey.shade600,
+                color: isMe
+                    ? Colors.white60
+                    : (isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600),
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
               ),
@@ -1547,9 +1577,12 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageInput() {
+    final bool isDark = AppThemeController.isDark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(color: _bgColor),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF000000) : _bgColor,
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -1558,18 +1591,21 @@ class _ChatScreenState extends State<ChatScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                 shape: BoxShape.circle,
+                border: isDark
+                    ? Border.all(color: const Color(0xFF333333), width: 1)
+                    : null,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
                     blurRadius: 10,
                   ),
                 ],
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.restaurant_menu_rounded,
-                color: _navBgColor,
+                color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                 size: 20,
               ),
             ),
@@ -1579,17 +1615,26 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFEef1f6),
+                color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFEef1f6),
                 borderRadius: BorderRadius.circular(24),
+                border: isDark
+                    ? Border.all(color: const Color(0xFF333333), width: 1)
+                    : null,
               ),
               child: TextField(
                 controller: _messageController,
-                style: const TextStyle(fontSize: 15),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
+                ),
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendMessage(),
                 decoration: InputDecoration(
                   hintText: 'message_hint'.tr(),
-                  hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+                  hintStyle: TextStyle(
+                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
+                    fontSize: 14,
+                  ),
                   border: InputBorder.none,
                 ),
               ),
@@ -1709,17 +1754,21 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildBottomNavBar() {
+    final bool isDark = AppThemeController.isDark;
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
         margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: _navBgColor,
+          color: isDark ? const Color(0xFF121212) : _navBgColor,
           borderRadius: BorderRadius.circular(40),
+          border: isDark
+              ? Border.all(color: const Color(0xFF262626), width: 1.2)
+              : null,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -1775,46 +1824,32 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildTopAppBar() {
+    final bool isDark = AppThemeController.isDark;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_back_ios_new,
-                  color: _textMain,
-                  size: 20,
-                ),
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  _navigate(const ProgressScreen());
-                },
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'chats_title'.tr(),
-                style: const TextStyle(
-                  color: _textMain,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ],
+          Text(
+            'chats_title'.tr(),
+            style: TextStyle(
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
           ),
           Container(
-            margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF262626)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                 size: 24,
               ),
               onPressed: () {
@@ -1850,85 +1885,114 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
-    final bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    super.build(context);
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                _buildTopAppBar(),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
+          body: Stack(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    _buildTopAppBar(),
 
-                Expanded(
-                  child: currentUser == null
-                      ? Center(child: Text("please_login_chat".tr()))
-                      : StreamBuilder<QuerySnapshot>(
-                          stream: FirebaseFirestore.instance
-                              .collection('chatThreads')
-                              .doc(currentUser!.uid)
-                              .collection('messages')
-                              .orderBy('createdAt', descending: true)
-                              .limit(100)
-                              .snapshots(),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return Center(
-                                child: Text('something_went_wrong'.tr()),
-                              );
-                            }
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: CircularProgressIndicator(
-                                  color: _navBgColor,
+                    Expanded(
+                      child: currentUser == null
+                          ? Center(
+                              child: Text(
+                                "please_login_chat".tr(),
+                                style: TextStyle(
+                                  color: isDark
+                                      ? const Color(0xFFA8A8A8)
+                                      : Colors.grey.shade600,
                                 ),
-                              );
-                            }
-
-                            final docs = snapshot.data?.docs.toList() ?? [];
-
-                            if (docs.isEmpty) {
-                              return Center(
-                                child: Text(
-                                  "send_message_start".tr(),
-                                  style: TextStyle(color: Colors.grey.shade500),
-                                ),
-                              );
-                            }
-
-                            return ListView.builder(
-                              reverse: true,
-                              physics: const BouncingScrollPhysics(),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
                               ),
-                              itemCount: docs.length,
-                              itemBuilder: (context, index) {
-                                return RepaintBoundary(
-                                  child: _buildMessageRouter(
-                                    docs[index].data() as Map<String, dynamic>,
+                            )
+                          : StreamBuilder<QuerySnapshot>(
+                              stream: FirebaseFirestore.instance
+                                  .collection('chatThreads')
+                                  .doc(currentUser!.uid)
+                                  .collection('messages')
+                                  .orderBy('createdAt', descending: true)
+                                  .limit(100)
+                                  .snapshots(),
+                              builder: (context, snapshot) {
+                                if (snapshot.hasError) {
+                                  return Center(
+                                    child: Text(
+                                      '${"error_loading_chat".tr()}: ${snapshot.error}',
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? const Color(0xFFA8A8A8)
+                                            : Colors.black,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                    child: CircularProgressIndicator(
+                                      color: _navBgColor,
+                                    ),
+                                  );
+                                }
+
+                                final docs = snapshot.data?.docs.toList() ?? [];
+
+                                if (docs.isEmpty) {
+                                  return Center(
+                                    child: Text(
+                                      "send_message_start".tr(),
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? const Color(0xFFA8A8A8)
+                                            : Colors.grey.shade500,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                return ListView.builder(
+                                  reverse: true,
+                                  physics: const BouncingScrollPhysics(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
                                   ),
+                                  itemCount: docs.length,
+                                  itemBuilder: (context, index) {
+                                    return RepaintBoundary(
+                                      child: _buildMessageRouter(
+                                        docs[index].data() as Map<String, dynamic>,
+                                      ),
+                                    );
+                                  },
                                 );
                               },
-                            );
-                          },
-                        ),
+                            ),
+                    ),
+
+                    _buildMessageInput(),
+                    SizedBox(height: isKeyboardOpen ? 16 : 95),
+                  ],
                 ),
+              ),
 
-                _buildMessageInput(),
-                SizedBox(height: isKeyboardOpen ? 16 : 95),
-              ],
-            ),
+              if (!isKeyboardOpen && widget.showBottomNav) _buildBottomNavBar(),
+            ],
           ),
-
-          if (!isKeyboardOpen) _buildBottomNavBar(),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1950,38 +2014,51 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-            : const EdgeInsets.all(10.0),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white70,
-              size: 20,
+    return Expanded(
+      flex: isSelected ? 4 : 2,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          color: Colors.transparent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
             ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
-              ),
-            ],
-          ],
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

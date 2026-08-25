@@ -13,6 +13,7 @@ import 'profile_screen.dart';
 import 'change_trainer_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
+import '../services/app_notification_service.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
@@ -307,6 +308,91 @@ class _NotificationSettingsScreenState
                           ),
                         ]),
 
+                        const SizedBox(height: 24),
+
+                        // --- TEST REAL NOTIFICATION SECTION ---
+                        _buildSectionTitle('Test Push & In-App Alerts'),
+                        _buildCard([
+                          ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            leading: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF003AA3).withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.notifications_active_rounded,
+                                color: Color(0xFF003AA3),
+                                size: 22,
+                              ),
+                            ),
+                            title: const Text(
+                              'Trigger Test Notification',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: _textMain,
+                              ),
+                            ),
+                            subtitle: const Text(
+                              'Test both outside status bar alert & in-app banner immediately.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            trailing: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF003AA3),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                              ),
+                              onPressed: () async {
+                                HapticFeedback.mediumImpact();
+                                if (currentUser != null) {
+                                  await AppNotificationService.instance.sendNotification(
+                                    userId: currentUser!.uid,
+                                    title: '🏋️ Trainer Alert: Workout Ready',
+                                    message:
+                                        'Your custom workout routine and hydration target have been scheduled for today!',
+                                    type: 'session',
+                                  );
+                                } else {
+                                  await AppNotificationService.instance.showLocalNotification(
+                                    title: '🏋️ JoE.V Fitness Alert',
+                                    body:
+                                        'Your session and workout targets are ready for today!',
+                                    payload: 'session',
+                                  );
+                                  AppNotificationService.instance.showInAppBanner(
+                                    title: '🏋️ JoE.V Fitness Alert',
+                                    body:
+                                        'Your session and workout targets are ready for today!',
+                                    type: 'session',
+                                  );
+                                }
+                              },
+                              child: const Text(
+                                'Test',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ]),
+
                         const SizedBox(height: 32),
                       ],
                     ),
@@ -591,38 +677,51 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: isSelected
-            ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-            : const EdgeInsets.all(10.0),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? Colors.black : Colors.white70,
-              size: 20,
+    return Expanded(
+      flex: isSelected ? 4 : 2,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          color: Colors.transparent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
             ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
-              ),
-            ],
-          ],
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

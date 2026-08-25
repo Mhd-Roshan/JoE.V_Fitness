@@ -543,8 +543,9 @@ class _SignUpScreenState extends State<SignUpScreen>
                                 bottom: 40.0,
                                 top: 20.0,
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                              child: Wrap(
+                                alignment: WrapAlignment.center,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   Text(
                                     'already_have_account'.tr(),

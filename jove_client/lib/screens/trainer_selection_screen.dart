@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'booking_screen.dart';
+import '../theme/app_theme_controller.dart';
 
 // ==========================================
 // DATA MODEL
@@ -44,19 +45,43 @@ class Trainer {
           "${data['yearsExperience']}+ ${'years_lowercase'.tr()}";
     }
 
+    String rawName = (data['name'] ?? data['fullName'] ?? 'expert_trainer'.tr()).toString().trim();
+    if (rawName.isEmpty) rawName = 'Trainer';
+
+    // Check all possible field variations for trainer images in Firestore
+    String? rawImg = data['imageUrl'] ??
+        data['profileImageUrl'] ??
+        data['profilePic'] ??
+        data['profilePicture'] ??
+        data['photoUrl'] ??
+        data['photoURL'] ??
+        data['image'] ??
+        data['avatar'] ??
+        data['picture'];
+
+    String finalImg = '';
+    if (rawImg != null &&
+        rawImg.toString().trim().isNotEmpty &&
+        (rawImg.toString().trim().startsWith('http://') ||
+            rawImg.toString().trim().startsWith('https://'))) {
+      finalImg = rawImg.toString().trim();
+    } else {
+      finalImg =
+          'https://ui-avatars.com/api/?name=${Uri.encodeComponent(rawName)}&background=BA0C19&color=fff&size=256';
+    }
+
     return Trainer(
       id: data['trainerId'] ?? doc.id,
-      name: data['name'] ?? data['fullName'] ?? 'expert_trainer'.tr(),
-      designation: data['designation'] ?? 'personal_trainer'.tr(),
-      imageUrl:
-          data['imageUrl'] ??
-          data['profilePic'] ??
-          'https://ui-avatars.com/api/?name=Trainer&background=random',
-      rating: (data['rating'] ?? 0.0).toDouble(),
-      ratingCount: data['ratingCount'] ?? 0,
-      specializations: List<String>.from(data['specializations'] ?? []),
+      name: rawName,
+      designation: (data['designation'] ?? data['title'] ?? data['role'] ?? 'personal_trainer'.tr()).toString(),
+      imageUrl: finalImg,
+      rating: ((data['rating'] ?? 5.0) as num).toDouble(),
+      ratingCount: (data['ratingCount'] ?? data['reviewsCount'] ?? 0) is int
+          ? (data['ratingCount'] ?? data['reviewsCount'] ?? 0)
+          : int.tryParse((data['ratingCount'] ?? data['reviewsCount'] ?? 0).toString()) ?? 0,
+      specializations: List<String>.from(data['specializations'] ?? data['specialties'] ?? []),
       yearsExperience: formattedExperience,
-      bio: data['bio'] ?? '',
+      bio: (data['bio'] ?? data['description'] ?? data['about'] ?? '').toString(),
       certifications: List<String>.from(data['certifications'] ?? []),
     );
   }
@@ -229,228 +254,314 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: Text(
-          'select_trainers_title'.tr(),
-          style: const TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              children: [
-                Text(
-                  "select_trainer_subtitle".tr(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F6FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFD0E3FF)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.info_outline,
-                        color: Color(0xFF00225D),
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style: const TextStyle(
-                              color: Color(0xFF00225D),
-                              height: 1.5,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: 'note_label'.tr(),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              TextSpan(text: 'select_trainer_note'.tr()),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF000000) : Colors.white,
+          appBar: AppBar(
+            backgroundColor: isDark ? const Color(0xFF000000) : Colors.white,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            title: Text(
+              'select_trainers_title'.tr(),
+              style: TextStyle(
+                color: isDark ? const Color(0xFFF5F5F5) : Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
-
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _trainersStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFBA0C19)),
-                  );
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(child: Text("no_trainers_available".tr()));
-                }
-
-                final trainers = snapshot.data!.docs
-                    .map((doc) => Trainer.fromFirestore(doc))
-                    .toList();
-
-                return ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  itemCount: trainers.length,
-                  itemBuilder: (context, index) {
-                    final trainer = trainers[index];
-                    final isSelected = _selectedTrainer?.id == trainer.id;
-
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      margin: const EdgeInsets.only(bottom: 16),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  children: [
+                    Text(
+                      "select_trainer_subtitle".tr(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        // Removed the red borderline logic here!
+                        color: isDark ? const Color(0xFF0B192C) : const Color(0xFFF0F6FF),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Colors.grey.shade300,
-                          width: 1,
+                          color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFD0E3FF),
                         ),
-                        boxShadow: [
-                          // Removed the red shadow glow here!
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF00225D),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: RichText(
+                              text: TextSpan(
+                                style: TextStyle(
+                                  color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF00225D),
+                                  height: 1.5,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: 'note_label'.tr(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  TextSpan(text: 'select_trainer_note'.tr()),
+                                ],
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Column(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 35,
-                                    backgroundImage: NetworkImage(
-                                      trainer.imageUrl,
-                                    ),
-                                    onBackgroundImageError:
-                                        (error, stackTrace) {},
-                                    child: trainer.imageUrl.isEmpty
-                                        ? const Icon(Icons.person)
-                                        : null,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.star,
-                                        color: Colors.amber,
-                                        size: 14,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        trainer.rating.toString(),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        ' (${trainer.ratingCount})',
-                                        style: const TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      trainer.name,
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      trainer.designation,
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 6,
-                                      children: trainer.specializations
-                                          .take(3)
-                                          .map(
-                                            (s) => Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFE5F1FF),
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                s,
-                                                style: const TextStyle(
-                                                  color: Color(0xFF0044FF),
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                          .toList(),
-                                    ),
-                                  ],
+                    ),
+                  ],
+                ),
+              ),
+
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: _trainersStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: Color(0xFFBA0C19)),
+                      );
+                    }
+
+                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                      return Center(
+                        child: Text(
+                          "no_trainers_available".tr(),
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
+                          ),
+                        ),
+                      );
+                    }
+
+                    final trainers = snapshot.data!.docs
+                        .map((doc) => Trainer.fromFirestore(doc))
+                        .toList();
+
+                    return ListView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      itemCount: trainers.length,
+                      itemBuilder: (context, index) {
+                        final trainer = trainers[index];
+                        final isSelected = _selectedTrainer?.id == trainer.id;
+
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          margin: const EdgeInsets.only(bottom: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF121212) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(
+                                  alpha: isDark ? 0.25 : 0.05,
                                 ),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 16),
+                          child: Column(
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Column(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(35),
+                                        child: Container(
+                                          width: 70,
+                                          height: 70,
+                                          decoration: BoxDecoration(
+                                            color: isDark
+                                                ? const Color(0xFF1E293B)
+                                                : const Color(0xFFF1F5F9),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: isSelected
+                                                  ? const Color(0xFFBA0C19)
+                                                  : (isDark
+                                                      ? const Color(0xFF262626)
+                                                      : Colors.grey.shade300),
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: trainer.imageUrl.isNotEmpty
+                                              ? Image.network(
+                                                  trainer.imageUrl,
+                                                  width: 70,
+                                                  height: 70,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder:
+                                                      (context, error, stackTrace) {
+                                                    return Container(
+                                                      color: const Color(0xFFBA0C19),
+                                                      alignment: Alignment.center,
+                                                      child: Text(
+                                                        trainer.name.isNotEmpty
+                                                            ? trainer.name[0].toUpperCase()
+                                                            : 'T',
+                                                        style: const TextStyle(
+                                                          fontSize: 26,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  loadingBuilder:
+                                                      (context, child, loadingProgress) {
+                                                    if (loadingProgress == null) {
+                                                      return child;
+                                                    }
+                                                    return Container(
+                                                      color: isDark
+                                                          ? const Color(0xFF1E293B)
+                                                          : const Color(0xFFF1F5F9),
+                                                      alignment: Alignment.center,
+                                                      child: const SizedBox(
+                                                        width: 20,
+                                                        height: 20,
+                                                        child: CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Color(0xFFBA0C19),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                )
+                                              : Container(
+                                                  color: const Color(0xFFBA0C19),
+                                                  alignment: Alignment.center,
+                                                  child: Text(
+                                                    trainer.name.isNotEmpty
+                                                        ? trainer.name[0].toUpperCase()
+                                                        : 'T',
+                                                    style: const TextStyle(
+                                                      fontSize: 26,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.star,
+                                            color: Colors.amber,
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            trainer.rating.toString(),
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: isDark ? const Color(0xFFF5F5F5) : Colors.black,
+                                            ),
+                                          ),
+                                          Text(
+                                            ' (${trainer.ratingCount})',
+                                            style: const TextStyle(
+                                              color: Colors.grey,
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          trainer.name,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            color: isDark ? const Color(0xFFF5F5F5) : Colors.black,
+                                          ),
+                                        ),
+                                        Text(
+                                          trainer.designation,
+                                          style: const TextStyle(
+                                            color: Colors.grey,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 6,
+                                          children: trainer.specializations
+                                              .take(3)
+                                              .map(
+                                                (s) => Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color: isDark
+                                                        ? const Color(0xFF1E293B)
+                                                        : const Color(0xFFE5F1FF),
+                                                    borderRadius:
+                                                        BorderRadius.circular(6),
+                                                  ),
+                                                  child: Text(
+                                                    s,
+                                                    style: TextStyle(
+                                                      color: isDark
+                                                          ? const Color(0xFF60A5FA)
+                                                          : const Color(0xFF0044FF),
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
 
                           Row(
                             children: [
@@ -474,6 +585,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                   },
                                   child: Container(
                                     height: 40,
+                                    padding: const EdgeInsets.symmetric(horizontal: 6),
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
                                       border: Border.all(
@@ -488,6 +600,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                         color: Color(0xFF00225D),
                                         fontWeight: FontWeight.bold,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ),
@@ -502,6 +617,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 250),
                                     height: 40,
+                                    padding: const EdgeInsets.symmetric(horizontal: 6),
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
                                       color: isSelected
@@ -520,6 +636,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                             ? const Color(0xFFBA0C19)
                                             : Colors.white,
                                       ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ),
@@ -580,6 +699,8 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
             )
           : null,
     );
+      },
+    );
   }
 }
 
@@ -617,8 +738,63 @@ class TrainerProfileScreen extends StatelessWidget {
                       child: Image.network(
                         trainer.imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            Container(color: Colors.grey.shade800),
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Color(0xFF0F172A),
+                                  Color(0xFF1E293B),
+                                  Color(0xFFBA0C19),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 110,
+                                    height: 110,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white.withValues(alpha: 0.15),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 2.5,
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        trainer.name.isNotEmpty
+                                            ? trainer.name[0].toUpperCase()
+                                            : 'T',
+                                        style: const TextStyle(
+                                          fontSize: 52,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: const Color(0xFF0F172A),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                color: Color(0xFFBA0C19),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ),
                     // Gradient overlay at bottom of image

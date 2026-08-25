@@ -3,6 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:easy_localization/easy_localization.dart'; // <-- 1. IMPORT LOCALIZATION
 
 import 'screens/splash_screen.dart'; // <-- IMPORTANT: Point to your splash screen
+import 'theme/app_theme_controller.dart';
+import 'services/app_notification_service.dart';
 
 void main() async {
   // 1. Ensure Flutter bindings are ready before launching Firebase
@@ -14,7 +16,10 @@ void main() async {
   // 3. Initialize Easy Localization
   await EasyLocalization.ensureInitialized(); // <-- 2. INIT LOCALIZATION
 
-  // 4. Run UI Wrapped in Localization Config
+  // 4. Initialize Notification Service (FCM & Real-time Local Push)
+  await AppNotificationService.instance.initialize();
+
+  // 5. Run UI Wrapped in Localization Config
   runApp(
     EasyLocalization(
       supportedLocales: const [
@@ -35,64 +40,28 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'JoE.V FITNESS',
-      debugShowCheckedModeBanner: false,
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return MaterialApp(
+          navigatorKey: AppNotificationService.navigatorKey,
+          title: 'JoE.V FITNESS',
+          debugShowCheckedModeBanner: false,
 
-      // --- 3. ADD THESE 3 LINES SO THE APP KNOWS THE LANGUAGE ---
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
+          // --- LOCALIZATION ---
+          localizationsDelegates: context.localizationDelegates,
+          supportedLocales: context.supportedLocales,
+          locale: context.locale,
 
-      // ---------------------------------------------------------
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFBA0C19)),
-        useMaterial3: true,
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: {
-            TargetPlatform.android: _FastFadeSlidePageTransitionsBuilder(),
-            TargetPlatform.iOS: _FastFadeSlidePageTransitionsBuilder(),
-            TargetPlatform.windows: _FastFadeSlidePageTransitionsBuilder(),
-            TargetPlatform.macOS: _FastFadeSlidePageTransitionsBuilder(),
-            TargetPlatform.linux: _FastFadeSlidePageTransitionsBuilder(),
-          },
-        ),
-      ),
+          // --- THEME MANAGEMENT ---
+          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+          theme: AppThemeController.lightTheme,
+          darkTheme: AppThemeController.darkTheme,
 
-      // 4. Set the Splash Screen as the VERY FIRST thing the app sees
-      home: const SplashScreen(),
-    );
-  }
-}
-
-class _FastFadeSlidePageTransitionsBuilder extends PageTransitionsBuilder {
-  const _FastFadeSlidePageTransitionsBuilder();
-
-  @override
-  Widget buildTransitions<T>(
-    PageRoute<T> route,
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-    Widget child,
-  ) {
-    final curvedAnimation = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-
-    final slideAnimation = Tween<Offset>(
-      begin: const Offset(0.06, 0.0),
-      end: Offset.zero,
-    ).animate(curvedAnimation);
-
-    return SlideTransition(
-      position: slideAnimation,
-      child: FadeTransition(
-        opacity: curvedAnimation,
-        child: child,
-      ),
+          // 4. Set the Splash Screen as the VERY FIRST thing the app sees
+          home: const SplashScreen(),
+        );
+      },
     );
   }
 }

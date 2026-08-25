@@ -13,15 +13,18 @@ import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION SCREEN IMPORT
+import '../theme/app_theme_controller.dart';
 
 class ProgressScreen extends StatefulWidget {
-  const ProgressScreen({super.key});
+  final bool showBottomNav;
+  const ProgressScreen({super.key, this.showBottomNav = true});
 
   @override
   State<ProgressScreen> createState() => _ProgressScreenState();
 }
 
-class _ProgressScreenState extends State<ProgressScreen> {
+class _ProgressScreenState extends State<ProgressScreen>
+    with AutomaticKeepAliveClientMixin {
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _activeBlue = Color(0xFF003AA3);
@@ -41,6 +44,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
   late final String _todayDate;
   final Set<String> _shownDialogs = {};
   bool _isNavigating = false;
+  bool _hasPromptedDailyGoals = false;
 
   // --- Pre-calculated Dates ---
   late final List<DateTime> _past14Days;
@@ -100,12 +104,27 @@ class _ProgressScreenState extends State<ProgressScreen> {
               ? Map<String, dynamic>.from(data['dailySteps'])
               : {};
 
-          // Default to 10000 for the chart math to prevent divide by zero if user hasn't set a goal
-          _recalculateChartAndTrend(data['stepsGoal'] ?? 10000);
+          int todayStepsGoal = (data['dailyStepsGoals'] as Map?)?[_todayDate] ??
+              data['stepsGoal'] ??
+              10000;
+          _recalculateChartAndTrend(todayStepsGoal > 0 ? todayStepsGoal : 10000);
 
           setState(() {
             _cachedUserData = data;
           });
+
+          // Check if today's daily goals have been prompted
+          if (!_hasPromptedDailyGoals) {
+            _hasPromptedDailyGoals = true;
+            String? lastGoalSetDate = data['dailyGoalSetDate']?.toString();
+            if (lastGoalSetDate != _todayDate) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _showDailyGoalSetupSheet(data);
+                }
+              });
+            }
+          }
         });
   }
 
@@ -372,7 +391,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   Future<void> _showHydrationGoalDialog(int initialAmount) async {
-    TextEditingController controller = TextEditingController(text: "2.0");
+    int currentGoal = (_cachedUserData?['dailyHydrationGoals'] as Map?)?[_todayDate] ??
+        _cachedUserData?['hydrationGoal'] ??
+        2000;
+    double currentGoalL = currentGoal > 0 ? (currentGoal / 1000) : 2.0;
+    TextEditingController controller =
+        TextEditingController(text: currentGoalL.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), ''));
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -409,7 +433,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(currentUser!.uid)
-                    .set({'hydrationGoal': newGoalMl}, SetOptions(merge: true));
+                    .set({
+                  'dailyHydrationGoals': {_todayDate: newGoalMl},
+                  'dailyGoalSetDate': _todayDate,
+                  'hydrationGoal': newGoalMl,
+                }, SetOptions(merge: true));
               }
               if (!context.mounted) {
                 return;
@@ -428,7 +456,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   Future<void> _showSleepGoalDialog(int initialMinutes) async {
-    TextEditingController controller = TextEditingController(text: "8.0");
+    double currentGoal =
+        (_cachedUserData?['dailySleepGoals'] as Map?)?[_todayDate]?.toDouble() ??
+            (_cachedUserData?['sleepGoal'] as num?)?.toDouble() ??
+            8.0;
+    TextEditingController controller =
+        TextEditingController(text: currentGoal.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), ''));
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -464,7 +497,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(currentUser!.uid)
-                    .set({'sleepGoal': parsedGoal}, SetOptions(merge: true));
+                    .set({
+                  'dailySleepGoals': {_todayDate: parsedGoal},
+                  'dailyGoalSetDate': _todayDate,
+                  'sleepGoal': parsedGoal,
+                }, SetOptions(merge: true));
               }
               if (!context.mounted) {
                 return;
@@ -483,7 +520,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   Future<void> _showStepsGoalDialog(int initialSteps) async {
-    TextEditingController controller = TextEditingController(text: "10000");
+    int currentGoal = (_cachedUserData?['dailyStepsGoals'] as Map?)?[_todayDate] ??
+        _cachedUserData?['stepsGoal'] ??
+        10000;
+    TextEditingController controller =
+        TextEditingController(text: currentGoal.toString());
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -517,7 +558,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(currentUser!.uid)
-                    .set({'stepsGoal': parsedGoal}, SetOptions(merge: true));
+                    .set({
+                  'dailyStepsGoals': {_todayDate: parsedGoal},
+                  'dailyGoalSetDate': _todayDate,
+                  'stepsGoal': parsedGoal,
+                }, SetOptions(merge: true));
               }
               if (!context.mounted) {
                 return;
@@ -531,6 +576,504 @@ class _ProgressScreenState extends State<ProgressScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // --- DAILY GOAL SETUP SHEET & BANNER ---
+  Future<void> _showDailyGoalSetupSheet(Map<String, dynamic> userData) async {
+    if (!mounted) return;
+
+    int currentStepsGoal = (userData['dailyStepsGoals'] as Map?)?[_todayDate] ??
+        userData['stepsGoal'] ??
+        10000;
+    if (currentStepsGoal <= 0) currentStepsGoal = 10000;
+
+    int currentHydrationGoal =
+        (userData['dailyHydrationGoals'] as Map?)?[_todayDate] ??
+            userData['hydrationGoal'] ??
+            2000;
+    if (currentHydrationGoal <= 0) currentHydrationGoal = 2000;
+
+    double currentSleepGoal =
+        (userData['dailySleepGoals'] as Map?)?[_todayDate]?.toDouble() ??
+            (userData['sleepGoal'] as num?)?.toDouble() ??
+            8.0;
+    if (currentSleepGoal <= 0) currentSleepGoal = 8.0;
+
+    int selectedSteps = currentStepsGoal;
+    int selectedHydration = currentHydrationGoal;
+    double selectedSleep = currentSleepGoal;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 24,
+                right: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 28,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Set Today's Goals",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: _textMain,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('EEEE, MMM d, yyyy').format(DateTime.now()),
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.grey),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // 1. STEPS GOAL
+                    _buildGoalSettingItem(
+                      icon: Icons.directions_run_rounded,
+                      iconColor: const Color(0xFF2E7D32),
+                      bgColor: const Color(0xFFE8F5E9),
+                      title: "Daily Steps Goal",
+                      valueDisplay: "$selectedSteps steps",
+                      onDecrement: () {
+                        if (selectedSteps > 1000) {
+                          setModalState(() => selectedSteps -= 1000);
+                        }
+                      },
+                      onIncrement: () {
+                        if (selectedSteps < 50000) {
+                          setModalState(() => selectedSteps += 1000);
+                        }
+                      },
+                      presets: [6000, 8000, 10000, 12000, 15000],
+                      presetLabels: ["6k", "8k", "10k", "12k", "15k"],
+                      selectedPreset: selectedSteps,
+                      onPresetSelected: (val) =>
+                          setModalState(() => selectedSteps = val as int),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // 2. HYDRATION GOAL
+                    _buildGoalSettingItem(
+                      icon: Icons.water_drop_rounded,
+                      iconColor: const Color(0xFF0284C7),
+                      bgColor: const Color(0xFFE0F2FE),
+                      title: "Daily Hydration Target",
+                      valueDisplay:
+                          "${(selectedHydration / 1000).toStringAsFixed(1)} L",
+                      onDecrement: () {
+                        if (selectedHydration > 500) {
+                          setModalState(() => selectedHydration -= 250);
+                        }
+                      },
+                      onIncrement: () {
+                        if (selectedHydration < 8000) {
+                          setModalState(() => selectedHydration += 250);
+                        }
+                      },
+                      presets: [1500, 2000, 2500, 3000, 3500],
+                      presetLabels: ["1.5L", "2.0L", "2.5L", "3.0L", "3.5L"],
+                      selectedPreset: selectedHydration,
+                      onPresetSelected: (val) =>
+                          setModalState(() => selectedHydration = val as int),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // 3. SLEEP GOAL
+                    _buildGoalSettingItem(
+                      icon: Icons.nightlight_round,
+                      iconColor: const Color(0xFF7E22CE),
+                      bgColor: const Color(0xFFF3E8FF),
+                      title: "Daily Sleep Target",
+                      valueDisplay:
+                          "${selectedSleep.toStringAsFixed(1)} hrs",
+                      onDecrement: () {
+                        if (selectedSleep > 4.0) {
+                          setModalState(() => selectedSleep -= 0.5);
+                        }
+                      },
+                      onIncrement: () {
+                        if (selectedSleep < 14.0) {
+                          setModalState(() => selectedSleep += 0.5);
+                        }
+                      },
+                      presets: [6.0, 7.0, 8.0, 9.0, 10.0],
+                      presetLabels: ["6h", "7h", "8h", "9h", "10h"],
+                      selectedPreset: selectedSleep,
+                      onPresetSelected: (val) =>
+                          setModalState(() => selectedSleep = (val as num).toDouble()),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // SAVE BUTTON
+                    _BouncingButton(
+                      onTap: () async {
+                        HapticFeedback.mediumImpact();
+                        if (currentUser?.uid != null) {
+                          await FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(currentUser!.uid)
+                              .set({
+                            'dailyStepsGoals': {_todayDate: selectedSteps},
+                            'dailyHydrationGoals': {_todayDate: selectedHydration},
+                            'dailySleepGoals': {_todayDate: selectedSleep},
+                            'dailyGoalSetDate': _todayDate,
+                            'stepsGoal': selectedSteps,
+                            'hydrationGoal': selectedHydration,
+                            'sleepGoal': selectedSleep,
+                          }, SetOptions(merge: true));
+                        }
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Row(
+                                children: const [
+                                  Icon(Icons.check_circle, color: Colors.white, size: 20),
+                                  SizedBox(width: 8),
+                                  Text("Today's fitness goals have been set!"),
+                                ],
+                              ),
+                              backgroundColor: const Color(0xFF2E7D32),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        height: 54,
+                        width: double.infinity,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFBB0013),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFBB0013).withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Text(
+                          "Save Today's Goals",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildGoalSettingItem({
+    required IconData icon,
+    required Color iconColor,
+    required Color bgColor,
+    required String title,
+    required String valueDisplay,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+    required List<dynamic> presets,
+    required List<String> presetLabels,
+    required dynamic selectedPreset,
+    required ValueChanged<dynamic> onPresetSelected,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _bgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200, width: 1.2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: iconColor, size: 18),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: _textMain,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  _circleStepperBtn(Icons.remove, onDecrement),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      valueDisplay,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: iconColor,
+                      ),
+                    ),
+                  ),
+                  _circleStepperBtn(Icons.add, onIncrement),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            children: List.generate(presets.length, (i) {
+              final val = presets[i];
+              final label = presetLabels[i];
+              final bool isSelected = selectedPreset == val;
+
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onPresetSelected(val);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: isSelected ? iconColor : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? iconColor : Colors.grey.shade300,
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.grey.shade700,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _circleStepperBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 15, color: _textMain),
+      ),
+    );
+  }
+
+  Widget _buildDailyGoalsBanner({
+    required Map<String, dynamic> userData,
+    required bool hasSetGoalsToday,
+    required int stepsGoal,
+    required int hydrationGoal,
+    required double sleepGoal,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 6),
+      child: _BouncingButton(
+        onTap: () => _showDailyGoalSetupSheet(userData),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: hasSetGoalsToday ? const Color(0xFFF0FDF4) : const Color(0xFFFFF1F2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: hasSetGoalsToday
+                  ? const Color(0xFFBBF7D0)
+                  : const Color(0xFFFFCCD5),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: hasSetGoalsToday
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFFFE4E6),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  hasSetGoalsToday
+                      ? Icons.verified_rounded
+                      : Icons.flag_circle_rounded,
+                  color: hasSetGoalsToday
+                      ? const Color(0xFF16A34A)
+                      : const Color(0xFFE11D48),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          hasSetGoalsToday
+                              ? "Today's Goals Active"
+                              : "Set Today's Fitness Goals",
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                            color: hasSetGoalsToday
+                                ? const Color(0xFF15803D)
+                                : const Color(0xFFBE123C),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      hasSetGoalsToday
+                          ? "👟 ${stepsGoal > 0 ? NumberFormat('#,###').format(stepsGoal) : '10k'}  •  💧 ${(hydrationGoal / 1000).toStringAsFixed(1)}L  •  💤 ${sleepGoal.toStringAsFixed(1)}h"
+                          : "Tap to customize your daily activity targets for today.",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: hasSetGoalsToday
+                            ? const Color(0xFF166534)
+                            : const Color(0xFF9F1239),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: hasSetGoalsToday
+                      ? Colors.white
+                      : const Color(0xFFE11D48),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: hasSetGoalsToday
+                        ? const Color(0xFFBBF7D0)
+                        : const Color(0xFFE11D48),
+                  ),
+                ),
+                child: Text(
+                  hasSetGoalsToday ? "Edit" : "Set Goals",
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: hasSetGoalsToday
+                        ? const Color(0xFF15803D)
+                        : Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -697,7 +1240,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_cachedUserData == null) {
       return const Scaffold(
         backgroundColor: _bgColor,
@@ -715,192 +1262,201 @@ class _ProgressScreenState extends State<ProgressScreen> {
         (userData['dailyWeight'] as Map?)?[_todayDate]?.toDouble() ??
         (userData['weight']?.toDouble() ?? 70.0);
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: Stack(
-        children: [
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 120),
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
+    // Today's Daily Goals
+    int todayHydrationGoal =
+        (userData['dailyHydrationGoals'] as Map?)?[_todayDate] ??
+            userData['hydrationGoal'] ??
+            0;
+    int todayStepsGoal =
+        (userData['dailyStepsGoals'] as Map?)?[_todayDate] ??
+            userData['stepsGoal'] ??
+            0;
+    double todaySleepGoal =
+        (userData['dailySleepGoals'] as Map?)?[_todayDate]?.toDouble() ??
+            (userData['sleepGoal'] as num?)?.toDouble() ??
+            0.0;
+
+    String? lastGoalSetDate = userData['dailyGoalSetDate']?.toString();
+    bool hasSetGoalsToday = lastGoalSetDate == _todayDate;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        return Scaffold(
+          backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
+          body: Stack(
+            children: [
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 120),
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildTopAppBar(),
+                      const SizedBox(height: 10),
+
+                      SizedBox(
+                        height: 380,
+                        child: PageView(
+                          controller: _pageController,
+                          onPageChanged: (idx) =>
+                              setState(() => _currentActivityPage = idx),
+                          physics: const BouncingScrollPhysics(),
+                          children: [
+                            RepaintBoundary(child: _buildActivityLevelChart()),
+                            RepaintBoundary(child: _buildHistoricalLog(userData)),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [0, 1]
+                            .map(
+                              (i) => AnimatedContainer(
+                                duration: const Duration(milliseconds: 250),
+                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                width: _currentActivityPage == i ? 16 : 8,
+                                height: 8,
+                                decoration: BoxDecoration(
+                                  color: _currentActivityPage == i
+                                      ? _activeBlue
+                                      : (isDark ? const Color(0xFF333333) : Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Daily Goal Setting Prompt / Status Banner (between Activity Level and Cards)
+                      _buildDailyGoalsBanner(
+                        userData: userData,
+                        hasSetGoalsToday: hasSetGoalsToday,
+                        stepsGoal: todayStepsGoal,
+                        hydrationGoal: todayHydrationGoal,
+                        sleepGoal: todaySleepGoal,
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: RepaintBoundary(
+                                child: _buildHydrationCard(
+                                  currentHydration,
+                                  todayHydrationGoal,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: RepaintBoundary(
+                                child: _WeightCard(
+                                  initialWeight: currentWeight,
+                                  onWeightChanged: _updateWeight,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: RepaintBoundary(
+                                child: _SleepCard(
+                                  initialMinutes: (currentSleep * 60).round(),
+                                  goalHours: todaySleepGoal,
+                                  onSleepChanged: (mins) => _updateSleep(
+                                    (currentSleep * 60).round(),
+                                    mins,
+                                    todaySleepGoal,
+                                  ),
+                                  onSetupGoal: () => _showSleepGoalDialog(
+                                    (currentSleep * 60).round(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: RepaintBoundary(
+                                child: _StepsCard(
+                                  initialSteps: currentSteps,
+                                  goalSteps: todayStepsGoal,
+                                  onStepsChanged: (steps) => _updateSteps(
+                                    currentSteps,
+                                    steps,
+                                    todayStepsGoal,
+                                  ),
+                                  onSetupGoal: () =>
+                                      _showStepsGoalDialog(currentSteps),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTopAppBar(),
-                  const SizedBox(height: 10),
-
-                  SizedBox(
-                    height: 380,
-                    child: PageView(
-                      controller: _pageController,
-                      onPageChanged: (idx) =>
-                          setState(() => _currentActivityPage = idx),
-                      physics: const BouncingScrollPhysics(),
-                      children: [
-                        RepaintBoundary(child: _buildActivityLevelChart()),
-                        RepaintBoundary(child: _buildHistoricalLog(userData)),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [0, 1]
-                        .map(
-                          (i) => AnimatedContainer(
-                            duration: const Duration(milliseconds: 250),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: _currentActivityPage == i ? 16 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: _currentActivityPage == i
-                                  ? _activeBlue
-                                  : Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 24),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: RepaintBoundary(
-                            child: _buildHydrationCard(
-                              currentHydration,
-                              userData['hydrationGoal'] ?? 0,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: RepaintBoundary(
-                            child: _WeightCard(
-                              initialWeight: currentWeight,
-                              onWeightChanged: _updateWeight,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: RepaintBoundary(
-                            child: _SleepCard(
-                              initialMinutes: (currentSleep * 60).round(),
-                              goalHours:
-                                  (userData['sleepGoal'] as num?)?.toDouble() ??
-                                  0.0,
-                              onSleepChanged: (mins) => _updateSleep(
-                                (currentSleep * 60).round(),
-                                mins,
-                                (userData['sleepGoal'] as num?)?.toDouble() ??
-                                    0.0,
-                              ),
-                              onSetupGoal: () => _showSleepGoalDialog(
-                                (currentSleep * 60).round(),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: RepaintBoundary(
-                            child: _StepsCard(
-                              initialSteps: currentSteps,
-                              goalSteps: userData['stepsGoal'] ?? 0,
-                              onStepsChanged: (steps) => _updateSteps(
-                                currentSteps,
-                                steps,
-                                userData['stepsGoal'] ?? 0,
-                              ),
-                              onSetupGoal: () =>
-                                  _showStepsGoalDialog(currentSteps),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
+              if (widget.showBottomNav) _buildBottomNavBar(),
+            ],
           ),
-          _buildBottomNavBar(),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildTopAppBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Expanded(
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios_new,
-                    color: _textMain,
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    if (Navigator.canPop(context)) {
-                      Navigator.pop(context);
-                    } else {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const HomeDashboardScreen(),
-                        ),
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'progress_title'.tr(),
-                    style: const TextStyle(
-                      color: _textMain,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
+            child: Text(
+              'progress_title'.tr(),
+              style: TextStyle(
+                color: AppThemeController.isDark
+                    ? const Color(0xFFF5F5F5)
+                    : _textMain,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Container(
-            margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: AppThemeController.isDark
+                  ? const Color(0xFF262626)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: AppThemeController.isDark
+                    ? const Color(0xFFF5F5F5)
+                    : _textMain,
                 size: 24,
               ),
               onPressed: () {
@@ -942,12 +1498,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppThemeController.isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.grey.shade300, width: 1.5),
+        border: Border.all(
+          color: AppThemeController.isDark
+              ? const Color(0xFF262626)
+              : Colors.grey.shade300,
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(
+              alpha: AppThemeController.isDark ? 0.25 : 0.03,
+            ),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -959,7 +1524,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: AppThemeController.isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(25),
             ),
             child: Row(
@@ -974,7 +1541,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.transparent,
+                        color: isSelected
+                            ? (AppThemeController.isDark
+                                ? const Color(0xFF2A2A2A)
+                                : Colors.white)
+                            : Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: isSelected
                             ? [
@@ -989,7 +1560,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       child: Text(
                         _getLocalizedTimeframe(tf),
                         style: TextStyle(
-                          color: isSelected ? _textMain : Colors.grey.shade600,
+                          color: isSelected
+                              ? (AppThemeController.isDark
+                                  ? const Color(0xFFF5F5F5)
+                                  : _textMain)
+                              : Colors.grey.shade600,
                           fontWeight: isSelected
                               ? FontWeight.bold
                               : FontWeight.w600,
@@ -1009,10 +1584,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
               Expanded(
                 child: Text(
                   'activity_level'.tr(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: _textMain,
+                    color: AppThemeController.isDark
+                        ? const Color(0xFFF5F5F5)
+                        : _textMain,
                   ),
                 ),
               ),
@@ -1107,12 +1684,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.only(top: 20, left: 20, right: 20, bottom: 0),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppThemeController.isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.grey.shade300, width: 1.5),
+        border: Border.all(
+          color: AppThemeController.isDark
+              ? const Color(0xFF262626)
+              : Colors.grey.shade300,
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(
+              alpha: AppThemeController.isDark ? 0.25 : 0.03,
+            ),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -1278,15 +1864,21 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return Container(
       height: 210,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppThemeController.isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: waterColor.withValues(alpha: 0.3),
+          color: AppThemeController.isDark
+              ? const Color(0xFF262626)
+              : waterColor.withValues(alpha: 0.3),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(
+              alpha: AppThemeController.isDark ? 0.25 : 0.03,
+            ),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -1319,7 +1911,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           child: AnimatedDefaultTextStyle(
                             duration: const Duration(milliseconds: 300),
                             style: TextStyle(
-                              color: isWaterHigh ? Colors.white : _textMain,
+                              color: isWaterHigh
+                                  ? Colors.white
+                                  : (AppThemeController.isDark
+                                      ? const Color(0xFFF5F5F5)
+                                      : _textMain),
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1343,7 +1939,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             AnimatedDefaultTextStyle(
                               duration: const Duration(milliseconds: 300),
                               style: TextStyle(
-                                color: isWaterHigh ? Colors.white : _textMain,
+                                color: isWaterHigh
+                                    ? Colors.white
+                                    : (AppThemeController.isDark
+                                        ? const Color(0xFFF5F5F5)
+                                        : _textMain),
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1355,6 +1955,37 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         ),
                       ],
                     ),
+                    if (goal <= 0)
+                      Center(
+                        child: GestureDetector(
+                          onTap: () => _showHydrationGoalDialog(currentWater),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              'btn_set_goal'.tr(),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: waterColor,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     Align(
                       alignment: Alignment.bottomCenter,
                       child: GestureDetector(
@@ -1400,11 +2031,18 @@ class _ProgressScreenState extends State<ProgressScreen> {
         margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 0, 33, 95),
+          color: AppThemeController.isDark
+              ? const Color(0xFF121212)
+              : const Color.fromARGB(255, 0, 33, 95),
           borderRadius: BorderRadius.circular(40),
+          border: AppThemeController.isDark
+              ? Border.all(color: const Color(0xFF262626), width: 1.2)
+              : null,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
+              color: Colors.black.withValues(
+                alpha: AppThemeController.isDark ? 0.35 : 0.15,
+              ),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -1572,15 +2210,21 @@ class _WeightCardState extends State<_WeightCard> {
     return Container(
       height: 210,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppThemeController.isDark
+            ? const Color(0xFF121212)
+            : Colors.white,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
-          color: Colors.orange.shade200.withValues(alpha: 0.5),
+          color: AppThemeController.isDark
+              ? const Color(0xFF262626)
+              : Colors.orange.shade200.withValues(alpha: 0.5),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
+            color: Colors.black.withValues(
+              alpha: AppThemeController.isDark ? 0.25 : 0.03,
+            ),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -1601,8 +2245,10 @@ class _WeightCardState extends State<_WeightCard> {
                     Expanded(
                       child: Text(
                         'weight_title'.tr(),
-                        style: const TextStyle(
-                          color: Color(0xFF1A1A1A),
+                        style: TextStyle(
+                          color: AppThemeController.isDark
+                              ? const Color(0xFFF5F5F5)
+                              : const Color(0xFF1A1A1A),
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.5,
@@ -1632,8 +2278,10 @@ class _WeightCardState extends State<_WeightCard> {
                               builder: (context, weight, child) {
                                 return Text(
                                   weight.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                    color: Color(0xFF1A1A1A),
+                                  style: TextStyle(
+                                    color: AppThemeController.isDark
+                                        ? const Color(0xFFF5F5F5)
+                                        : const Color(0xFF1A1A1A),
                                     fontSize: 18,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -1821,15 +2469,21 @@ class _SleepCardState extends State<_SleepCard> {
       child: Container(
         height: 210,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppThemeController.isDark
+              ? const Color(0xFF121212)
+              : Colors.white,
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
-            color: _sleepPurple.withValues(alpha: 0.3),
+            color: AppThemeController.isDark
+                ? const Color(0xFF262626)
+                : _sleepPurple.withValues(alpha: 0.3),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withValues(
+                alpha: AppThemeController.isDark ? 0.25 : 0.03,
+              ),
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
@@ -1846,8 +2500,10 @@ class _SleepCardState extends State<_SleepCard> {
                   Expanded(
                     child: Text(
                       'sleep_title'.tr(),
-                      style: const TextStyle(
-                        color: Color(0xFF1A1A1A),
+                      style: TextStyle(
+                        color: AppThemeController.isDark
+                            ? const Color(0xFFF5F5F5)
+                            : const Color(0xFF1A1A1A),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
@@ -1870,8 +2526,10 @@ class _SleepCardState extends State<_SleepCard> {
                       ),
                       Text(
                         '${h}h ${m}m',
-                        style: const TextStyle(
-                          color: Color(0xFF1A1A1A),
+                        style: TextStyle(
+                          color: AppThemeController.isDark
+                              ? const Color(0xFFF5F5F5)
+                              : const Color(0xFF1A1A1A),
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
@@ -2152,15 +2810,21 @@ class _StepsCardState extends State<_StepsCard> {
       child: Container(
         height: 210,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppThemeController.isDark
+              ? const Color(0xFF121212)
+              : Colors.white,
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
-            color: _stepsColor.withValues(alpha: 0.5),
+            color: AppThemeController.isDark
+                ? const Color(0xFF262626)
+                : _stepsColor.withValues(alpha: 0.5),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withValues(
+                alpha: AppThemeController.isDark ? 0.25 : 0.03,
+              ),
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
@@ -2177,8 +2841,10 @@ class _StepsCardState extends State<_StepsCard> {
                   Expanded(
                     child: Text(
                       'steps_title'.tr(),
-                      style: const TextStyle(
-                        color: Color(0xFF1A1A1A),
+                      style: TextStyle(
+                        color: AppThemeController.isDark
+                            ? const Color(0xFFF5F5F5)
+                            : const Color(0xFF1A1A1A),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
@@ -2201,8 +2867,10 @@ class _StepsCardState extends State<_StepsCard> {
                       ),
                       Text(
                         '$_currentSteps',
-                        style: const TextStyle(
-                          color: Color(0xFF1A1A1A),
+                        style: TextStyle(
+                          color: AppThemeController.isDark
+                              ? const Color(0xFFF5F5F5)
+                              : const Color(0xFF1A1A1A),
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                         ),
@@ -2284,8 +2952,10 @@ class _StepsCardState extends State<_StepsCard> {
                                                 ? FontWeight.w900
                                                 : FontWeight.w600,
                                             color: isSelected
-                                                ? const Color(0xFF1A1A1A)
-                                                : Colors.grey.shade400,
+                                                ? (AppThemeController.isDark
+                                                    ? const Color(0xFFF5F5F5)
+                                                    : const Color(0xFF1A1A1A))
+                                                : Colors.grey.shade500,
                                           ),
                                         ),
                                         if (isSelected)
@@ -2333,50 +3003,86 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return Flexible(
-      flex: isSelected ? 3 : 1,
-      fit: FlexFit.loose,
+    return Expanded(
+      flex: isSelected ? 4 : 2,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
-          padding: isSelected
-              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-              : const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? Colors.white
-                : Colors.white.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.black : Colors.white,
-                size: 20,
-              ),
-              if (isSelected) ...[
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        child: Container(
+          color: Colors.transparent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BouncingButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  const _BouncingButton({required this.child, required this.onTap});
+  @override
+  State<_BouncingButton> createState() => _BouncingButtonState();
+}
+
+class _BouncingButtonState extends State<_BouncingButton> {
+  bool _isPressed = false;
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = true),
+      onTapUp: widget.onTap == null
+          ? null
+          : (_) => setState(() => _isPressed = false),
+      onTapCancel: widget.onTap == null
+          ? null
+          : () => setState(() => _isPressed = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.94 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }

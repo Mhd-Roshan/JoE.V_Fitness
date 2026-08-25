@@ -43,6 +43,7 @@ class _OtpScreenState extends State<OtpScreen>
   bool _isVerifying = false; // Prevents multiple API requests
   bool _codeSent = false;
   String _verificationId = "";
+  int? _resendToken;
 
   // Animations
   late final AnimationController _animController;
@@ -105,6 +106,7 @@ class _OtpScreenState extends State<OtpScreen>
   Future<void> _sendOtp() async {
     await FirebaseAuth.instance.verifyPhoneNumber(
       phoneNumber: widget.phone,
+      forceResendingToken: _resendToken,
       verificationCompleted: (PhoneAuthCredential credential) async {
         // Automatically signs in if Android resolves it instantly
         await _signIn(credential);
@@ -119,6 +121,7 @@ class _OtpScreenState extends State<OtpScreen>
         if (!mounted) return;
         setState(() {
           _verificationId = verificationId;
+          _resendToken = resendToken;
           _codeSent = true;
         });
       },

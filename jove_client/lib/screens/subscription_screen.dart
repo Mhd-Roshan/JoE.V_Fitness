@@ -12,6 +12,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'notification_screen.dart';
+import 'auth/package_select_screen.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -715,6 +716,39 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               const SizedBox(height: 24),
 
                               RepaintBoundary(child: _buildCurrentPlanCard()),
+                              const SizedBox(height: 14),
+
+                              // SWITCH / UPGRADE PLAN ACTION
+                              SizedBox(
+                                width: double.infinity,
+                                height: 48,
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    HapticFeedback.mediumImpact();
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const PackageSelectScreen(),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.swap_horiz_rounded, color: _navBgColor, size: 20),
+                                  label: const Text(
+                                    'Change or Upgrade Plan',
+                                    style: TextStyle(
+                                      color: _navBgColor,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    side: BorderSide(color: _navBgColor.withValues(alpha: 0.3), width: 1.5),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    backgroundColor: Colors.white,
+                                  ),
+                                ),
+                              ),
+
                               const SizedBox(height: 28),
 
                               Text(
@@ -1388,46 +1422,50 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool isSelected = selectedIndex == index;
-    return Flexible(
-      flex: isSelected ? 3 : 1,
-      fit: FlexFit.loose,
+    return Expanded(
+      flex: isSelected ? 4 : 2,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          padding: isSelected
-              ? const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0)
-              : const EdgeInsets.all(10.0),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.black : Colors.white70,
-                size: 20,
-              ),
-              if (isSelected) ...[
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+        child: Container(
+          color: Colors.transparent,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
                 ),
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
