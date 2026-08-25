@@ -62,6 +62,9 @@ class _SupportScreenState extends State<SupportScreen> {
         .where('userId', isEqualTo: uid)
         .orderBy('createdAt', descending: true)
         .snapshots();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    });
   }
 
   @override
@@ -607,6 +610,7 @@ class _SupportScreenState extends State<SupportScreen> {
           const SizedBox(height: 8),
           TextField(
             controller: _messageController,
+            autofocus: false,
             maxLines: 4,
             decoration: InputDecoration(
               hintText: 'Describe the issue in details....',

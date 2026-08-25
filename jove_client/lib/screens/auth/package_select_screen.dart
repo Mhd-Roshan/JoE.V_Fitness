@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../order_summary_screen.dart';
-import '../welcome_screen.dart';
+import '../home_dashboard_screen.dart';
 
 const navy = Color(0xFF00225D);
 const cyan = Color(0xFF01BCE3);
@@ -23,6 +23,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
   String? _selectedPackageId;
   bool _autoRenew = true;
   bool _isContinuing = false;
+  bool _canExplore = true;
 
   // Cached stream so it doesn't restart on every setState or Hot Reload
   late final Stream<QuerySnapshot> _packagesStream = _db
@@ -33,6 +34,66 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
   @override
   void initState() {
     super.initState();
+    _checkUserPreviewEligibility();
+  }
+
+  Future<void> _checkUserPreviewEligibility() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        final doc = await _db.collection('users').doc(uid).get();
+        if (doc.exists && mounted) {
+          final data = doc.data() ?? {};
+          final bool hasSeenFirstPreview = data['hasSeenFirstPreview'] == true;
+          final bool hasPaidEntryFee = data['hasPaidEntryFee'] == true;
+          final bool hasSeenSecondPreview = data['hasSeenSecondPreview'] == true;
+
+          setState(() {
+            _canExplore = !hasSeenFirstPreview || (hasPaidEntryFee && !hasSeenSecondPreview);
+          });
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _onExploreAppTap() async {
+    HapticFeedback.mediumImpact();
+    setState(() => _isContinuing = true);
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      try {
+        final doc = await _db.collection('users').doc(uid).get();
+        final data = doc.data() ?? {};
+        final bool hasSeenFirstPreview = data['hasSeenFirstPreview'] == true;
+        final bool hasPaidEntryFee = data['hasPaidEntryFee'] == true;
+
+        Map<String, dynamic> updates = {};
+        if (!hasSeenFirstPreview) {
+          updates['hasSeenFirstPreview'] = true;
+          updates['firstPreviewSeenAt'] = FieldValue.serverTimestamp();
+        } else if (hasPaidEntryFee && data['hasSeenSecondPreview'] != true) {
+          updates['hasSeenSecondPreview'] = true;
+          updates['secondPreviewSeenAt'] = FieldValue.serverTimestamp();
+        }
+
+        if (updates.isNotEmpty) {
+          await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
+        }
+
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeDashboardScreen()),
+        );
+      } catch (e) {
+        if (mounted) {
+          _showModernSnackBar('Error opening preview: $e');
+        }
+      } finally {
+        if (mounted) setState(() => _isContinuing = false);
+      }
+    }
   }
 
   // --- MODERN FLOATING ALERT ---
@@ -158,33 +219,14 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA), // Very light grey
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF8F9FA),
-        elevation: 0,
-        automaticallyImplyLeading: canPop,
-        iconTheme: const IconThemeData(color: navy),
-        title: Text(
-          'Choose Membership',
-          style: GoogleFonts.poppins(color: navy, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Colors.grey, size: 20),
-            tooltip: 'Log Out',
-            onPressed: () async {
-              HapticFeedback.mediumImpact();
-              await FirebaseAuth.instance.signOut();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-                  (route) => false,
-                );
-              }
-            },
-          ),
-        ],
-      ),
+      appBar: canPop
+          ? AppBar(
+              backgroundColor: const Color(0xFFF8F9FA),
+              elevation: 0,
+              automaticallyImplyLeading: true,
+              iconTheme: const IconThemeData(color: navy),
+            )
+          : null,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -559,7 +601,26 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+
+              if (_canExplore) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: _isContinuing ? null : _onExploreAppTap,
+                    icon: const Icon(Icons.explore_outlined, color: navy, size: 18),
+                    label: Text(
+                      'view_app_preview'.tr(),
+                      style: GoogleFonts.poppins(
+                        color: navy,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
             ],
           ),
         ),

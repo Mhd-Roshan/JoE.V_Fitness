@@ -11,6 +11,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'sign_up_screen.dart';
 import 'otp_screen.dart';
 import 'assessment_screen.dart';
+import '../auth_wrapper.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -296,7 +297,9 @@ class _LoginScreenState extends State<LoginScreen>
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      final googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut().catchError((_) => null);
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         setState(() => _isLoading = false);
         return;
@@ -339,7 +342,11 @@ class _LoginScreenState extends State<LoginScreen>
         if (!mounted) return;
 
         if (hasCompletedAssessment) {
-          _showModernSnackBar("google_signin_success".tr(), isError: false);
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const AuthWrapper()),
+            (route) => false,
+          );
         } else {
           Navigator.pushAndRemoveUntil(
             context,

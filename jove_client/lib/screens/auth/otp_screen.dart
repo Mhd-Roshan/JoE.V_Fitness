@@ -104,31 +104,43 @@ class _OtpScreenState extends State<OtpScreen>
   }
 
   Future<void> _sendOtp() async {
-    await FirebaseAuth.instance.verifyPhoneNumber(
-      phoneNumber: widget.phone,
-      forceResendingToken: _resendToken,
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        // Automatically signs in if Android resolves it instantly
-        await _signIn(credential);
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        if (!mounted) return;
-        _showModernSnackBar(
-          e.message ?? "Verification failed. Please try again.",
-        );
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        if (!mounted) return;
-        setState(() {
+    debugPrint("📱 [OTP] Initiating phone verification for: ${widget.phone}");
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: widget.phone,
+        forceResendingToken: _resendToken,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          debugPrint("📱 [OTP] Auto-verification completed by Android");
+          await _signIn(credential);
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          debugPrint("❌ [OTP] Verification failed: [${e.code}] ${e.message}");
+          if (!mounted) return;
+          _showModernSnackBar(
+            e.message != null
+                ? "${e.message} (${e.code})"
+                : "Verification failed (${e.code})",
+          );
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          debugPrint("✅ [OTP] SMS code dispatched. Verification ID: $verificationId");
+          if (!mounted) return;
+          setState(() {
+            _verificationId = verificationId;
+            _resendToken = resendToken;
+            _codeSent = true;
+          });
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          debugPrint("⏰ [OTP] Auto-retrieval timeout. Verification ID: $verificationId");
           _verificationId = verificationId;
-          _resendToken = resendToken;
-          _codeSent = true;
-        });
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        _verificationId = verificationId;
-      },
-    );
+        },
+      );
+    } catch (e) {
+      debugPrint("❌ [OTP] Unexpected exception in verifyPhoneNumber: $e");
+      if (!mounted) return;
+      _showModernSnackBar("Error sending OTP: $e");
+    }
   }
 
   Future<void> _verifyOtp() async {

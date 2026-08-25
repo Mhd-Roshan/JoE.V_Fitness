@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,10 +8,8 @@ import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../services/razorpay_service.dart';
-import '../theme/app_theme_controller.dart';
 import 'welcome_screen.dart';
 import 'home_dashboard_screen.dart';
-import 'trainer_selection_screen.dart';
 
 class EntryPassPaywallScreen extends StatefulWidget {
   const EntryPassPaywallScreen({super.key});
@@ -21,8 +20,6 @@ class EntryPassPaywallScreen extends StatefulWidget {
 
 class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
   static const Color _primaryRed = Color(0xFFBB0013);
-  static const Color _navy = Color(0xFF00225D);
-  static const Color _cyan = Color(0xFF01BCE3);
 
   final User? _currentUser = FirebaseAuth.instance.currentUser;
   bool _isProcessingPayment = false;
@@ -273,36 +270,15 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  onPressed: () async {
+                  onPressed: () {
                     Navigator.pop(context);
-                    // Check if trainer assigned
-                    final uid = _currentUser?.uid;
-                    if (uid != null) {
-                      final snap = await FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(uid)
-                          .get();
-                      final trainerId = snap.data()?['assignedTrainerId'];
-                      if (context.mounted) {
-                        if (trainerId == null || trainerId.toString().isEmpty) {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const SelectTrainerScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        } else {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const HomeDashboardScreen(),
-                            ),
-                            (route) => false,
-                          );
-                        }
-                      }
-                    }
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const HomeDashboardScreen(),
+                      ),
+                      (route) => false,
+                    );
                   },
                   child: const Text(
                     'Enter JoE.V Fitness',
@@ -336,281 +312,651 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppThemeController.isDarkMode,
-      builder: (context, isDark, _) {
-        return Scaffold(
-          backgroundColor: isDark ? const Color(0xFF000000) : const Color(0xFFF7F8FA),
-          body: SafeArea(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // TOP LOGOUT / SWITCH USER BAR
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: TextButton.icon(
-                      onPressed: _logout,
-                      icon: const Icon(Icons.logout_rounded, size: 16, color: Colors.grey),
-                      label: const Text(
-                        'Log Out',
-                        style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
+    final size = MediaQuery.of(context).size;
 
-                  const SizedBox(height: 8),
+    return Scaffold(
+      body: Stack(
+        children: [
+          // 1. ETHEREAL PASTEL MESH BACKGROUND
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFFFAFBFC),
+                gradient: RadialGradient(
+                  center: Alignment(0.0, -0.2),
+                  radius: 1.1,
+                  colors: [
+                    Color(0xFFFFF7ED), // Warm amber glow in center
+                    Color(0xFFEFF6FF), // Soft sky-blue wash
+                    Color(0xFFFAF5FF), // Soft pastel lavender
+                    Color(0xFFFFFFFF), // Pure bottom white
+                  ],
+                  stops: [0.0, 0.4, 0.7, 1.0],
+                ),
+              ),
+            ),
+          ),
 
-                  // BRAND BADGE
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _primaryRed.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: _primaryRed.withValues(alpha: 0.3), width: 1.2),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.lock_outline_rounded, color: _primaryRed, size: 16),
-                        SizedBox(width: 6),
-                        Text(
-                          'PREMIUM APP ACCESS PASS',
-                          style: TextStyle(
-                            color: _primaryRed,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
+          // Top Soft Aurora Blobs
+          Positioned(
+            top: -60,
+            left: -40,
+            child: Container(
+              width: 240,
+              height: 240,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFBAE6FD).withValues(alpha: 0.45),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 20,
+            right: -60,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFFFECDD3).withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+
+          // 2. MAIN CONTENT
+          SafeArea(
+            child: Column(
+              children: [
+                // Top Bar with Minimal Logout
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Brand Tag with JoE.V Logo styling
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'JoE',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              color: Color(0xFF0F172A),
+                              fontSize: 18,
+                              fontStyle: FontStyle.italic,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                              height: 1.0,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // TITLE & HEADLINE
-                  Text(
-                    'Welcome Back to JoE.V',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: isDark ? Colors.white : _navy,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Unlock app exploration pass to track daily fitness, sync smart devices & explore elite trainers.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                      height: 1.4,
-                    ),
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // ₹99 OFFER HERO CARD
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF00225D),
-                          Color(0xFF0F172A),
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 3.0,
+                              right: 4.0,
+                              bottom: 1.5,
+                            ),
+                            child: SvgPicture.asset(
+                              'assets/images/kettlebell-icon.svg',
+                              height: 10,
+                              colorFilter: const ColorFilter.mode(
+                                _primaryRed,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ),
+                          const Text(
+                            'V FITNESS',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              color: Color(0xFF0F172A),
+                              fontSize: 18,
+                              fontStyle: FontStyle.italic,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                              height: 1.0,
+                            ),
+                          ),
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _navy.withValues(alpha: 0.35),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
+
+                      // Logout button
+                      TextButton.icon(
+                        onPressed: _logout,
+                        icon: const Icon(
+                          Icons.logout_rounded,
+                          size: 15,
+                          color: _primaryRed,
                         ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: _cyan,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Text(
-                                'EXPLORATION PASS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.6,
-                                ),
-                              ),
-                            ),
-                            const Text(
-                              'Instant Access',
-                              style: TextStyle(
-                                color: Color(0xFF4ADE80),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              '₹99',
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 44,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'Only',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Full access to view all modules, workouts & health tracking',
+                        label: const Text(
+                          'Log Out',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.8),
+                            color: _primaryRed,
                             fontSize: 13,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Divider(color: Colors.white.withValues(alpha: 0.15)),
-                        const SizedBox(height: 14),
-
-                        _featureBullet('Complete app exploration & workout previews'),
-                        _featureBullet('Smart Watch & Band Real-Time Activity Sync'),
-                        _featureBullet('Personalized Health, Steps & Sleep Rings'),
-                        _featureBullet('Explore Certified Elite Personal Trainers'),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // RAZORPAY TRUST
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.verified_user_rounded, color: Color(0xFF2E7D32), size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Secured by Razorpay • UPI / Cards / NetBanking',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          backgroundColor: _primaryRed.withValues(alpha: 0.08),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(color: _primaryRed.withValues(alpha: 0.2)),
+                          ),
                         ),
                       ),
                     ],
                   ),
+                ),
 
-                  const SizedBox(height: 20),
-
-                  // PAY ₹99 BUTTON
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primaryRed,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        elevation: 6,
-                        shadowColor: _primaryRed.withValues(alpha: 0.4),
+                // Orbital Graphic Section (Flexible center)
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: size.height * 0.44,
+                        maxWidth: size.width * 0.92,
                       ),
-                      onPressed: _isProcessingPayment ? null : _startRazorpayPayment,
-                      child: _isProcessingPayment
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.flash_on_rounded, color: Colors.white, size: 22),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Pay ₹99 & Continue to App',
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // Concentric Orbital Rings
+                          CustomPaint(
+                            size: const Size(340, 340),
+                            painter: _OrbitalRingsPainter(),
+                          ),
+
+                          // Glowing Center Star
+                          Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                                  blurRadius: 24,
+                                  spreadRadius: 4,
                                 ),
                               ],
                             ),
+                            child: Center(
+                              child: ShaderMask(
+                                shaderCallback: (bounds) => const LinearGradient(
+                                  colors: [Color(0xFFF59E0B), Color(0xFFFB7185), Color(0xFF818CF8)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ).createShader(bounds),
+                                child: const Icon(
+                                  Icons.auto_awesome,
+                                  size: 34,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Floating Badges on Orbit
+                          // 1. Calendar / Workouts (Top Left)
+                          _buildFloatingItem(
+                            top: 40,
+                            left: 50,
+                            widget: _buildBadge(
+                              icon: Icons.calendar_today_rounded,
+                              bgColor: const Color(0xFF6366F1),
+                              label: '21',
+                            ),
+                          ),
+
+                          // 2. Map Pin / Gyms (Top Right)
+                          _buildFloatingItem(
+                            top: 30,
+                            right: 90,
+                            widget: _buildPinBadge(),
+                          ),
+
+                          // 3. User Avatar (Far Right)
+                          _buildFloatingItem(
+                            top: 85,
+                            right: 20,
+                            widget: _buildAvatarBadge(
+                              bgColor: const Color(0xFFFDE047),
+                              emoji: '😎',
+                            ),
+                          ),
+
+                          // 4. Trainer / Coach (Middle Right)
+                          _buildFloatingItem(
+                            bottom: 95,
+                            right: 40,
+                            widget: _buildAvatarBadge(
+                              bgColor: const Color(0xFFF472B6),
+                              emoji: '🏋️',
+                            ),
+                          ),
+
+                          // 5. Activity Globe / Tracking (Bottom Center)
+                          _buildFloatingItem(
+                            bottom: 30,
+                            left: 110,
+                            widget: _buildGlobeBadge(),
+                          ),
+
+                          // 6. Member Avatar (Middle Left)
+                          _buildFloatingItem(
+                            bottom: 110,
+                            left: 28,
+                            widget: _buildAvatarBadge(
+                              bgColor: const Color(0xFFFDBA74),
+                              emoji: '⚡',
+                            ),
+                          ),
+
+                          // 7. Watch / Health (Top Far Left)
+                          _buildFloatingItem(
+                            top: 95,
+                            left: 15,
+                            widget: _buildIconPill(
+                              icon: Icons.watch_rounded,
+                              color: const Color(0xFF0284C7),
+                            ),
+                          ),
+
+                          // 8. Trophy / Target (Near Center Top)
+                          _buildFloatingItem(
+                            top: 75,
+                            right: 125,
+                            widget: _buildAvatarBadge(
+                              bgColor: const Color(0xFF86EFAC),
+                              emoji: '🎯',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
+                // Bottom Content Sheet
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // JoE.V FITNESS Logo Row (Like Welcome Screen)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'JoE',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              color: Color(0xFF0F172A),
+                              fontSize: 26,
+                              fontStyle: FontStyle.italic,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                              height: 1.0,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 4.0,
+                              right: 5.0,
+                              bottom: 2.0,
+                            ),
+                            child: SvgPicture.asset(
+                              'assets/images/kettlebell-icon.svg',
+                              height: 14,
+                              colorFilter: const ColorFilter.mode(
+                                _primaryRed,
+                                BlendMode.srcIn,
+                              ),
+                            ),
+                          ),
+                          const Text(
+                            'V FITNESS',
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
+                              color: Color(0xFF0F172A),
+                              fontSize: 26,
+                              fontStyle: FontStyle.italic,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                              height: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
 
-  Widget _featureBullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(3),
-            decoration: const BoxDecoration(
-              color: Color(0xFF01BCE3),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.check, color: Colors.white, size: 11),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12.8,
-                fontWeight: FontWeight.w500,
-              ),
+                      const SizedBox(height: 2),
+
+                      // Gradient Sub-headline
+                      ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [
+                            Color(0xFF2563EB),
+                            Color(0xFFD946EF),
+                            Color(0xFFF97316),
+                          ],
+                        ).createShader(bounds),
+                        child: Text(
+                          'Starts Here',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.6,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Description
+                      Text(
+                        'Unlock exploration pass to preview workouts, browse elite trainers, sync smart devices & track daily health.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13.0,
+                          color: const Color(0xFF64748B),
+                          height: 1.4,
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Alert Banner Above Button: Preview App Only
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB), // Soft warm amber
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFDE68A), width: 1.2),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFF59E0B),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.visibility_outlined,
+                                color: Colors.white,
+                                size: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: RichText(
+                                text: const TextSpan(
+                                  style: TextStyle(
+                                    color: Color(0xFF92400E),
+                                    fontSize: 12.0,
+                                    height: 1.35,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: 'Preview Mode Only: ',
+                                      style: TextStyle(fontWeight: FontWeight.w800),
+                                    ),
+                                    TextSpan(
+                                      text: 'This pass grants view-only app exploration. Session booking requires a membership package.',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // Minimal Modern CTA Button in RED Color
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryRed, // Brand RED color
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                            elevation: 4,
+                            shadowColor: _primaryRed.withValues(alpha: 0.35),
+                          ),
+                          onPressed: _isProcessingPayment ? null : _startRazorpayPayment,
+                          child: _isProcessingPayment
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.flash_on_rounded, color: Colors.white, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Get Started • ₹99',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Trust Footer
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.lock_rounded,
+                            size: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'One-time payment • Secured by Razorpay',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  // --- FLOATING ELEMENT HELPERS ---
+  Widget _buildFloatingItem({
+    double? top,
+    double? bottom,
+    double? left,
+    double? right,
+    required Widget widget,
+  }) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: widget,
+      ),
+    );
+  }
+
+  Widget _buildBadge({
+    required IconData icon,
+    required Color bgColor,
+    required String label,
+  }) {
+    return Container(
+      width: 44,
+      height: 48,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 24,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAvatarBadge({required Color bgColor, required String emoji}) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: bgColor,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      child: Center(
+        child: Text(
+          emoji,
+          style: const TextStyle(fontSize: 18),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPinBadge() {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Color(0xFFE879F9), Color(0xFFC084FC)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.location_on_rounded, color: Colors.white, size: 22),
+      ),
+    );
+  }
+
+  Widget _buildGlobeBadge() {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: [Color(0xFFC084FC), Color(0xFFA855F7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.public_rounded, color: Colors.white, size: 22),
+      ),
+    );
+  }
+
+  Widget _buildIconPill({required IconData icon, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Icon(icon, color: Colors.white, size: 18),
+    );
+  }
+}
+
+// Custom Painter for Orbital Concentric Circles
+class _OrbitalRingsPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()
+      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    // Outer Orbit
+    canvas.drawCircle(center, 140, paint);
+
+    // Middle Orbit
+    final dashedPaint = Paint()
+      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.45)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawCircle(center, 95, dashedPaint);
+
+    // Inner Orbit
+    final innerPaint = Paint()
+      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(center, 54, innerPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -15,6 +15,7 @@ import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
+import '../widgets/package_required_modal.dart';
 
 class PersonalDetailsScreen extends StatefulWidget {
   const PersonalDetailsScreen({super.key});
@@ -45,6 +46,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   bool _isUploadingImage = false;
   bool _isInitialDataLoaded = false;
   bool _isNavigating = false;
+  bool _hasActiveSubscription = false;
 
   @override
   void initState() {
@@ -55,6 +57,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         .doc(uid)
         .snapshots();
     _mobileController.text = currentUser?.phoneNumber ?? '+91 ';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    });
   }
 
   @override
@@ -69,6 +74,10 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   void _populateData(Map<String, dynamic> data) {
+    _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+        (data['subscription'] is Map &&
+            data['subscription']['status'] == 'Active');
+
     if (!_isInitialDataLoaded) {
       _nameController.text = data['fullName'] ?? data['name'] ?? '';
       _ageController.text = data['age']?.toString() ?? '';
@@ -84,6 +93,10 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
   // --- 1. IMAGE UPLOAD LOGIC ---
   Future<void> _pickAndUploadImage() async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Profile Photo Upload');
+      return;
+    }
     HapticFeedback.lightImpact();
     final ImagePicker picker = ImagePicker();
 
@@ -259,6 +272,10 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
   // --- SAVE ALL CHANGES ---
   Future<void> _saveChanges() async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Profile Edits');
+      return;
+    }
     FocusScope.of(context).unfocus();
     HapticFeedback.mediumImpact();
     setState(() => _isLoading = true);
@@ -783,6 +800,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
             controller: controller,
+            autofocus: false,
             keyboardType: isNumber
                 ? const TextInputType.numberWithOptions(decimal: true)
                 : TextInputType.text,

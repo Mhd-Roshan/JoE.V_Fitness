@@ -65,17 +65,32 @@ class AuthWrapper extends StatelessWidget {
               return const AssessmentScreen();
             }
 
-            // 2. Subscription & Payment States
-            final bool hasActiveSubscription =
-                userData['hasActiveSubscription'] == true ||
+            // 2. Subscription & Expiry Check
+            Timestamp? nextBillingDate = userData['subscription'] is Map
+                ? userData['subscription']['nextBillingDate'] as Timestamp?
+                : userData['packageEndDate'] as Timestamp?;
+            bool isPackageExpired = false;
+            if (nextBillingDate != null) {
+              isPackageExpired = DateTime.now().isAfter(nextBillingDate.toDate());
+            }
+
+            final bool hasActiveSubscription = !isPackageExpired &&
+                (userData['hasActiveSubscription'] == true ||
                 (userData['subscription'] is Map &&
-                    userData['subscription']['status'] == 'Active');
+                    userData['subscription']['status'] == 'Active'));
             final bool hasSeenFirstPreview =
                 userData['hasSeenFirstPreview'] == true;
             final bool hasPaidEntryFee =
                 userData['hasPaidEntryFee'] == true;
+            final bool hasSeenSecondPreview =
+                userData['hasSeenSecondPreview'] == true;
 
-            // STAGE A: Full Package Member (Full unlimited access)
+            // If a previous paid package has expired, direct client immediately to PackageSelectScreen
+            if (isPackageExpired) {
+              return const PackageSelectScreen();
+            }
+
+            // STAGE A: Full Package Member (Full unlimited active access)
             if (hasActiveSubscription) {
               if (assignedTrainerId == null || assignedTrainerId.isEmpty) {
                 return const SelectTrainerScreen();
@@ -83,20 +98,23 @@ class AuthWrapper extends StatelessWidget {
               return const HomeDashboardScreen();
             }
 
-            // STAGE B: First-time Logged in User (Gets to see the entire app on their 1st session)
+            // STAGE B: User hasn't previewed the app yet -> Show Package Selection with "Explore App" option
             if (!hasSeenFirstPreview) {
-              if (assignedTrainerId == null || assignedTrainerId.isEmpty) {
-                return const SelectTrainerScreen();
-              }
-              return const HomeDashboardScreen();
+              return const PackageSelectScreen();
             }
 
-            // STAGE C: Returning user who hasn't paid ₹99 Entry Pass yet
+            // STAGE C: User previewed once, but hasn't paid ₹99 Entry Pass yet -> Show ₹99 Paywall
             if (!hasPaidEntryFee) {
               return const EntryPassPaywallScreen();
             }
 
-            // STAGE D: User paid ₹99, now on next reopen MUST select & pay for a membership package
+            // STAGE D: User paid ₹99 and is currently in their 2nd preview session -> Go straight to Home
+            if (!hasSeenSecondPreview) {
+              return const HomeDashboardScreen();
+            }
+
+            // STAGE E: User used both previews (1st free preview + ₹99 paid preview).
+            // On every subsequent restart, they MUST select & pay for a membership package!
             return const PackageSelectScreen();
           },
         );

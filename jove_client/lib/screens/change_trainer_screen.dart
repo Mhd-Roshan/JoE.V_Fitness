@@ -11,6 +11,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'notification_screen.dart'; // ADDED IMPORT
+import '../widgets/package_required_modal.dart';
 
 class ChangeTrainerScreen extends StatefulWidget {
   const ChangeTrainerScreen({super.key});
@@ -35,6 +36,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
 
   bool _isLoading = true;
   bool _isNavigating = false;
+  bool _hasActiveSubscription = false;
 
   Map<String, dynamic>? _userData;
   Map<String, dynamic>? _currentTrainerData;
@@ -87,6 +89,10 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
           .get(const GetOptions(source: Source.serverAndCache));
       _userData = userDoc.data() as Map<String, dynamic>? ?? {};
 
+      _hasActiveSubscription = _userData?['hasActiveSubscription'] == true ||
+          (_userData?['subscription'] is Map &&
+              _userData?['subscription']?['status'] == 'Active');
+
       Timestamp? endDate =
           _userData?['packageEndDate'] ??
           _userData?['subscription']?['nextBillingDate'];
@@ -125,6 +131,10 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
     String newTrainerId,
     String newTrainerName,
   ) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Trainer Change');
+      return;
+    }
     HapticFeedback.mediumImpact();
 
     showDialog(

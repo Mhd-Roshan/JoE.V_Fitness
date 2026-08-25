@@ -11,6 +11,7 @@ import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
+import '../widgets/package_required_modal.dart';
 
 class MyGoalsScreen extends StatefulWidget {
   const MyGoalsScreen({super.key});
@@ -41,6 +42,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   List<String> _selectedGoals = [];
   bool _isLoadingUserData = true;
   bool _isNavigating = false;
+  bool _hasActiveSubscription = false;
 
   @override
   void initState() {
@@ -75,6 +77,10 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       if (doc.exists && doc.data() != null) {
         var data = doc.data() as Map<String, dynamic>;
 
+        _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+            (data['subscription'] is Map &&
+                data['subscription']['status'] == 'Active');
+
         // Safely check multiple possible keys used during assessment
         var rawGoals =
             data['fitnessGoals'] ??
@@ -98,12 +104,18 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
 
   // --- ROBUST SELECTION CHECK ---
   bool _isGoalSelected(String goal) {
-    String normalizedTarget = goal.trim().toLowerCase();
-    return _selectedGoals.any((g) => g.toLowerCase() == normalizedTarget);
+    return _selectedGoals.any(
+      (g) => g.trim().toLowerCase() == goal.trim().toLowerCase(),
+    );
   }
 
-  // --- OPTIMISTIC AUTO-SAVE LOGIC ---
+  // --- PERSISTENT SELECTION TOGGLE ---
   Future<void> _toggleGoal(String goal) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Fitness Goals');
+      return;
+    }
+
     HapticFeedback.lightImpact();
 
     final bool isAdding = !_isGoalSelected(goal);

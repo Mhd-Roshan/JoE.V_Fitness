@@ -11,6 +11,7 @@ import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart'; // <-- IMPORTED PROFILE SCREEN
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
+import '../widgets/package_required_modal.dart';
 
 class HealthProfileScreen extends StatefulWidget {
   const HealthProfileScreen({super.key});
@@ -46,6 +47,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
 
   bool _isLoading = true;
   bool _isNavigating = false;
+  bool _hasActiveSubscription = false;
 
   // --- LOCAL DATA LISTS ---
   List<Map<String, dynamic>> _medicalConditions = [];
@@ -81,6 +83,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   void initState() {
     super.initState();
     _fetchHealthData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    });
   }
 
   @override
@@ -116,6 +121,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
 
       if (doc.exists && doc.data() != null) {
         var data = doc.data() as Map<String, dynamic>;
+
+        _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+            (data['subscription'] is Map &&
+                data['subscription']['status'] == 'Active');
 
         setState(() {
           if (data['medicalConditions'] is List) {
@@ -189,6 +198,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Future<void> _syncToFirebase({String? successMessage}) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Health Profile');
+      return;
+    }
     if (currentUser == null) {
       return;
     }
@@ -1250,6 +1263,15 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   Widget _buildDottedAddButton(String text, VoidCallback onTap) {
     return GestureDetector(
       onTap: () {
+        if (!_hasActiveSubscription) {
+          showPackageRequiredSheet(
+            context,
+            featureName: 'Health Profile',
+            customMessage:
+                'Adding and tracking medical conditions, physical constraints, surgeries, or medications requires an active membership package.',
+          );
+          return;
+        }
         HapticFeedback.lightImpact();
         onTap();
       },
@@ -1304,6 +1326,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
       ),
       child: TextField(
         controller: controller,
+        autofocus: false,
         style: const TextStyle(
           fontWeight: FontWeight.bold,
           color: _primaryBlue,

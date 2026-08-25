@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
@@ -366,6 +367,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _pushScreen(Widget screen) {
+    FocusManager.instance.primaryFocus?.unfocus();
     HapticFeedback.lightImpact();
     Future.delayed(const Duration(milliseconds: 50), () {
       if (!mounted) return;
@@ -481,6 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (!confirm || !mounted) return;
 
     // Clear session securely
+    await GoogleSignIn().signOut().catchError((_) => null);
     await FirebaseAuth.instance.signOut();
 
     // Second safety check after async operation

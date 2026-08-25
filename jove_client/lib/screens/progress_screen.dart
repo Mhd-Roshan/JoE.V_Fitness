@@ -14,6 +14,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION SCREEN IMPORT
 import '../theme/app_theme_controller.dart';
+import '../widgets/package_required_modal.dart';
 
 class ProgressScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -40,6 +41,7 @@ class _ProgressScreenState extends State<ProgressScreen>
   final User? currentUser = FirebaseAuth.instance.currentUser;
   StreamSubscription<DocumentSnapshot>? _userSubscription;
   Map<String, dynamic>? _cachedUserData;
+  bool _hasActiveSubscription = false;
 
   late final String _todayDate;
   final Set<String> _shownDialogs = {};
@@ -109,20 +111,27 @@ class _ProgressScreenState extends State<ProgressScreen>
               10000;
           _recalculateChartAndTrend(todayStepsGoal > 0 ? todayStepsGoal : 10000);
 
+          final bool hasActiveSub = data['hasActiveSubscription'] == true ||
+              (data['subscription'] is Map &&
+                  data['subscription']['status'] == 'Active');
+
           setState(() {
             _cachedUserData = data;
+            _hasActiveSubscription = hasActiveSub;
           });
 
-          // Check if today's daily goals have been prompted
+          // Check if today's daily goals have been prompted (only for full package members)
           if (!_hasPromptedDailyGoals) {
             _hasPromptedDailyGoals = true;
-            String? lastGoalSetDate = data['dailyGoalSetDate']?.toString();
-            if (lastGoalSetDate != _todayDate) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  _showDailyGoalSetupSheet(data);
-                }
-              });
+            if (hasActiveSub) {
+              String? lastGoalSetDate = data['dailyGoalSetDate']?.toString();
+              if (lastGoalSetDate != _todayDate) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _showDailyGoalSetupSheet(data);
+                  }
+                });
+              }
             }
           }
         });
@@ -391,6 +400,10 @@ class _ProgressScreenState extends State<ProgressScreen>
   }
 
   Future<void> _showHydrationGoalDialog(int initialAmount) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Hydration Goal');
+      return;
+    }
     int currentGoal = (_cachedUserData?['dailyHydrationGoals'] as Map?)?[_todayDate] ??
         _cachedUserData?['hydrationGoal'] ??
         2000;
@@ -456,6 +469,10 @@ class _ProgressScreenState extends State<ProgressScreen>
   }
 
   Future<void> _showSleepGoalDialog(int initialMinutes) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Sleep Goal');
+      return;
+    }
     double currentGoal =
         (_cachedUserData?['dailySleepGoals'] as Map?)?[_todayDate]?.toDouble() ??
             (_cachedUserData?['sleepGoal'] as num?)?.toDouble() ??
@@ -520,6 +537,10 @@ class _ProgressScreenState extends State<ProgressScreen>
   }
 
   Future<void> _showStepsGoalDialog(int initialSteps) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Steps Goal');
+      return;
+    }
     int currentGoal = (_cachedUserData?['dailyStepsGoals'] as Map?)?[_todayDate] ??
         _cachedUserData?['stepsGoal'] ??
         10000;
@@ -583,6 +604,10 @@ class _ProgressScreenState extends State<ProgressScreen>
   // --- DAILY GOAL SETUP SHEET & BANNER ---
   Future<void> _showDailyGoalSetupSheet(Map<String, dynamic> userData) async {
     if (!mounted) return;
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Daily Goals');
+      return;
+    }
 
     int currentStepsGoal = (userData['dailyStepsGoals'] as Map?)?[_todayDate] ??
         userData['stepsGoal'] ??
@@ -1085,6 +1110,10 @@ class _ProgressScreenState extends State<ProgressScreen>
     double? sleep,
     int? steps,
   }) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Fitness Tracking');
+      return;
+    }
     if (currentUser?.uid == null) {
       return;
     }
@@ -1133,6 +1162,10 @@ class _ProgressScreenState extends State<ProgressScreen>
   }
 
   Future<void> _changeWater(int currentWater, int amount, int goal) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Hydration Tracking');
+      return;
+    }
     if (goal <= 0) {
       _showHydrationGoalDialog(amount);
       return;
@@ -1160,6 +1193,10 @@ class _ProgressScreenState extends State<ProgressScreen>
   }
 
   Future<void> _updateWeight(double newWeight) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Weight Tracking');
+      return;
+    }
     await _saveProgressToFirestore(weight: newWeight);
   }
 
@@ -1168,6 +1205,10 @@ class _ProgressScreenState extends State<ProgressScreen>
     int newMinutes,
     double goalHrs,
   ) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Sleep Tracking');
+      return;
+    }
     if (goalHrs <= 0) {
       _showSleepGoalDialog(newMinutes);
       return;
@@ -1191,6 +1232,10 @@ class _ProgressScreenState extends State<ProgressScreen>
   }
 
   Future<void> _updateSteps(int oldSteps, int newSteps, int goal) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Steps Tracking');
+      return;
+    }
     if (goal <= 0) {
       _showStepsGoalDialog(newSteps);
       return;

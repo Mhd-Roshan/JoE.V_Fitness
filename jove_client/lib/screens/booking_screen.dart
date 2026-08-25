@@ -97,6 +97,8 @@ class _BookingScreenState extends State<BookingScreen>
     "Sunday",
   ];
 
+  bool _hasActiveSubscription = false;
+
   @override
   void initState() {
     super.initState();
@@ -110,6 +112,23 @@ class _BookingScreenState extends State<BookingScreen>
     }
 
     _fetchCurrentLocation();
+    _loadUserSubscription();
+  }
+
+  void _loadUserSubscription() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
+        if (doc.exists && mounted) {
+          final data = doc.data() ?? {};
+          setState(() {
+            _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+                (data['subscription'] is Map &&
+                    data['subscription']['status'] == 'Active');
+          });
+        }
+      }).catchError((_) {});
+    }
   }
 
   // --- TIME PARSING TO INTEGER MINUTES FROM MIDNIGHT ---
@@ -2733,26 +2752,65 @@ class _BookingScreenState extends State<BookingScreen>
                         const SizedBox(height: 32),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: _BouncingButton(
-                            onTap: () => _handleProceedToBook(locale),
-                            child: Container(
-                              width: double.infinity,
-                              height: 55,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: _redButtonColor,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                'proceed_to_book'.tr(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                          child: _hasActiveSubscription
+                              ? _BouncingButton(
+                                  onTap: () => _handleProceedToBook(locale),
+                                  child: Container(
+                                    width: double.infinity,
+                                    height: 55,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: _redButtonColor,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      'proceed_to_book'.tr(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              : _BouncingButton(
+                                  onTap: _showPackageRequiredSheet,
+                                  child: Container(
+                                    width: double.infinity,
+                                    height: 55,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: _redButtonColor,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _redButtonColor.withValues(alpha: 0.25),
+                                          blurRadius: 12,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(
+                                          Icons.lock_outline_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Select Package to Book',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ),
                         ),
                       ],
                     ],

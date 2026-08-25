@@ -407,5 +407,6 @@
     "Unread": "Unread",
     "mark_read": "Mark all read",
     "empty_notifications_title": "No Notifications Yet",
-    "empty_notifications_subtitle": "When you get notifications about your workouts, messages, or updates, they'll show up here."
+    "empty_notifications_subtitle": "When you get notifications about your workouts, messages, or updates, they'll show up here.",
+    "view_app_preview": "Explore App First"
 }

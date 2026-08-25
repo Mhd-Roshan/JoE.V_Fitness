@@ -15,6 +15,8 @@ import 'health_profile_screen.dart';
 import '../services/wearable_sync_manager.dart';
 import '../services/main_tab_controller.dart';
 import '../theme/app_theme_controller.dart';
+import '../widgets/package_required_modal.dart';
+import 'auth/package_select_screen.dart';
 
 class _Formatters {
   static final DateFormat date = DateFormat('yyyy-MM-dd');
@@ -72,7 +74,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     super.initState();
     final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     WearableSyncManager.instance.initialize();
-    _markFirstSessionPreviewSeen(uid);
+    _markSessionPreviewSeen(uid);
 
     if (widget.initialTab != 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -81,14 +83,26 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     }
   }
 
-  void _markFirstSessionPreviewSeen(String uid) {
+  void _markSessionPreviewSeen(String uid) {
     if (uid.isEmpty) return;
     FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
-      if (doc.exists && doc.data()?['hasSeenFirstPreview'] != true) {
-        FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'hasSeenFirstPreview': true,
-          'firstPreviewSeenAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+      if (doc.exists) {
+        final data = doc.data() ?? {};
+        final Map<String, dynamic> updates = {};
+        if (data['hasSeenFirstPreview'] != true) {
+          updates['hasSeenFirstPreview'] = true;
+          updates['firstPreviewSeenAt'] = FieldValue.serverTimestamp();
+        }
+        if (data['hasPaidEntryFee'] == true && data['hasSeenSecondPreview'] != true) {
+          updates['hasSeenSecondPreview'] = true;
+          updates['secondPreviewSeenAt'] = FieldValue.serverTimestamp();
+        }
+        if (updates.isNotEmpty) {
+          FirebaseFirestore.instance.collection('users').doc(uid).set(
+            updates,
+            SetOptions(merge: true),
+          );
+        }
       }
     }).catchError((_) {});
   }
@@ -166,6 +180,7 @@ class _HomeTabViewState extends State<_HomeTabView>
   final User? currentUser = FirebaseAuth.instance.currentUser;
   late final Stream<DocumentSnapshot> _userStream;
   late final Stream<QuerySnapshot> _bookingStream;
+  bool _hasActiveSubscription = false;
 
   @override
   void initState() {
@@ -185,6 +200,10 @@ class _HomeTabViewState extends State<_HomeTabView>
     String bookingId,
     Map<String, dynamic> bookingData,
   ) {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Session Rescheduling');
+      return;
+    }
     try {
       HapticFeedback.lightImpact();
       String dateStr = bookingData['date'] ?? '';
@@ -252,6 +271,10 @@ class _HomeTabViewState extends State<_HomeTabView>
   }
 
   Future<void> _handleCompleteSession(String bookingId) async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(context, featureName: 'Session Completion');
+      return;
+    }
     try {
       HapticFeedback.mediumImpact();
       await FirebaseFirestore.instance
@@ -299,6 +322,19 @@ class _HomeTabViewState extends State<_HomeTabView>
         final userData =
             userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
 
+        Timestamp? nextBillingDate = userData['subscription'] is Map
+            ? userData['subscription']['nextBillingDate'] as Timestamp?
+            : userData['packageEndDate'] as Timestamp?;
+        bool isPackageExpired = false;
+        if (nextBillingDate != null) {
+          isPackageExpired = DateTime.now().isAfter(nextBillingDate.toDate());
+        }
+
+        _hasActiveSubscription = !isPackageExpired &&
+            (userData['hasActiveSubscription'] == true ||
+                (userData['subscription'] is Map &&
+                    userData['subscription']['status'] == 'Active'));
+
         return SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 120),
           physics: const BouncingScrollPhysics(
@@ -313,6 +349,95 @@ class _HomeTabViewState extends State<_HomeTabView>
                   onProfileTap: () => MainTabController.switchTab(4),
                 ),
               ),
+
+              if (isPackageExpired)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFBB0013), Color(0xFF80000D)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFBB0013).withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Colors.white24,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Package Expired',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Renew or switch your membership package to resume full access.',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PackageSelectScreen(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFFBB0013),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        ),
+                        child: const Text(
+                          'Renew',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               RepaintBoundary(
                 child: _UpcomingSessionSection(
                   bookingStream: _bookingStream,
@@ -369,6 +494,7 @@ class _BookingTabWrapperState extends State<_BookingTabWrapper>
   bool get wantKeepAlive => true;
 
   late final Stream<DocumentSnapshot> _userStream;
+  late final Stream<QuerySnapshot> _trainersStream;
 
   @override
   void initState() {
@@ -378,6 +504,10 @@ class _BookingTabWrapperState extends State<_BookingTabWrapper>
         .collection('users')
         .doc(uid)
         .snapshots();
+    _trainersStream = FirebaseFirestore.instance
+        .collection('trainers')
+        .limit(1)
+        .snapshots();
   }
 
   @override
@@ -385,9 +515,9 @@ class _BookingTabWrapperState extends State<_BookingTabWrapper>
     super.build(context);
     return StreamBuilder<DocumentSnapshot>(
       stream: _userStream,
-      builder: (context, snapshot) {
+      builder: (context, userSnapshot) {
         final userData =
-            snapshot.data?.data() as Map<String, dynamic>? ?? {};
+            userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
         final String? assignedTrainerId = userData['assignedTrainerId'];
         if (assignedTrainerId != null && assignedTrainerId.isNotEmpty) {
           return BookingScreen(
@@ -395,7 +525,21 @@ class _BookingTabWrapperState extends State<_BookingTabWrapper>
             showBottomNav: false,
           );
         }
-        return const SelectTrainerScreen();
+
+        // Preview Mode fallback: Load default/featured trainer so user can preview the booking interface
+        return StreamBuilder<QuerySnapshot>(
+          stream: _trainersStream,
+          builder: (context, trainerSnapshot) {
+            final docs = trainerSnapshot.data?.docs ?? [];
+            if (docs.isNotEmpty) {
+              return BookingScreen(
+                trainerId: docs.first.id,
+                showBottomNav: false,
+              );
+            }
+            return const SelectTrainerScreen();
+          },
+        );
       },
     );
   }

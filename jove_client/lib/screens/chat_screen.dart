@@ -12,6 +12,7 @@ import 'trainer_selection_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../widgets/package_required_modal.dart';
 
 class ChatScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -36,6 +37,31 @@ class _ChatScreenState extends State<ChatScreen>
   final User? currentUser = FirebaseAuth.instance.currentUser;
 
   bool _isNavigating = false;
+  bool _hasActiveSubscription = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSubscription();
+  }
+
+  void _checkSubscription() {
+    if (currentUser == null) return;
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser!.uid)
+        .snapshots()
+        .listen((snap) {
+      if (snap.exists && mounted) {
+        final data = snap.data() ?? {};
+        setState(() {
+          _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+              (data['subscription'] is Map &&
+                  data['subscription']['status'] == 'Active');
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -46,6 +72,15 @@ class _ChatScreenState extends State<ChatScreen>
 
   // --- SEND MESSAGE ---
   Future<void> _sendMessage() async {
+    if (!_hasActiveSubscription) {
+      showPackageRequiredSheet(
+        context,
+        featureName: 'Trainer Chat',
+        customMessage:
+            'Direct 1-on-1 messaging with your dedicated personal trainer is available for active membership package members. Select a package to start chatting.',
+      );
+      return;
+    }
     final text = _messageController.text.trim();
     if (text.isEmpty || currentUser == null) {
       return;
