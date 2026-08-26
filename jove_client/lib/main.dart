@@ -10,6 +10,9 @@ void main() async {
   // 1. Ensure Flutter bindings are ready before launching Firebase
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize theme observer for automatic system dark mode switching
+  AppThemeController.initialize();
+
   // 2. Initialize Firebase
   await Firebase.initializeApp();
 

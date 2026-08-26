@@ -109,6 +109,8 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return ValueListenableBuilder<bool>(
       valueListenable: AppThemeController.isDarkMode,
       builder: (context, isDark, _) {
@@ -148,15 +150,16 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
               ),
 
               // --- PERSISTENT FLOATING BOTTOM NAV BAR ---
-              RepaintBoundary(
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: _FloatingNavBar(
-                    selectedIndexNotifier: MainTabController.selectedIndex,
-                    onTabTap: (index) => MainTabController.switchTab(index),
+              if (!isKeyboardOpen)
+                RepaintBoundary(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: _FloatingNavBar(
+                      selectedIndexNotifier: MainTabController.selectedIndex,
+                      onTabTap: (index) => MainTabController.switchTab(index),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         );
@@ -554,12 +557,13 @@ class _HeaderSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final User? currentUser = FirebaseAuth.instance.currentUser;
-    final String userName =
+    String rawUserName =
         userData['fullName'] ??
         userData['name'] ??
         userData['firstName'] ??
         currentUser?.displayName ??
-        'athlete_fallback'.tr();
+        '';
+    final String userName = rawUserName.trim().isNotEmpty ? rawUserName : 'athlete_fallback'.tr();
     final String profilePic =
         userData['photoURL'] ??
         userData['photoUrl'] ??
@@ -1064,10 +1068,11 @@ class _DietPlansSection extends StatelessWidget {
     String title,
     Map<String, dynamic> rawData,
   ) {
+    final bool isDark = AppThemeController.isDark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -1082,7 +1087,7 @@ class _DietPlansSection extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1096,35 +1101,37 @@ class _DietPlansSection extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF00225D).withValues(alpha: 0.1),
+                        color: isDark
+                            ? const Color(0xFF1E1E1E)
+                            : const Color(0xFF00225D).withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.restaurant_menu_rounded,
-                        color: Color(0xFF00225D),
+                        color: isDark ? const Color(0xFF3B82F6) : const Color(0xFF00225D),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
+                          color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey),
+                      icon: Icon(Icons.close, color: isDark ? Colors.grey.shade400 : Colors.grey),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 16),
+              Divider(height: 16, color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
 
               // Fetch Data & Display Dashboard
               Expanded(
@@ -1132,9 +1139,9 @@ class _DietPlansSection extends StatelessWidget {
                   future: _fetchDietPlanData(templateId, rawData),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
+                      return Center(
                         child: CircularProgressIndicator(
-                          color: Color(0xFF00225D),
+                          color: isDark ? const Color(0xFF3B82F6) : const Color(0xFF00225D),
                         ),
                       );
                     }
@@ -1188,7 +1195,7 @@ class _DietPlansSection extends StatelessWidget {
                                   protein,
                                   "g",
                                   Icons.fitness_center,
-                                  const Color(0xFF00225D),
+                                  isDark ? const Color(0xFF3B82F6) : const Color(0xFF00225D),
                                 ),
                               ),
                             ],
@@ -1254,20 +1261,20 @@ class _DietPlansSection extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                                 border: Border.all(
-                                  color: Colors.grey.shade200,
+                                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
                                 ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     "Prohibitions",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF00225D),
+                                      color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF00225D),
                                       fontSize: 14,
                                     ),
                                   ),
@@ -1286,9 +1293,9 @@ class _DietPlansSection extends StatelessWidget {
                                           Expanded(
                                             child: Text(
                                               rule.toString(),
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 13,
-                                                color: Colors.black87,
+                                                color: isDark ? const Color(0xFFE5E5E5) : Colors.black87,
                                               ),
                                             ),
                                           ),
@@ -1302,12 +1309,12 @@ class _DietPlansSection extends StatelessWidget {
                           ],
 
                           const SizedBox(height: 32),
-                          const Text(
+                          Text(
                             "Meal Sequence",
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF00225D),
+                              color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF00225D),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -1317,13 +1324,13 @@ class _DietPlansSection extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
+                                color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Text(
+                              child: Text(
                                 "Balanced meals scheduled for this plan.",
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
+                                style: TextStyle(color: isDark ? const Color(0xFFA8A8A8) : Colors.grey),
                               ),
                             ),
                           ] else ...[
@@ -1384,9 +1391,9 @@ class _DietPlansSection extends StatelessWidget {
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                                   border: Border.all(
-                                    color: Colors.grey.shade200,
+                                    color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -1396,7 +1403,7 @@ class _DietPlansSection extends StatelessWidget {
                                       width: 50,
                                       height: 50,
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
+                                        color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
                                         borderRadius:
                                             BorderRadius.circular(8),
                                       ),
@@ -1411,15 +1418,15 @@ class _DietPlansSection extends StatelessWidget {
                                                 fit: BoxFit.cover,
                                                 errorBuilder:
                                                     (context, error, stackTrace) =>
-                                                        const Icon(
+                                                        Icon(
                                                   Icons.restaurant_rounded,
-                                                  color: Colors.grey,
+                                                  color: isDark ? Colors.grey.shade600 : Colors.grey,
                                                 ),
                                               ),
                                             )
-                                          : const Icon(
+                                          : Icon(
                                               Icons.restaurant_rounded,
-                                              color: Colors.grey,
+                                              color: isDark ? Colors.grey.shade600 : Colors.grey,
                                             ),
                                     ),
                                     const SizedBox(width: 12),
@@ -1430,10 +1437,10 @@ class _DietPlansSection extends StatelessWidget {
                                         children: [
                                           Text(
                                             name,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
-                                              color: Color(0xFF1A1A1A),
+                                              color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
                                             ),
                                           ),
                                           if (time.toString().isNotEmpty)
@@ -1441,7 +1448,7 @@ class _DietPlansSection extends StatelessWidget {
                                               time.toString(),
                                               style: TextStyle(
                                                 fontSize: 12,
-                                                color: Colors.grey.shade600,
+                                                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
                                               ),
                                             ),
                                           const SizedBox(height: 4),
@@ -1449,7 +1456,7 @@ class _DietPlansSection extends StatelessWidget {
                                             items.toString(),
                                             style: TextStyle(
                                               fontSize: 13,
-                                              color: Colors.grey.shade700,
+                                              color: isDark ? const Color(0xFFD4D4D4) : Colors.grey.shade700,
                                             ),
                                             maxLines: 2,
                                             overflow:
@@ -1461,7 +1468,7 @@ class _DietPlansSection extends StatelessWidget {
                                             style: TextStyle(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
-                                              color: Colors.grey.shade500,
+                                              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                                             ),
                                           ),
                                         ],
@@ -1493,15 +1500,16 @@ class _DietPlansSection extends StatelessWidget {
     IconData icon,
     Color color,
   ) {
+    final bool isDark = AppThemeController.isDark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade200),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1520,7 +1528,7 @@ class _DietPlansSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade600,
+                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1535,10 +1543,10 @@ class _DietPlansSection extends StatelessWidget {
             children: [
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF1A1A1A),
+                  color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
                 ),
               ),
               const SizedBox(width: 4),
@@ -1547,7 +1555,7 @@ class _DietPlansSection extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade500,
+                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                 ),
               ),
             ],
@@ -1563,11 +1571,12 @@ class _DietPlansSection extends StatelessWidget {
     String subtitle,
     Color accentColor,
   ) {
+    final bool isDark = AppThemeController.isDark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade200),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1578,16 +1587,16 @@ class _DietPlansSection extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1A1A1A),
+              color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
             ),
           ),
           const SizedBox(height: 4),
@@ -1595,7 +1604,7 @@ class _DietPlansSection extends StatelessWidget {
             subtitle,
             style: TextStyle(
               fontSize: 11,
-              color: Colors.grey.shade500,
+              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
             ),
           ),
         ],
@@ -1605,6 +1614,7 @@ class _DietPlansSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = AppThemeController.isDark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1615,20 +1625,20 @@ class _DietPlansSection extends StatelessWidget {
             children: [
               Text(
                 'diet_plans'.tr(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: isDark ? const Color(0xFFF5F5F5) : Colors.black87,
                 ),
               ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: onSeeAllTap,
-                child: const Padding(
-                  padding: EdgeInsets.all(4.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
                   child: Icon(
                     Icons.arrow_forward_rounded,
-                    color: Colors.black87,
+                    color: isDark ? const Color(0xFFF5F5F5) : Colors.black87,
                     size: 20,
                   ),
                 ),
@@ -1684,10 +1694,10 @@ class _DietPlansSection extends StatelessWidget {
                         margin: const EdgeInsets.symmetric(horizontal: 24),
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF5F7FA),
+                          color: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.grey.shade200,
+                            color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
                             width: 1.5,
                           ),
                         ),
@@ -1696,14 +1706,14 @@ class _DietPlansSection extends StatelessWidget {
                           children: [
                             Icon(
                               Icons.restaurant_menu_rounded,
-                              color: Colors.grey.shade400,
+                              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                               size: 24,
                             ),
                             const SizedBox(width: 10),
                             Text(
                               'no_diet_plans'.tr(),
                               style: TextStyle(
-                                color: Colors.grey.shade500,
+                                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1726,6 +1736,7 @@ class _DietPlansSection extends StatelessWidget {
     List<QueryDocumentSnapshot> docs, {
     required bool isClientPlan,
   }) {
+    final bool isDark = AppThemeController.isDark;
     return ListView.builder(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
@@ -1775,15 +1786,15 @@ class _DietPlansSection extends StatelessWidget {
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF121212) : Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.grey.shade200,
+                color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -1795,12 +1806,12 @@ class _DietPlansSection extends StatelessWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
+                    color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFE8F5E9),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.restaurant_menu_rounded,
-                    color: Color(0xFF2E7D32),
+                    color: isDark ? const Color(0xFF4ADE80) : const Color(0xFF2E7D32),
                     size: 26,
                   ),
                 ),
@@ -1812,9 +1823,9 @@ class _DietPlansSection extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: Colors.black87,
+                          color: isDark ? const Color(0xFFF5F5F5) : Colors.black87,
                           fontSize: 15,
                         ),
                         maxLines: 1,
@@ -1824,7 +1835,7 @@ class _DietPlansSection extends StatelessWidget {
                       Text(
                         subtitle,
                         style: TextStyle(
-                          color: Colors.grey.shade500,
+                          color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1837,13 +1848,13 @@ class _DietPlansSection extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade50,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.arrow_forward_ios_rounded,
                     size: 12,
-                    color: Colors.black54,
+                    color: isDark ? Colors.grey.shade400 : Colors.black54,
                   ),
                 ),
               ],

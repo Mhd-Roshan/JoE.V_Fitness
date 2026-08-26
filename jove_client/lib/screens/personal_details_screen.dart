@@ -16,6 +16,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
 import '../widgets/package_required_modal.dart';
+import '../theme/app_theme_controller.dart';
 
 class PersonalDetailsScreen extends StatefulWidget {
   const PersonalDetailsScreen({super.key});
@@ -30,6 +31,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _navBgColor = Color(0xFF00215F);
   static const Color _redButton = Color(0xFFBB0013);
+
+  bool get _isDarkMode => AppThemeController.isDark;
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
   late Stream<DocumentSnapshot> _userStream;
@@ -165,6 +168,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
+    final bool isDark = _isDarkMode;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -172,26 +176,39 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
               title: Text(
                 'dialog_update_mobile'.tr(), // TRANSLATED
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
+                  color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                 ),
               ),
               content: TextField(
                 controller: phoneTempController,
                 keyboardType: TextInputType.phone,
+                style: TextStyle(
+                  color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                ),
                 decoration: InputDecoration(
                   hintText: 'hint_mobile'.tr(), // TRANSLATED
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
+                    borderSide: isDark ? const BorderSide(color: Color(0xFF262626)) : BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: isDark ? const BorderSide(color: Color(0xFF262626)) : BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: Colors.grey.shade50,
+                  fillColor: isDark ? const Color(0xFF121212) : Colors.grey.shade50,
                 ),
               ),
               actions: [
@@ -204,7 +221,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _navBgColor,
+                    backgroundColor: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -411,63 +428,70 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   Widget build(BuildContext context) {
     bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      extendBody: true,
-      body: Stack(
-        children: [
-          GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: SafeArea(
-              bottom: false, // Allows scrolling behind the nav bar smoothly
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: _userStream,
-                builder: (context, snapshot) {
-                  var userData =
-                      snapshot.data?.data() as Map<String, dynamic>? ?? {};
-                  if (snapshot.hasData) {
-                    WidgetsBinding.instance.addPostFrameCallback(
-                      (_) => _populateData(userData),
-                    );
-                  }
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        final Color currentBg = isDark ? const Color(0xFF000000) : _bgColor;
 
-                  String photoUrl =
-                      userData['photoURL'] ?? currentUser?.photoURL ?? '';
+        return Scaffold(
+          backgroundColor: currentBg,
+          extendBody: true,
+          body: Stack(
+            children: [
+              GestureDetector(
+                onTap: () => FocusScope.of(context).unfocus(),
+                child: SafeArea(
+                  bottom: false, // Allows scrolling behind the nav bar smoothly
+                  child: StreamBuilder<DocumentSnapshot>(
+                    stream: _userStream,
+                    builder: (context, snapshot) {
+                      var userData =
+                          snapshot.data?.data() as Map<String, dynamic>? ?? {};
+                      if (snapshot.hasData) {
+                        WidgetsBinding.instance.addPostFrameCallback(
+                          (_) => _populateData(userData),
+                        );
+                      }
 
-                  return SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(
-                      bottom: 120,
-                    ), // Padding to avoid clipping behind navbar
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        RepaintBoundary(child: _buildTopAppBar()),
-                        const SizedBox(height: 16),
+                      String photoUrl =
+                          userData['photoURL'] ?? currentUser?.photoURL ?? '';
 
-                        _buildAvatarSection(photoUrl),
-                        const SizedBox(height: 32),
+                      return SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(
+                          bottom: 120,
+                        ), // Padding to avoid clipping behind navbar
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            RepaintBoundary(child: _buildTopAppBar()),
+                            const SizedBox(height: 16),
 
-                        _buildFormSection(),
-                        const SizedBox(height: 40),
+                            _buildAvatarSection(photoUrl),
+                            const SizedBox(height: 32),
 
-                        _buildSaveButton(),
-                      ],
-                    ),
-                  );
-                },
+                            _buildFormSection(),
+                            const SizedBox(height: 40),
+
+                            _buildSaveButton(),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
-          ),
 
-          // Using a Stack overlay exactly like the Profile screen for maximum layout smoothness
-          if (!isKeyboardOpen)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _buildBottomNavBar(),
-            ),
-        ],
-      ),
+              // Using a Stack overlay exactly like the Profile screen for maximum layout smoothness
+              if (!isKeyboardOpen)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -476,6 +500,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   // ===========================================================================
 
   Widget _buildTopAppBar() {
+    final bool isDark = _isDarkMode;
+    final Color textMain = isDark ? const Color(0xFFF5F5F5) : _textMain;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
@@ -486,9 +513,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_ios_new,
-                    color: _textMain,
+                    color: textMain,
                     size: 20,
                   ),
                   onPressed: () {
@@ -500,8 +527,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 Expanded(
                   child: Text(
                     'personal_details_title'.tr(), // TRANSLATED
-                    style: const TextStyle(
-                      color: _textMain,
+                    style: TextStyle(
+                      color: textMain,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
@@ -517,13 +544,13 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: textMain,
                 size: 24,
               ),
               onPressed: () {
@@ -560,6 +587,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   Widget _buildAvatarSection(String photoUrl) {
+    final bool isDark = _isDarkMode;
     return Column(
       children: [
         Stack(
@@ -570,7 +598,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: _navBgColor.withValues(alpha: 0.1),
+                  color: isDark ? const Color(0xFF262626) : _navBgColor.withValues(alpha: 0.1),
                   width: 3,
                 ),
               ),
@@ -579,12 +607,12 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: Colors.grey.shade300,
+                    backgroundColor: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
                     backgroundImage: photoUrl.isNotEmpty
                         ? NetworkImage(photoUrl)
                         : null,
                     child: photoUrl.isEmpty
-                        ? const Icon(Icons.person, size: 40, color: Colors.grey)
+                        ? Icon(Icons.person, size: 40, color: isDark ? Colors.grey.shade600 : Colors.grey)
                         : null,
                   ),
                   if (_isUploadingImage)
@@ -608,20 +636,21 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 margin: const EdgeInsets.all(4),
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                   shape: BoxShape.circle,
+                  border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
+                      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.edit_outlined,
                   size: 16,
-                  color: _navBgColor,
+                  color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                 ),
               ),
             ),
@@ -635,7 +664,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 ? 'status_uploading'.tr()
                 : 'btn_update_photo'.tr(), // TRANSLATED
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
               fontSize: 14,
               fontWeight: FontWeight.w700,
             ),
@@ -646,6 +675,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   Widget _buildFormSection() {
+    final bool isDark = _isDarkMode;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -676,8 +706,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
           Text(
             'label_mobile'.tr(), // TRANSLATED
-            style: const TextStyle(
-              color: _textMain,
+            style: TextStyle(
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
@@ -686,9 +716,12 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           Container(
             height: 55,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: isDark ? const Color(0xFF121212) : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade300, width: 1),
+              border: Border.all(
+                color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                width: 1,
+              ),
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -697,8 +730,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                   child: TextField(
                     controller: _mobileController,
                     readOnly: true,
-                    style: const TextStyle(
-                      color: Colors.black54,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFA8A8A8) : Colors.black54,
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -709,8 +742,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                   onTap: _showPhoneUpdateDialog,
                   child: Text(
                     'btn_change'.tr(), // TRANSLATED
-                    style: const TextStyle(
-                      color: _navBgColor,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -750,12 +783,13 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
+    final bool isDark = _isDarkMode;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
-          color: _navBgColor,
+        style: TextStyle(
+          color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
           fontSize: 16,
           fontWeight: FontWeight.w800,
         ),
@@ -769,13 +803,14 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     String hint, {
     bool isNumber = false,
   }) {
+    final bool isDark = _isDarkMode;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: _textMain,
+          style: TextStyle(
+            color: isDark ? const Color(0xFFF5F5F5) : _textMain,
             fontSize: 14,
             fontWeight: FontWeight.bold,
           ),
@@ -786,12 +821,15 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
         Container(
           height: 55,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: isDark ? const Color(0xFF121212) : Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade200, width: 1.5),
+            border: Border.all(
+              color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -804,15 +842,15 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
             keyboardType: isNumber
                 ? const TextInputType.numberWithOptions(decimal: true)
                 : TextInputType.text,
-            style: const TextStyle(
-              color: _textMain,
+            style: TextStyle(
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
               fontWeight: FontWeight.w600,
               fontSize: 15,
             ),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                 fontWeight: FontWeight.w500,
               ),
               border: InputBorder.none,
@@ -869,15 +907,19 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   Widget _buildBottomNavBar() {
+    final bool isDark = _isDarkMode;
+    final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: _navBgColor,
+        color: navBg,
         borderRadius: BorderRadius.circular(40),
+        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),

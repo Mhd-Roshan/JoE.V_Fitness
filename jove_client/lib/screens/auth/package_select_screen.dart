@@ -175,23 +175,6 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
       if (!mounted) return;
 
       HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'success_package_selected'.tr(),
-            style: GoogleFonts.poppins(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          margin: const EdgeInsets.all(20),
-        ),
-      );
 
       Navigator.push(
         context,

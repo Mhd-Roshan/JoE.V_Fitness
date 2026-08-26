@@ -12,6 +12,7 @@ import 'profile_screen.dart';
 import 'change_trainer_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'notification_screen.dart';
+import '../theme/app_theme_controller.dart';
 
 class AppLanguageScreen extends StatefulWidget {
   const AppLanguageScreen({super.key});
@@ -26,6 +27,8 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _navBgColor = Color(0xFF00215F);
   static const Color _iconBg = Color(0xFFF0F2F5);
+
+  bool get _isDarkMode => AppThemeController.isDark;
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
@@ -219,147 +222,192 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: _navBgColor),
-                  )
-                : RepaintBoundary(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.only(bottom: 120),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          RepaintBoundary(child: _buildTopAppBar()),
-                          const SizedBox(height: 8),
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-                          _buildSectionTitle('select_language'.tr()),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        final Color currentBg = isDark ? const Color(0xFF000000) : _bgColor;
 
-                          Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 24),
-                            decoration: BoxDecoration(
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.02),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+        return Scaffold(
+          backgroundColor: currentBg,
+          body: Stack(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: _isLoading
+                    ? Center(
+                        child: CircularProgressIndicator(
+                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                        ),
+                      )
+                    : RepaintBoundary(
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.only(bottom: 120),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              RepaintBoundary(child: _buildTopAppBar()),
+                              const SizedBox(height: 8),
+
+                              _buildSectionTitle('select_language'.tr()),
+
+                              Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 24),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: isDark
+                                      ? Border.all(color: const Color(0xFF262626))
+                                      : null,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: isDark ? 0.2 : 0.02,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: Material(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(20),
-                              clipBehavior: Clip.antiAlias,
-                              child: ValueListenableBuilder<String>(
-                                valueListenable: _selectedLanguage,
-                                builder: (context, currentLang, _) {
-                                  return Column(
-                                    children: List.generate(_languages.length, (
-                                      index,
-                                    ) {
-                                      final lang = _languages[index];
-                                      final bool isSelected =
-                                          currentLang == lang['code'];
-
+                                child: Material(
+                                  color: isDark ? const Color(0xFF121212) : Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: ValueListenableBuilder<String>(
+                                    valueListenable: _selectedLanguage,
+                                    builder: (context, currentLang, _) {
                                       return Column(
-                                        children: [
-                                          InkWell(
-                                            onTap: () =>
-                                                _setLanguage(lang['code']!),
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 14,
-                                                  ),
-                                              child: Row(
-                                                children: [
-                                                  Container(
-                                                    padding:
-                                                        const EdgeInsets.all(8),
-                                                    decoration: BoxDecoration(
-                                                      color: _iconBg,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            10,
-                                                          ),
-                                                    ),
-                                                    child: Icon(
-                                                      lang['icon'] as IconData,
-                                                      size: 20,
-                                                      color: _navBgColor,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 16),
-                                                  Expanded(
-                                                    child: Text(
-                                                      lang['title'] as String,
-                                                      style: TextStyle(
-                                                        fontSize: 15,
-                                                        fontWeight: isSelected
-                                                            ? FontWeight.w900
-                                                            : FontWeight.bold,
-                                                        color: isSelected
-                                                            ? _navBgColor
-                                                            : _textMain,
+                                        children: List.generate(_languages.length, (
+                                          index,
+                                        ) {
+                                          final lang = _languages[index];
+                                          final bool isSelected =
+                                              currentLang == lang['code'];
+
+                                          return Column(
+                                            children: [
+                                              InkWell(
+                                                onTap: () =>
+                                                    _setLanguage(lang['code']!),
+                                                child: Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 16,
+                                                        vertical: 14,
                                                       ),
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
+                                                  child: Row(
+                                                    children: [
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets.all(8),
+                                                        decoration: BoxDecoration(
+                                                          color: isDark
+                                                              ? const Color(0xFF1E1E1E)
+                                                              : _iconBg,
+                                                          borderRadius:
+                                                              BorderRadius.circular(
+                                                                10,
+                                                              ),
+                                                          border: isDark
+                                                              ? Border.all(
+                                                                  color: const Color(
+                                                                    0xFF262626,
+                                                                  ),
+                                                                )
+                                                              : null,
+                                                        ),
+                                                        child: Icon(
+                                                          lang['icon'] as IconData,
+                                                          size: 20,
+                                                          color: isDark
+                                                              ? const Color(0xFF3B82F6)
+                                                              : _navBgColor,
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 16),
+                                                      Expanded(
+                                                        child: Text(
+                                                          lang['title'] as String,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isSelected
+                                                                ? FontWeight.w900
+                                                                : FontWeight.bold,
+                                                            color: isSelected
+                                                                ? (isDark
+                                                                    ? const Color(
+                                                                        0xFF3B82F6,
+                                                                      )
+                                                                    : _navBgColor)
+                                                                : (isDark
+                                                                    ? const Color(
+                                                                        0xFFF5F5F5,
+                                                                      )
+                                                                    : _textMain),
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow:
+                                                              TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                      if (isSelected)
+                                                        Icon(
+                                                          Icons
+                                                              .check_circle_rounded,
+                                                          color: isDark
+                                                              ? const Color(0xFF3B82F6)
+                                                              : _navBgColor,
+                                                          size: 22,
+                                                        )
+                                                      else
+                                                        Icon(
+                                                          Icons.circle_outlined,
+                                                          color: isDark
+                                                              ? const Color(0xFF444444)
+                                                              : Colors.grey.shade300,
+                                                          size: 22,
+                                                        ),
+                                                    ],
                                                   ),
-                                                  if (isSelected)
-                                                    const Icon(
-                                                      Icons
-                                                          .check_circle_rounded,
-                                                      color: _navBgColor,
-                                                      size: 22,
-                                                    )
-                                                  else
-                                                    Icon(
-                                                      Icons.circle_outlined,
-                                                      color:
-                                                          Colors.grey.shade300,
-                                                      size: 22,
-                                                    ),
-                                                ],
+                                                ),
                                               ),
-                                            ),
-                                          ),
-                                          if (index != _languages.length - 1)
-                                            Divider(
-                                              height: 1,
-                                              thickness: 1,
-                                              color: Colors.grey.shade100,
-                                              indent: 56,
-                                              endIndent: 16,
-                                            ),
-                                        ],
+                                              if (index != _languages.length - 1)
+                                                Divider(
+                                                  height: 1,
+                                                  thickness: 1,
+                                                  color: isDark
+                                                      ? const Color(0xFF262626)
+                                                      : Colors.grey.shade100,
+                                                  indent: 56,
+                                                  endIndent: 16,
+                                                ),
+                                            ],
+                                          );
+                                        }),
                                       );
-                                    }),
-                                  );
-                                },
+                                    },
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
+              ),
+              if (!isKeyboardOpen)
+                Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
+            ],
           ),
-          Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildTopAppBar() {
+    final bool isDark = _isDarkMode;
+    final Color textMain = isDark ? const Color(0xFFF5F5F5) : _textMain;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
@@ -369,9 +417,9 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_ios_new,
-                    color: _textMain,
+                    color: textMain,
                     size: 20,
                   ),
                   onPressed: () {
@@ -383,8 +431,8 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                 Expanded(
                   child: Text(
                     'app_languages'.tr(),
-                    style: const TextStyle(
-                      color: _textMain,
+                    style: TextStyle(
+                      color: textMain,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
@@ -400,13 +448,13 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: textMain,
                 size: 24,
               ),
               onPressed: () {
@@ -442,29 +490,35 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
   }
 
   Widget _buildSectionTitle(String title) {
+    final bool isDark = _isDarkMode;
+
     return Padding(
       padding: const EdgeInsets.only(left: 28, bottom: 12),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w800,
-          color: _navBgColor,
+          color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
         ),
       ),
     );
   }
 
   Widget _buildBottomNavBar() {
+    final bool isDark = _isDarkMode;
+    final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
-        color: _navBgColor,
+        color: navBg,
         borderRadius: BorderRadius.circular(40),
+        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),

@@ -14,6 +14,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'notification_screen.dart';
+import '../theme/app_theme_controller.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
@@ -29,6 +30,8 @@ class _SupportScreenState extends State<SupportScreen> {
   static const Color _navBgColor = Color(0xFF00215F);
   static const Color _redButton = Color(0xFFBB0013);
   static const Color _iconBg = Color(0xFFF0F2F5);
+
+  bool get _isDarkMode => AppThemeController.isDark;
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
 
@@ -273,59 +276,72 @@ class _SupportScreenState extends State<SupportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgColor,
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: Column(
-              children: [
-                _buildTopAppBar(),
-                const SizedBox(height: 12),
-                _buildTabToggle(),
-                const SizedBox(height: 16),
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-                Expanded(
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: _tabNotifier,
-                    builder: (context, tabIndex, child) {
-                      return AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        child: tabIndex == 0
-                            ? _buildContactFormTab()
-                            : _buildInboxTab(),
-                      );
-                    },
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        final Color currentBg = isDark ? const Color(0xFF000000) : _bgColor;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          body: Stack(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: Column(
+                  children: [
+                    _buildTopAppBar(),
+                    const SizedBox(height: 12),
+                    _buildTabToggle(),
+                    const SizedBox(height: 16),
+
+                    Expanded(
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _tabNotifier,
+                        builder: (context, tabIndex, child) {
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: tabIndex == 0
+                                ? _buildContactFormTab()
+                                : _buildInboxTab(),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (!isKeyboardOpen)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _FloatingNavBar(
+                    selectedIndexNotifier: _selectedIndexNotifier,
+                    onHomeTap: () =>
+                        _handleStandardNavigation(const HomeDashboardScreen(), 0),
+                    onBookingTap: _navigateToBooking,
+                    onStatsTap: () =>
+                        _handleStandardNavigation(const ProgressScreen(), 2),
+                    onChatsTap: () =>
+                        _handleStandardNavigation(const ChatScreen(), 3),
+                    onProfileTap: () =>
+                        _handleStandardNavigation(const ProfileScreen(), 4),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
-
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: _FloatingNavBar(
-              selectedIndexNotifier: _selectedIndexNotifier,
-              onHomeTap: () =>
-                  _handleStandardNavigation(const HomeDashboardScreen(), 0),
-              onBookingTap: _navigateToBooking,
-              onStatsTap: () =>
-                  _handleStandardNavigation(const ProgressScreen(), 2),
-              onChatsTap: () =>
-                  _handleStandardNavigation(const ChatScreen(), 3),
-              onProfileTap: () =>
-                  _handleStandardNavigation(const ProfileScreen(), 4),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildTopAppBar() {
+    final bool isDark = _isDarkMode;
+    final Color textMain = isDark ? const Color(0xFFF5F5F5) : _textMain;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -334,9 +350,9 @@ class _SupportScreenState extends State<SupportScreen> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new,
-                  color: _textMain,
+                  color: textMain,
                   size: 20,
                 ),
                 onPressed: () {
@@ -345,10 +361,10 @@ class _SupportScreenState extends State<SupportScreen> {
                 },
               ),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'Contact Support',
                 style: TextStyle(
-                  color: _textMain,
+                  color: textMain,
                   fontSize: 22,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
@@ -359,13 +375,13 @@ class _SupportScreenState extends State<SupportScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: textMain,
                 size: 24,
               ),
               onPressed: () {
@@ -402,12 +418,15 @@ class _SupportScreenState extends State<SupportScreen> {
   }
 
   Widget _buildTabToggle() {
+    final bool isDark = _isDarkMode;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade200,
         borderRadius: BorderRadius.circular(12),
+        border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
       ),
       child: ValueListenableBuilder<int>(
         valueListenable: _tabNotifier,
@@ -424,13 +443,15 @@ class _SupportScreenState extends State<SupportScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: currentIndex == 0
-                          ? Colors.white
+                          ? (isDark ? const Color(0xFF2A2A2A) : Colors.white)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: currentIndex == 0
                           ? [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
+                                color: Colors.black.withValues(
+                                  alpha: isDark ? 0.2 : 0.05,
+                                ),
                                 blurRadius: 4,
                               ),
                             ]
@@ -442,8 +463,8 @@ class _SupportScreenState extends State<SupportScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           color: currentIndex == 0
-                              ? _navBgColor
-                              : Colors.grey.shade600,
+                              ? (isDark ? const Color(0xFF3B82F6) : _navBgColor)
+                              : (isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600),
                         ),
                       ),
                     ),
@@ -460,13 +481,15 @@ class _SupportScreenState extends State<SupportScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: currentIndex == 1
-                          ? Colors.white
+                          ? (isDark ? const Color(0xFF2A2A2A) : Colors.white)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: currentIndex == 1
                           ? [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.05),
+                                color: Colors.black.withValues(
+                                  alpha: isDark ? 0.2 : 0.05,
+                                ),
                                 blurRadius: 4,
                               ),
                             ]
@@ -478,8 +501,8 @@ class _SupportScreenState extends State<SupportScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
                           color: currentIndex == 1
-                              ? _navBgColor
-                              : Colors.grey.shade600,
+                              ? (isDark ? const Color(0xFF3B82F6) : _navBgColor)
+                              : (isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600),
                         ),
                       ),
                     ),
@@ -497,6 +520,8 @@ class _SupportScreenState extends State<SupportScreen> {
   // TAB 1: SUBMIT NEW ISSUE
   // ==========================================
   Widget _buildContactFormTab() {
+    final bool isDark = _isDarkMode;
+
     return SingleChildScrollView(
       key: const PageStorageKey('ContactForm'),
       padding: const EdgeInsets.only(bottom: 120, left: 24, right: 24),
@@ -504,12 +529,12 @@ class _SupportScreenState extends State<SupportScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Session Alert',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: _navBgColor,
+              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
             ),
           ),
           const SizedBox(height: 12),
@@ -517,9 +542,11 @@ class _SupportScreenState extends State<SupportScreen> {
           // Contact Cards (WITH REAL CLICK ACTIONS)
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? const Color(0xFF121212) : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(
+                color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+              ),
             ),
             child: Column(
               children: [
@@ -529,14 +556,22 @@ class _SupportScreenState extends State<SupportScreen> {
                   'Quick replies for general queries',
                   _handleChatNavigation,
                 ),
-                Divider(height: 1, thickness: 1, color: Colors.grey.shade100),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
+                ),
                 _buildContactCard(
                   Icons.phone_outlined,
                   'Call support',
                   '+91 987654345   8 AM - 9 PM',
                   _handleCallAction,
                 ),
-                Divider(height: 1, thickness: 1, color: Colors.grey.shade100),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
+                ),
                 _buildContactCard(
                   Icons.email_outlined,
                   'Email us',
@@ -548,20 +583,23 @@ class _SupportScreenState extends State<SupportScreen> {
           ),
 
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'Direct Message',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: _navBgColor,
+              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
             ),
           ),
           const SizedBox(height: 16),
 
           // Subject Dropdown
-          const Text(
+          Text(
             'Enquiry Subject',
-            style: TextStyle(fontWeight: FontWeight.bold, color: _navBgColor),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+            ),
           ),
           const SizedBox(height: 8),
           ValueListenableBuilder<String>(
@@ -570,24 +608,30 @@ class _SupportScreenState extends State<SupportScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                  ),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: subject,
                     isExpanded: true,
-                    icon: const Icon(
+                    dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    icon: Icon(
                       Icons.keyboard_arrow_down_rounded,
-                      color: Colors.grey,
+                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
                     ),
                     items: _subjects.map((String val) {
                       return DropdownMenuItem<String>(
                         value: val,
                         child: Text(
                           val,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFF5F5F5) : Colors.black87,
+                          ),
                         ),
                       );
                     }).toList(),
@@ -603,23 +647,45 @@ class _SupportScreenState extends State<SupportScreen> {
           const SizedBox(height: 16),
 
           // Message Field
-          const Text(
+          Text(
             'How can i help you',
-            style: TextStyle(fontWeight: FontWeight.bold, color: _navBgColor),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+            ),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _messageController,
             autofocus: false,
             maxLines: 4,
+            style: TextStyle(
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+            ),
             decoration: InputDecoration(
               hintText: 'Describe the issue in details....',
-              hintStyle: TextStyle(color: Colors.grey.shade500),
+              hintStyle: TextStyle(
+                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+              ),
               filled: true,
-              fillColor: _iconBg,
+              fillColor: isDark ? const Color(0xFF1E1E1E) : _iconBg,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                borderSide: BorderSide(
+                  color: isDark ? const Color(0xFF262626) : Colors.transparent,
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: isDark ? const Color(0xFF262626) : Colors.transparent,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                ),
               ),
             ),
           ),
@@ -681,6 +747,8 @@ class _SupportScreenState extends State<SupportScreen> {
     String subtitle,
     VoidCallback onTap,
   ) {
+    final bool isDark = _isDarkMode;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -691,10 +759,15 @@ class _SupportScreenState extends State<SupportScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: _iconBg,
+                color: isDark ? const Color(0xFF1E1E1E) : _iconBg,
                 borderRadius: BorderRadius.circular(10),
+                border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
               ),
-              child: Icon(icon, color: _navBgColor, size: 20),
+              child: Icon(
+                icon,
+                color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -703,9 +776,9 @@ class _SupportScreenState extends State<SupportScreen> {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: _navBgColor,
+                      color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                       fontSize: 15,
                     ),
                   ),
@@ -713,7 +786,7 @@ class _SupportScreenState extends State<SupportScreen> {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: Colors.grey.shade500,
+                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -723,7 +796,7 @@ class _SupportScreenState extends State<SupportScreen> {
             ),
             Icon(
               Icons.arrow_forward_ios_rounded,
-              color: Colors.grey.shade300,
+              color: isDark ? const Color(0xFF444444) : Colors.grey.shade300,
               size: 14,
             ),
           ],
@@ -736,12 +809,16 @@ class _SupportScreenState extends State<SupportScreen> {
   // TAB 2: INBOX (LIVE FIRESTORE DATA)
   // ==========================================
   Widget _buildInboxTab() {
+    final bool isDark = _isDarkMode;
+
     return StreamBuilder<QuerySnapshot>(
       stream: _ticketsStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(color: _navBgColor),
+          return Center(
+            child: CircularProgressIndicator(
+              color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+            ),
           );
         }
 
@@ -753,13 +830,13 @@ class _SupportScreenState extends State<SupportScreen> {
                 Icon(
                   Icons.inbox_rounded,
                   size: 60,
-                  color: Colors.grey.shade300,
+                  color: isDark ? const Color(0xFF444444) : Colors.grey.shade300,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'No support tickets yet.',
                   style: TextStyle(
-                    color: Colors.grey.shade500,
+                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -794,12 +871,14 @@ class _SupportScreenState extends State<SupportScreen> {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? const Color(0xFF121212) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -813,10 +892,10 @@ class _SupportScreenState extends State<SupportScreen> {
                     children: [
                       Text(
                         subject,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
-                          color: _navBgColor,
+                          color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                         ),
                       ),
                       Container(
@@ -842,26 +921,29 @@ class _SupportScreenState extends State<SupportScreen> {
                   const SizedBox(height: 8),
                   Text(
                     message,
-                    style: const TextStyle(color: Colors.black87, fontSize: 14),
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFE0E0E0) : Colors.black87,
+                      fontSize: 14,
+                    ),
                   ),
 
                   // SHOW ATTACHMENT IF IT EXISTS (For historical tickets)
                   if (attachmentUrl != null && attachmentUrl.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     ActionChip(
-                      backgroundColor: _iconBg,
+                      backgroundColor: isDark ? const Color(0xFF1E1E1E) : _iconBg,
                       side: BorderSide.none,
-                      avatar: const Icon(
+                      avatar: Icon(
                         Icons.attachment_rounded,
                         size: 16,
-                        color: _navBgColor,
+                        color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                       ),
-                      label: const Text(
+                      label: Text(
                         "View Attachment",
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: _navBgColor,
+                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                         ),
                       ),
                       onPressed: () => _openAttachmentUrl(attachmentUrl),
@@ -871,7 +953,10 @@ class _SupportScreenState extends State<SupportScreen> {
                   const SizedBox(height: 8),
                   Text(
                     dateStr,
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                      fontSize: 11,
+                    ),
                   ),
 
                   // ADMIN REPLY BUBBLE
@@ -880,18 +965,20 @@ class _SupportScreenState extends State<SupportScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: _iconBg,
+                        color: isDark ? const Color(0xFF1E1E1E) : _iconBg,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: _navBgColor.withValues(alpha: 0.1),
+                          color: isDark
+                              ? const Color(0xFF3B82F6).withValues(alpha: 0.3)
+                              : _navBgColor.withValues(alpha: 0.1),
                         ),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.support_agent_rounded,
-                            color: _navBgColor,
+                            color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                             size: 20,
                           ),
                           const SizedBox(width: 10),
@@ -899,19 +986,19 @@ class _SupportScreenState extends State<SupportScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Admin Reply',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: _navBgColor,
+                                    color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                                     fontSize: 13,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   adminReply,
-                                  style: const TextStyle(
-                                    color: Colors.black87,
+                                  style: TextStyle(
+                                    color: isDark ? const Color(0xFFE0E0E0) : Colors.black87,
                                     fontSize: 14,
                                   ),
                                 ),
@@ -952,65 +1039,73 @@ class _FloatingNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF00215F),
-        borderRadius: BorderRadius.circular(40),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: ValueListenableBuilder<int>(
-        valueListenable: selectedIndexNotifier,
-        builder: (context, selectedIndex, child) {
-          return Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _NavItem(
-                index: 0,
-                icon: Icons.home_filled,
-                label: 'Home',
-                selectedIndex: selectedIndex,
-                onTap: onHomeTap,
-              ),
-              _NavItem(
-                index: 1,
-                icon: Icons.calendar_today_rounded,
-                label: 'Booking',
-                selectedIndex: selectedIndex,
-                onTap: onBookingTap,
-              ),
-              _NavItem(
-                index: 2,
-                icon: Icons.bar_chart_rounded,
-                label: 'Stats',
-                selectedIndex: selectedIndex,
-                onTap: onStatsTap,
-              ),
-              _NavItem(
-                index: 3,
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Chats',
-                selectedIndex: selectedIndex,
-                onTap: onChatsTap,
-              ),
-              _NavItem(
-                index: 4,
-                icon: Icons.person_outline_rounded,
-                label: 'Profile',
-                selectedIndex: selectedIndex,
-                onTap: onProfileTap,
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        final Color navBg = isDark ? const Color(0xFF121212) : const Color(0xFF00215F);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          decoration: BoxDecoration(
+            color: navBg,
+            borderRadius: BorderRadius.circular(40),
+            border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
-          );
-        },
-      ),
+          ),
+          child: ValueListenableBuilder<int>(
+            valueListenable: selectedIndexNotifier,
+            builder: (context, selectedIndex, child) {
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _NavItem(
+                    index: 0,
+                    icon: Icons.home_filled,
+                    label: 'Home',
+                    selectedIndex: selectedIndex,
+                    onTap: onHomeTap,
+                  ),
+                  _NavItem(
+                    index: 1,
+                    icon: Icons.calendar_today_rounded,
+                    label: 'Booking',
+                    selectedIndex: selectedIndex,
+                    onTap: onBookingTap,
+                  ),
+                  _NavItem(
+                    index: 2,
+                    icon: Icons.bar_chart_rounded,
+                    label: 'Stats',
+                    selectedIndex: selectedIndex,
+                    onTap: onStatsTap,
+                  ),
+                  _NavItem(
+                    index: 3,
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: 'Chats',
+                    selectedIndex: selectedIndex,
+                    onTap: onChatsTap,
+                  ),
+                  _NavItem(
+                    index: 4,
+                    icon: Icons.person_outline_rounded,
+                    label: 'Profile',
+                    selectedIndex: selectedIndex,
+                    onTap: onProfileTap,
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

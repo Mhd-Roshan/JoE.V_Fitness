@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
-import 'package:intl/intl.dart';
+import 'package:easy_localization/easy_localization.dart';
 
 import '../services/razorpay_service.dart';
 import '../theme/app_theme_controller.dart';
@@ -151,6 +151,24 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
 
     if (!mounted) return;
     setState(() => _isProcessingPayment = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'success_package_selected'.tr(),
+          style: GoogleFonts.poppins(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        margin: const EdgeInsets.all(20),
+      ),
+    );
 
     _showSuccessCelebrationDialog(response);
   }

@@ -11,8 +11,11 @@ class RazorpayService {
   late Razorpay _razorpay;
   bool _isInitialized = false;
 
-  // Default test API key (can be swapped with live Razorpay Key in production / Firestore config)
-  static const String defaultKeyId = 'rzp_test_1DP5mmOlF5G5ag';
+  // Default test API key
+  static const String defaultKeyId = 'rzp_test_TUIFsntsNuezHz';
+  // Note: The Razorpay secret key is: 37WG7evVDqNTBXrt06Nqugqn
+  // Important: Secret keys should NEVER be exposed in the frontend app in production.
+  // It is kept here as a reference for your backend/Firebase Functions signature verification.
 
   Function(PaymentSuccessResponse response)? _onSuccess;
   Function(PaymentFailureResponse response)? _onError;

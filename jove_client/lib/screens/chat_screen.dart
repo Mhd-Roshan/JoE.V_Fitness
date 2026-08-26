@@ -216,16 +216,16 @@ class _ChatScreenState extends State<ChatScreen>
         return val.values.toList();
       }
     }
-
     return [];
   }
 
   // --- SHOW DIET PLAN BEAUTIFUL DASHBOARD ---
   void _showDietPlanDashboard(String templateId, String fileUrl, String title) {
+    final bool isDark = AppThemeController.isDark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -240,7 +240,7 @@ class _ChatScreenState extends State<ChatScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
+                  color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -254,35 +254,37 @@ class _ChatScreenState extends State<ChatScreen>
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: _navBgColor.withValues(alpha: 0.1),
+                        color: isDark
+                            ? const Color(0xFF1E1E1E)
+                            : _navBgColor.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.restaurant_menu_rounded,
-                        color: _navBgColor,
+                        color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: _textMain,
+                          color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey),
+                      icon: Icon(Icons.close, color: isDark ? Colors.grey.shade400 : Colors.grey),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
-              const Divider(height: 16),
+              Divider(height: 16, color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
 
               // Fetch Data & Display Dashboard
               Expanded(
@@ -290,8 +292,10 @@ class _ChatScreenState extends State<ChatScreen>
                   future: _fetchDietPlanData(templateId),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: _navBgColor),
+                      return Center(
+                        child: CircularProgressIndicator(
+                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                        ),
                       );
                     }
 
@@ -300,15 +304,15 @@ class _ChatScreenState extends State<ChatScreen>
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.error_outline,
                               size: 48,
-                              color: Colors.grey,
+                              color: isDark ? Colors.grey.shade600 : Colors.grey,
                             ),
                             const SizedBox(height: 16),
-                            const Text(
+                            Text(
                               "Diet plan details not found.",
-                              style: TextStyle(color: Colors.grey),
+                              style: TextStyle(color: isDark ? const Color(0xFFA8A8A8) : Colors.grey),
                             ),
                           ],
                         ),
@@ -364,7 +368,7 @@ class _ChatScreenState extends State<ChatScreen>
                                   protein,
                                   "g",
                                   Icons.fitness_center,
-                                  _navBgColor,
+                                  isDark ? const Color(0xFF3B82F6) : _navBgColor,
                                 ),
                               ),
                             ],
@@ -430,18 +434,18 @@ class _ChatScreenState extends State<ChatScreen>
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(color: Colors.grey.shade200),
+                                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
+                                  Text(
                                     "Prohibitions",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: _navBgColor,
+                                      color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -460,9 +464,9 @@ class _ChatScreenState extends State<ChatScreen>
                                           Expanded(
                                             child: Text(
                                               rule.toString(),
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 13,
-                                                color: Colors.black87,
+                                                color: isDark ? const Color(0xFFE5E5E5) : Colors.black87,
                                               ),
                                             ),
                                           ),
@@ -476,12 +480,12 @@ class _ChatScreenState extends State<ChatScreen>
                           ],
 
                           const SizedBox(height: 32),
-                          const Text(
+                          Text(
                             "Meal Sequence",
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: _navBgColor,
+                              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -491,12 +495,13 @@ class _ChatScreenState extends State<ChatScreen>
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
+                                color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Text(
+                              child: Text(
                                 "No specific meal items listed in this template.",
                                 textAlign: TextAlign.center,
+                                style: TextStyle(color: isDark ? const Color(0xFFA8A8A8) : Colors.grey),
                               ),
                             ),
                           ] else ...[
@@ -555,9 +560,9 @@ class _ChatScreenState extends State<ChatScreen>
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                                   border: Border.all(
-                                    color: Colors.grey.shade200,
+                                    color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -567,7 +572,7 @@ class _ChatScreenState extends State<ChatScreen>
                                       width: 50,
                                       height: 50,
                                       decoration: BoxDecoration(
-                                        color: Colors.grey.shade100,
+                                        color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: mealImage.toString().isNotEmpty
@@ -582,15 +587,15 @@ class _ChatScreenState extends State<ChatScreen>
                                                       context,
                                                       error,
                                                       stackTrace,
-                                                    ) => const Icon(
+                                                    ) => Icon(
                                                       Icons.restaurant,
-                                                      color: Colors.grey,
+                                                      color: isDark ? Colors.grey.shade600 : Colors.grey,
                                                     ),
                                               ),
                                             )
-                                          : const Icon(
+                                          : Icon(
                                               Icons.restaurant,
-                                              color: Colors.grey,
+                                              color: isDark ? Colors.grey.shade600 : Colors.grey,
                                             ),
                                     ),
                                     const SizedBox(width: 16),
@@ -611,17 +616,17 @@ class _ChatScreenState extends State<ChatScreen>
                                             ),
                                           Text(
                                             name.toString(),
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
-                                              color: _navBgColor,
+                                              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                                             ),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
                                             items.toString(),
                                             style: TextStyle(
-                                              color: Colors.grey.shade600,
+                                              color: isDark ? const Color(0xFFD4D4D4) : Colors.grey.shade600,
                                               fontSize: 13,
                                             ),
                                           ),
@@ -633,20 +638,20 @@ class _ChatScreenState extends State<ChatScreen>
                                       children: [
                                         _buildMacroPill(
                                           '${p}g',
-                                          Colors.green.shade100,
-                                          Colors.green.shade800,
+                                          isDark ? const Color(0xFF1E3A2B) : Colors.green.shade100,
+                                          isDark ? const Color(0xFF4ADE80) : Colors.green.shade800,
                                         ),
                                         const SizedBox(width: 4),
                                         _buildMacroPill(
                                           '${c}g',
-                                          Colors.orange.shade100,
-                                          Colors.orange.shade800,
+                                          isDark ? const Color(0xFF3B2E1E) : Colors.orange.shade100,
+                                          isDark ? const Color(0xFFFDBA74) : Colors.orange.shade800,
                                         ),
                                         const SizedBox(width: 4),
                                         _buildMacroPill(
                                           '${f}g',
-                                          Colors.red.shade100,
-                                          Colors.red.shade800,
+                                          isDark ? const Color(0xFF3B1E1E) : Colors.red.shade100,
+                                          isDark ? const Color(0xFFFCA5A5) : Colors.red.shade800,
                                         ),
                                       ],
                                     ),
@@ -706,11 +711,12 @@ class _ChatScreenState extends State<ChatScreen>
     IconData icon,
     Color iconColor,
   ) {
+    final bool isDark = AppThemeController.isDark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade200),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -726,18 +732,18 @@ class _ChatScreenState extends State<ChatScreen>
                     children: [
                       TextSpan(
                         text: value,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 18,
-                          color: _navBgColor,
+                          color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                         ),
                       ),
                       TextSpan(
                         text: ' $unit',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
-                          color: Colors.grey,
+                          color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
                         ),
                       ),
                     ],
@@ -749,9 +755,9 @@ class _ChatScreenState extends State<ChatScreen>
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              color: Colors.grey,
+              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -766,11 +772,12 @@ class _ChatScreenState extends State<ChatScreen>
     String subLabel,
     Color badgeColor,
   ) {
+    final bool isDark = AppThemeController.isDark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade200),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -778,9 +785,9 @@ class _ChatScreenState extends State<ChatScreen>
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: _navBgColor,
+              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
               fontSize: 13,
             ),
           ),
@@ -788,25 +795,25 @@ class _ChatScreenState extends State<ChatScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: badgeColor,
+              color: isDark ? const Color(0xFF262626) : badgeColor,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Text(
               subLabel,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
-                color: _navBgColor,
+                color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
               ),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
               fontSize: 16,
-              color: _textMain,
+              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
             ),
           ),
         ],
@@ -838,10 +845,11 @@ class _ChatScreenState extends State<ChatScreen>
     }
 
     HapticFeedback.selectionClick();
+    final bool isDark = AppThemeController.isDark;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -858,7 +866,7 @@ class _ChatScreenState extends State<ChatScreen>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
+                    color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -869,23 +877,23 @@ class _ChatScreenState extends State<ChatScreen>
                   ),
                   child: Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.restaurant_menu_rounded,
-                        color: _navBgColor,
+                        color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                       ),
                       const SizedBox(width: 12),
                       Text(
                         'diet_plans'.tr(),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: _textMain,
+                          color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1, color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
                 Container(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.5,
@@ -900,11 +908,11 @@ class _ChatScreenState extends State<ChatScreen>
                         .snapshots(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
+                        return Center(
                           child: Padding(
-                            padding: EdgeInsets.all(24.0),
+                            padding: const EdgeInsets.all(24.0),
                             child: CircularProgressIndicator(
-                              color: _navBgColor,
+                              color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                             ),
                           ),
                         );
@@ -934,13 +942,13 @@ class _ChatScreenState extends State<ChatScreen>
                               Icon(
                                 Icons.insert_drive_file_outlined,
                                 size: 48,
-                                color: Colors.grey.shade300,
+                                color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 "no_diet_plans".tr(),
                                 style: TextStyle(
-                                  color: Colors.grey.shade500,
+                                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
                                   fontSize: 16,
                                 ),
                               ),
@@ -1020,7 +1028,9 @@ class _ChatScreenState extends State<ChatScreen>
                                   Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: Colors.red.withValues(alpha: 0.1),
+                                      color: isDark
+                                          ? const Color(0xFF262626)
+                                          : Colors.red.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(10),
                                     ),
                                     child: const Icon(
@@ -1036,9 +1046,9 @@ class _ChatScreenState extends State<ChatScreen>
                                       children: [
                                         Text(
                                           fileName,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            color: _textMain,
+                                            color: isDark ? const Color(0xFFF5F5F5) : _textMain,
                                             fontSize: 15,
                                           ),
                                           maxLines: 1,
@@ -1048,17 +1058,17 @@ class _ChatScreenState extends State<ChatScreen>
                                         Text(
                                           timeString,
                                           style: TextStyle(
-                                            color: Colors.grey.shade600,
+                                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
                                             fontSize: 12,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const Icon(
+                                  Icon(
                                     Icons.arrow_forward_ios_rounded,
                                     size: 16,
-                                    color: Colors.grey,
+                                    color: isDark ? Colors.grey.shade500 : Colors.grey,
                                   ),
                                 ],
                               ),

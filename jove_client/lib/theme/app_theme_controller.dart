@@ -1,10 +1,37 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class AppThemeController {
-  static final ValueNotifier<bool> isDarkMode = ValueNotifier<bool>(false);
+class AppThemeController with WidgetsBindingObserver {
+  // Singleton for observing system theme changes
+  static final AppThemeController _instance = AppThemeController._internal();
+
+  AppThemeController._internal() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Call this in main() to ensure the observer is registered early
+  static void initialize() {
+    _instance; 
+  }
+
+  static bool _hasUserOverride = false;
+
+  static final ValueNotifier<bool> isDarkMode = ValueNotifier<bool>(
+    PlatformDispatcher.instance.platformBrightness == Brightness.dark,
+  );
+
+  @override
+  void didChangePlatformBrightness() {
+    if (!_hasUserOverride) {
+      final isSystemDark = PlatformDispatcher.instance.platformBrightness == Brightness.dark;
+      if (isDarkMode.value != isSystemDark) {
+        isDarkMode.value = isSystemDark;
+      }
+    }
+  }
 
   static bool get isDark => isDarkMode.value;
 
@@ -36,6 +63,7 @@ class AppThemeController {
   static Future<void> toggleTheme() async {
     HapticFeedback.mediumImpact();
     isDarkMode.value = !isDarkMode.value;
+    _hasUserOverride = true;
 
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
@@ -53,7 +81,11 @@ class AppThemeController {
   /// Initialize theme from user document
   static void initFromUserData(Map<String, dynamic>? data) {
     if (data != null && data['isDarkMode'] is bool) {
+      _hasUserOverride = true;
       isDarkMode.value = data['isDarkMode'];
+    } else {
+      _hasUserOverride = false;
+      isDarkMode.value = PlatformDispatcher.instance.platformBrightness == Brightness.dark;
     }
   }
 

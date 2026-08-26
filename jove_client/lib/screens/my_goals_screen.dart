@@ -12,6 +12,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
 import '../widgets/package_required_modal.dart';
+import '../theme/app_theme_controller.dart';
 
 class MyGoalsScreen extends StatefulWidget {
   const MyGoalsScreen({super.key});
@@ -24,6 +25,8 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _primaryBlue = Color(0xFF00215F);
+
+  bool get _isDarkMode => AppThemeController.isDark;
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
 
@@ -266,69 +269,84 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bgColor,
-      extendBody: true,
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: _isLoadingUserData
-                ? const Center(
-                    child: CircularProgressIndicator(color: _primaryBlue),
-                  )
-                : StreamBuilder<QuerySnapshot>(
-                    stream: _availableGoalsStream,
-                    builder: (context, goalsSnapshot) {
-                      return SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.only(bottom: 120),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            RepaintBoundary(child: _buildTopAppBar()),
-                            const SizedBox(height: 16),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 40,
-                              ),
-                              child: Text(
-                                'whats_your_fitness_goal'.tr(),
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF6B6B6B),
-                                  height: 1.2,
-                                  letterSpacing: -0.5,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                              child: _buildGoalsList(goalsSnapshot),
-                            ),
-                            const SizedBox(height: 40),
-                          ],
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        final Color currentBg = isDark ? const Color(0xFF000000) : _bgColor;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          extendBody: true,
+          body: Stack(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: _isLoadingUserData
+                    ? Center(
+                        child: CircularProgressIndicator(
+                          color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
                         ),
-                      );
-                    },
-                  ),
+                      )
+                    : StreamBuilder<QuerySnapshot>(
+                        stream: _availableGoalsStream,
+                        builder: (context, goalsSnapshot) {
+                          return SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            padding: const EdgeInsets.only(bottom: 120),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                RepaintBoundary(child: _buildTopAppBar()),
+                                const SizedBox(height: 16),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 40,
+                                  ),
+                                  child: Text(
+                                    'whats_your_fitness_goal'.tr(),
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w800,
+                                      color: isDark ? const Color(0xFFA8A8A8) : const Color(0xFF6B6B6B),
+                                      height: 1.2,
+                                      letterSpacing: -0.5,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 32),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                  ),
+                                  child: _buildGoalsList(goalsSnapshot),
+                                ),
+                                const SizedBox(height: 40),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              if (!isKeyboardOpen)
+                Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
+            ],
           ),
-          Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildGoalsList(AsyncSnapshot<QuerySnapshot> snapshot) {
+    final bool isDark = _isDarkMode;
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return const Padding(
-        padding: EdgeInsets.all(40),
-        child: CircularProgressIndicator(color: _primaryBlue),
+      return Padding(
+        padding: const EdgeInsets.all(40),
+        child: CircularProgressIndicator(
+          color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+        ),
       );
     }
 
@@ -359,6 +377,9 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   }
 
   Widget _buildTopAppBar() {
+    final bool isDark = _isDarkMode;
+    final Color textMain = isDark ? const Color(0xFFF5F5F5) : _textMain;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
@@ -367,9 +388,9 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
           Row(
             children: [
               IconButton(
-                icon: const Icon(
+                icon: Icon(
                   Icons.arrow_back_ios_new,
-                  color: _textMain,
+                  color: textMain,
                   size: 20,
                 ),
                 onPressed: () {
@@ -384,8 +405,8 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
               const SizedBox(width: 8),
               Text(
                 'my_goals'.tr(),
-                style: const TextStyle(
-                  color: _textMain,
+                style: TextStyle(
+                  color: textMain,
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
@@ -396,13 +417,13 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: textMain,
                 size: 24,
               ),
               onPressed: () async {
@@ -440,15 +461,19 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   }
 
   Widget _buildBottomNavBar() {
+    final bool isDark = _isDarkMode;
+    final Color navBg = isDark ? const Color(0xFF121212) : _primaryBlue;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: _primaryBlue,
+        color: navBg,
         borderRadius: BorderRadius.circular(40),
+        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -503,6 +528,10 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   }
 }
 
+// ===========================================================================
+// GOAL CARD WIDGET
+// ===========================================================================
+
 class GoalCard extends StatelessWidget {
   final String title;
   final bool isSelected;
@@ -515,36 +544,45 @@ class GoalCard extends StatelessWidget {
     required this.onTap,
   });
 
-  IconData _getIconForGoal(String title) {
-    String lowerTitle = title.toLowerCase();
-
-    if (lowerTitle.contains('muscle') || lowerTitle.contains('strength')) {
+  IconData _getIconForGoal(String goalTitle) {
+    final lower = goalTitle.toLowerCase();
+    if (lower.contains('muscle') || lower.contains('strength')) {
       return Icons.fitness_center_rounded;
     }
-    if (lowerTitle.contains('weight') || lowerTitle.contains('fat')) {
-      return Icons.monitor_weight_outlined;
+    if (lower.contains('fat') || lower.contains('weight')) {
+      return Icons.local_fire_department_rounded;
     }
-    if (lowerTitle.contains('medical') || lowerTitle.contains('injury')) {
-      return Icons.medical_services_outlined;
-    }
-    if (lowerTitle.contains('lifestyle') || lowerTitle.contains('health')) {
-      return Icons.self_improvement_rounded;
-    }
-    if (lowerTitle.contains('stress') || lowerTitle.contains('balance')) {
+    if (lower.contains('cardio') || lower.contains('stamina')) {
       return Icons.directions_run_rounded;
     }
-    if (lowerTitle.contains('cardio') || lowerTitle.contains('stamina')) {
-      return Icons.favorite_border_rounded;
+    if (lower.contains('flexibility') || lower.contains('healthy')) {
+      return Icons.self_improvement_rounded;
     }
-
-    return Icons.track_changes_rounded;
+    if (lower.contains('stress') || lower.contains('wellness')) {
+      return Icons.spa_rounded;
+    }
+    if (lower.contains('injury') || lower.contains('recovery')) {
+      return Icons.healing_rounded;
+    }
+    return Icons.star_rounded;
   }
 
   @override
   Widget build(BuildContext context) {
-    IconData dynamicIcon = _getIconForGoal(title);
-    const Color primaryBlue = Color(0xFF00215F);
-    const Color textMain = Color(0xFF1A1A1A);
+    const primaryBlue = Color(0xFF00215F);
+    const textMain = Color(0xFF1A1A1A);
+    final bool isDark = AppThemeController.isDark;
+    final IconData dynamicIcon = _getIconForGoal(title);
+
+    final Color cardBg = isSelected
+        ? (isDark ? const Color(0xFF1D4ED8) : primaryBlue)
+        : (isDark ? const Color(0xFF121212) : Colors.white);
+    final Color borderColor = isSelected
+        ? (isDark ? const Color(0xFF3B82F6) : primaryBlue)
+        : (isDark ? const Color(0xFF262626) : Colors.grey.shade200);
+    final Color contentColor = isSelected
+        ? Colors.white
+        : (isDark ? const Color(0xFFF5F5F5) : textMain);
 
     return GestureDetector(
       onTap: onTap,
@@ -554,23 +592,23 @@ class GoalCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
-          color: isSelected ? primaryBlue : Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? primaryBlue : Colors.grey.shade200,
+            color: borderColor,
             width: 1.5,
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: primaryBlue.withValues(alpha: 0.3),
+                    color: (isDark ? const Color(0xFF3B82F6) : primaryBlue).withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ]
               : [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
+                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -580,7 +618,7 @@ class GoalCard extends StatelessWidget {
           children: [
             Icon(
               dynamicIcon,
-              color: isSelected ? Colors.white : textMain,
+              color: contentColor,
               size: 24,
             ),
             const SizedBox(width: 16),
@@ -588,7 +626,7 @@ class GoalCard extends StatelessWidget {
               child: Text(
                 title,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : textMain,
+                  color: contentColor,
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
@@ -599,14 +637,20 @@ class GoalCard extends StatelessWidget {
                 color: isSelected ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: isSelected ? Colors.transparent : Colors.grey.shade400,
+                  color: isSelected
+                      ? Colors.transparent
+                      : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
                   width: 1.5,
                 ),
               ),
               width: 22,
               height: 22,
               child: isSelected
-                  ? const Icon(Icons.check, size: 16, color: primaryBlue)
+                  ? Icon(
+                      Icons.check,
+                      size: 16,
+                      color: isDark ? const Color(0xFF1D4ED8) : primaryBlue,
+                    )
                   : null,
             ),
           ],

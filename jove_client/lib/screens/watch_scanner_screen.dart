@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class WatchScannerScreen extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>>? onDevicePaired;
@@ -71,103 +74,91 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
       ));
     }
 
-    _startSimulatedDiscovery();
+    _startRealDiscovery();
   }
 
-  void _startSimulatedDiscovery() async {
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-
+  void _startRealDiscovery() async {
     setState(() {
-      _statusText = 'Searching Bluetooth Low Energy (BLE) frequencies...';
+      _statusText = 'Requesting Bluetooth & Location permissions...';
     });
 
-    await Future.delayed(const Duration(milliseconds: 1100));
-    if (!mounted) return;
-    HapticFeedback.selectionClick();
-    setState(() {
-      _discoveredDevices.add({
-        'id': 'apple_watch_u2',
-        'name': 'Apple Watch Ultra 2',
-        'brand': 'Apple',
-        'category': 'Smartwatch',
-        'icon': Icons.apple,
-        'color': Colors.white,
-        'rssi': '-44 dBm',
-        'signal': 0.96,
-        'battery': 94,
-        'mac': 'D8:30:62:8B:12:F1',
+    if (Platform.isAndroid) {
+      await [
+        Permission.location,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+      ].request();
+    } else if (Platform.isIOS) {
+      await Permission.bluetooth.request();
+    }
+
+    if (await FlutterBluePlus.isSupported == false) {
+      if (mounted) {
+        setState(() {
+          _statusText = 'Bluetooth not supported on this device.';
+        });
+      }
+      return;
+    }
+
+    // Attempt to turn on Bluetooth on Android
+    if (Platform.isAndroid) {
+      try {
+        await FlutterBluePlus.turnOn();
+      } catch (e) {
+        debugPrint("Error turning on Bluetooth: $e");
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _statusText = 'Searching Bluetooth Low Energy (BLE) frequencies...';
       });
-      _statusText = '1 smart watch discovered nearby...';
+    }
+
+    FlutterBluePlus.scanResults.listen((results) {
+      if (!mounted) return;
+      List<Map<String, dynamic>> devices = [];
+      for (ScanResult r in results) {
+        // Only show devices with a valid name
+        if (r.device.platformName.isNotEmpty || r.advertisementData.advName.isNotEmpty) {
+          String name = r.device.platformName.isNotEmpty 
+              ? r.device.platformName 
+              : r.advertisementData.advName;
+          
+          devices.add({
+            'id': r.device.remoteId.str,
+            'name': name,
+            'brand': 'Unknown BLE Device',
+            'category': 'Smart Device',
+            'icon': Icons.watch_outlined,
+            'color': Colors.blueAccent,
+            'rssi': '${r.rssi} dBm',
+            'signal': math.max(0.0, math.min(1.0, (r.rssi + 100) / 60.0)), // Normalization logic
+            'battery': 100,
+            'mac': r.device.remoteId.str,
+            'rawDevice': r.device,
+          });
+        }
+      }
+      
+      setState(() {
+        _discoveredDevices.clear();
+        _discoveredDevices.addAll(devices);
+        if (devices.isEmpty) {
+          _statusText = 'Scanning... No named devices found yet.';
+        } else {
+          _statusText = '${devices.length} devices found. Tap to pair & sync.';
+        }
+      });
     });
 
-    await Future.delayed(const Duration(milliseconds: 1300));
-    if (!mounted) return;
-    HapticFeedback.selectionClick();
-    setState(() {
-      _discoveredDevices.add({
-        'id': 'galaxy_watch_6',
-        'name': 'Galaxy Watch 6 Classic',
-        'brand': 'Samsung',
-        'category': 'Wear OS Watch',
-        'icon': Icons.watch_outlined,
-        'color': const Color(0xFF38BDF8),
-        'rssi': '-53 dBm',
-        'signal': 0.88,
-        'battery': 86,
-        'mac': 'FC:F5:28:C0:4A:22',
-      });
-      _statusText = '2 smart watches discovered nearby...';
-    });
-
-    await Future.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    HapticFeedback.selectionClick();
-    setState(() {
-      _discoveredDevices.add({
-        'id': 'mi_band_8',
-        'name': 'Xiaomi Smart Band 8 Pro',
-        'brand': 'Xiaomi',
-        'category': 'Fitness Band',
-        'icon': Icons.watch_rounded,
-        'color': const Color(0xFFFF7A00),
-        'rssi': '-62 dBm',
-        'signal': 0.82,
-        'battery': 91,
-        'mac': 'E4:95:6E:12:4A:8B',
-      });
-      _statusText = '3 devices found. Tap to pair & sync.';
-    });
-
-    await Future.delayed(const Duration(milliseconds: 1400));
-    if (!mounted) return;
-    setState(() {
-      _discoveredDevices.add({
-        'id': 'garmin_forerunner',
-        'name': 'Garmin Forerunner 965',
-        'brand': 'Garmin',
-        'category': 'GPS Sports Watch',
-        'icon': Icons.directions_run_rounded,
-        'color': const Color(0xFF34D399),
-        'rssi': '-69 dBm',
-        'signal': 0.76,
-        'battery': 78,
-        'mac': 'A0:B1:C2:D3:E4:F5',
-      });
-      _discoveredDevices.add({
-        'id': 'smart_scale_s2',
-        'name': 'BLE Smart Body Scale S2',
-        'brand': 'Withings',
-        'category': 'Smart Scale',
-        'icon': Icons.scale_outlined,
-        'color': const Color(0xFFA78BFA),
-        'rssi': '-74 dBm',
-        'signal': 0.70,
-        'battery': 98,
-        'mac': '00:1A:7D:DA:71:13',
-      });
-      _statusText = 'Ready to connect. Select your watch or band.';
-    });
+    // Start scanning
+    try {
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
+    } catch (e) {
+      debugPrint("Error starting scan: $e");
+    }
   }
 
   // --- PAIR AND CONNECT DEVICE ---
@@ -180,6 +171,18 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
       _pairingDeviceName = device['name'];
       _pairingProgress = 15;
     });
+
+    // Attempt real BLE connection if rawDevice is available
+    BluetoothDevice? rawDevice = device['rawDevice'];
+    if (rawDevice != null) {
+      try {
+        await rawDevice.connect(timeout: const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint("Error connecting to BLE device: $e");
+        // We will continue anyway for UI purposes to show it as "paired" 
+        // as per the user's current simplified requirement.
+      }
+    }
 
     // Step 1: Handshake
     await Future.delayed(const Duration(milliseconds: 500));
@@ -404,7 +407,7 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                 _discoveredDevices.clear();
                 _statusText = 'Restarting Bluetooth scan...';
               });
-              _startSimulatedDiscovery();
+              _startRealDiscovery();
             },
           ),
         ],

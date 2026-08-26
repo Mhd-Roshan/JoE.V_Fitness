@@ -221,11 +221,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   void _showTrainerFeedbackBottomSheet(String trainerName) {
     int rating = 0;
     final TextEditingController reviewController = TextEditingController();
+    final bool isDark = _isDarkMode;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -246,7 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -254,10 +255,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                   Text(
                     'package_complete'.tr(),
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
-                      color: _navBgColor,
+                      color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -266,7 +267,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                       namedArgs: {'trainerName': trainerName},
                     ),
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Row(
@@ -291,13 +295,27 @@ class _ProfileScreenState extends State<ProfileScreen>
                   TextField(
                     controller: reviewController,
                     maxLines: 3,
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                    ),
                     decoration: InputDecoration(
                       hintText: "write_review_hint".tr(),
+                      hintStyle: TextStyle(
+                        color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                      ),
                       filled: true,
-                      fillColor: _iconBg,
+                      fillColor: isDark ? const Color(0xFF1E1E1E) : _iconBg,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                        borderSide: isDark
+                            ? const BorderSide(color: Color(0xFF262626))
+                            : BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: isDark
+                            ? const BorderSide(color: Color(0xFF262626))
+                            : BorderSide.none,
                       ),
                     ),
                   ),
@@ -320,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         navigator.pop();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _navBgColor,
+                        backgroundColor: isDark ? const Color(0xFF3B82F6) : _navBgColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -440,19 +458,29 @@ class _ProfileScreenState extends State<ProfileScreen>
   // --- UPDATED SIGN OUT LOGIC ---
   Future<void> _handleSignOut() async {
     HapticFeedback.mediumImpact();
+    final bool isDark = _isDarkMode;
 
     bool confirm =
         await showDialog(
           context: context,
           builder: (context) => AlertDialog(
+            backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
             title: Text(
               "sign_out".tr(),
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+              ),
             ),
-            content: Text("sign_out_confirm_msg".tr()),
+            content: Text(
+              "sign_out_confirm_msg".tr(),
+              style: TextStyle(
+                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade700,
+              ),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -508,16 +536,21 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final Color currentBg = _isDarkMode ? const Color(0xFF000000) : _bgColor;
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
-      backgroundColor: currentBg,
-      body: Stack(
-        children: [
-          SafeArea(
-            bottom: false,
-            child: RepaintBoundary(
-              child: SingleChildScrollView(
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        final Color currentBg = isDark ? const Color(0xFF000000) : _bgColor;
+
+        return Scaffold(
+          backgroundColor: currentBg,
+          body: Stack(
+            children: [
+              SafeArea(
+                bottom: false,
+                child: RepaintBoundary(
+                  child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.only(bottom: 120),
                 child: Column(
@@ -529,12 +562,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ValueListenableBuilder<Map<String, dynamic>>(
                       valueListenable: _userDataNotifier,
                       builder: (context, userData, _) {
-                        String fullName =
+                        String rawFullName =
                             userData['fullName'] ??
                             currentUser?.displayName ??
-                            'client_user'.tr();
+                            '';
+                        String fullName = rawFullName.trim().isNotEmpty ? rawFullName : 'client_user'.tr();
                         String package =
-                            userData['packageName'] ?? 'premium_package'.tr();
+                            userData['packageName'] ?? 
+                            (userData['subscription'] != null ? userData['subscription']['planName'] : null) ?? 
+                            'premium_package'.tr();
                         String photoUrl =
                             userData['photoURL'] ?? currentUser?.photoURL ?? '';
                         String trainerName =
@@ -643,10 +679,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
 
-          if (widget.showBottomNav)
+          if (widget.showBottomNav && !isKeyboardOpen)
             Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
         ],
       ),
+    );
+      },
     );
   }
 

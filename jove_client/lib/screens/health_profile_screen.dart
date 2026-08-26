@@ -12,6 +12,7 @@ import 'chat_screen.dart';
 import 'profile_screen.dart'; // <-- IMPORTED PROFILE SCREEN
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
 import '../widgets/package_required_modal.dart';
+import '../theme/app_theme_controller.dart';
 
 class HealthProfileScreen extends StatefulWidget {
   const HealthProfileScreen({super.key});
@@ -28,6 +29,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   static const Color _cyanAccent = Color(0xFF00C4FF);
   static const Color _redButton = Color(0xFFBB0013);
   static const Color _cardBg = Colors.white;
+
+  bool get _isDarkMode => AppThemeController.isDark;
 
   static const LinearGradient _meshGradient = LinearGradient(
     begin: Alignment.topLeft,
@@ -340,58 +343,70 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   Widget build(BuildContext context) {
     bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
 
-    return Scaffold(
-      backgroundColor: _bgColor,
-      extendBody: true,
-      body: Stack(
-        children: [
-          GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: SafeArea(
-              bottom: false,
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _primaryBlue),
-                    )
-                  : SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(bottom: 120),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          RepaintBoundary(child: _buildTopAppBar()),
-                          const SizedBox(height: 16),
+    return ValueListenableBuilder<bool>(
+      valueListenable: AppThemeController.isDarkMode,
+      builder: (context, isDark, _) {
+        final Color currentBg = isDark ? const Color(0xFF000000) : _bgColor;
 
-                          _buildSectionHeader('health_condition_title'.tr()),
-                          _buildMedicalSection(),
-
-                          const SizedBox(height: 24),
-                          _buildSectionHeader(
-                            'physical_constraints_title'.tr(),
+        return Scaffold(
+          backgroundColor: currentBg,
+          extendBody: true,
+          body: Stack(
+            children: [
+              GestureDetector(
+                onTap: () => FocusScope.of(context).unfocus(),
+                child: SafeArea(
+                  bottom: false,
+                  child: _isLoading
+                      ? Center(
+                          child: CircularProgressIndicator(
+                            color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
                           ),
-                          _buildConstraintsSection(),
-                          const SizedBox(height: 16),
-                          _buildSurgeriesSection(),
-                          const SizedBox(height: 16),
-                          _buildMedicationsSection(),
-                          const SizedBox(height: 40),
-                        ],
-                      ),
-                    ),
-            ),
+                        )
+                      : SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.only(bottom: 120),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              RepaintBoundary(child: _buildTopAppBar()),
+                              const SizedBox(height: 16),
+
+                              _buildSectionHeader('health_condition_title'.tr()),
+                              _buildMedicalSection(),
+
+                              const SizedBox(height: 24),
+                              _buildSectionHeader(
+                                'physical_constraints_title'.tr(),
+                              ),
+                              _buildConstraintsSection(),
+                              const SizedBox(height: 16),
+                              _buildSurgeriesSection(),
+                              const SizedBox(height: 16),
+                              _buildMedicationsSection(),
+                              const SizedBox(height: 40),
+                            ],
+                          ),
+                        ),
+                ),
+              ),
+              if (!isKeyboardOpen)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
+            ],
           ),
-          if (!isKeyboardOpen)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: _buildBottomNavBar(),
-            ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   // --- UPDATED APP BAR WITH NOTIFICATION ICON ---
   Widget _buildTopAppBar() {
+    final bool isDark = _isDarkMode;
+    final Color textMain = isDark ? const Color(0xFFF5F5F5) : _textMain;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
@@ -402,9 +417,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_ios_new,
-                    color: _textMain,
+                    color: textMain,
                     size: 20,
                   ),
                   onPressed: () {
@@ -416,8 +431,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 Expanded(
                   child: Text(
                     'health_profile'.tr(),
-                    style: const TextStyle(
-                      color: _textMain,
+                    style: TextStyle(
+                      color: textMain,
                       fontSize: 24,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
@@ -433,13 +448,13 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.notifications_none_rounded,
-                color: _textMain,
+                color: textMain,
                 size: 24,
               ),
               onPressed: () {
@@ -475,33 +490,39 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
+    final bool isDark = _isDarkMode;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w900,
-          color: _primaryBlue,
+          color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
         ),
       ),
     );
   }
 
   Widget _buildMedicalSection() {
+    final bool isDark = _isDarkMode;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _isAddingMedical ? null : _cardBg,
+        color: _isAddingMedical
+            ? null
+            : (isDark ? const Color(0xFF121212) : _cardBg),
         gradient: _isAddingMedical ? _meshGradient : null,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
         boxShadow: [
           if (!_isAddingMedical)
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -582,8 +603,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 }),
                 child: Text(
                   'cancel'.tr(),
-                  style: const TextStyle(
-                    color: _primaryBlue,
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -596,13 +617,16 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildMedicalItem(int index, Map<String, dynamic> item) {
+    final bool isDark = _isDarkMode;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
       ),
       child: Row(
         children: [
@@ -610,7 +634,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             item['name'].toString().toLowerCase().contains('diabetes')
                 ? Icons.bloodtype_outlined
                 : Icons.sick_outlined,
-            color: _primaryBlue,
+            color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
             size: 28,
           ),
           const SizedBox(width: 16),
@@ -620,17 +644,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               children: [
                 Text(
                   item['name'] ?? '',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: _primaryBlue,
+                    color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '${'diagnosed'.tr()}: ${item['diagnosed'] ?? 'unknown'.tr()}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -651,15 +678,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildConstraintsSection() {
+    final bool isDark = _isDarkMode;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _isAddingConstraint ? null : _cardBg,
+        color: _isAddingConstraint
+            ? null
+            : (isDark ? const Color(0xFF121212) : _cardBg),
         gradient: _isAddingConstraint ? _meshGradient : null,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,8 +730,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                     onPressed: () =>
                         setState(() => _isAddingConstraint = false),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryBlue,
-                      side: const BorderSide(color: _primaryBlue),
+                      foregroundColor: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -752,13 +786,16 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildConstraintItem(int index, Map<String, dynamic> item) {
+    final bool isDark = _isDarkMode;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -770,7 +807,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               Expanded(
                 child: Row(
                   children: [
-                    const Icon(Icons.accessible_forward, color: _primaryBlue),
+                    Icon(
+                      Icons.accessible_forward,
+                      color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -778,10 +818,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                         children: [
                           Text(
                             item['name'] ?? '',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
-                              color: _primaryBlue,
+                              color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -789,7 +829,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                           Text(
                             '${'since'.tr()}: ${item['duration'] ?? 'unknown'.tr()}',
                             style: TextStyle(
-                              color: Colors.grey.shade600,
+                              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
                               fontSize: 12,
                             ),
                             maxLines: 1,
@@ -825,7 +865,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           const SizedBox(height: 12),
           LinearProgressIndicator(
             value: (item['intensity'] ?? 1.0) / 2,
-            backgroundColor: Colors.grey.shade200,
+            backgroundColor: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
             color: _redButton,
             minHeight: 6,
             borderRadius: BorderRadius.circular(10),
@@ -841,7 +881,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                       : item['intensity'] == 1.0
                       ? 'moderate'.tr()
                       : 'low'.tr()}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -868,15 +911,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildSurgeriesSection() {
+    final bool isDark = _isDarkMode;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _isAddingSurgery ? null : _cardBg,
+        color: _isAddingSurgery
+            ? null
+            : (isDark ? const Color(0xFF121212) : _cardBg),
         gradient: _isAddingSurgery ? _meshGradient : null,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -909,8 +957,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                 borderRadius: BorderRadius.circular(12),
+                border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -921,8 +970,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                       children: [
                         Text(
                           'ongoing_rehab'.tr(),
-                          style: const TextStyle(
-                            color: _primaryBlue,
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -931,8 +980,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                         ),
                         Text(
                           'seeing_pt'.tr(),
-                          style: const TextStyle(
-                            color: Colors.grey,
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
                             fontSize: 12,
                           ),
                           maxLines: 2,
@@ -957,8 +1006,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                   child: OutlinedButton(
                     onPressed: () => setState(() => _isAddingSurgery = false),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryBlue,
-                      side: const BorderSide(color: _primaryBlue),
+                      foregroundColor: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1010,17 +1061,24 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildSurgeryItem(int index, Map<String, dynamic> item) {
+    final bool isDark = _isDarkMode;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.healing, color: _primaryBlue, size: 28),
+          Icon(
+            Icons.healing,
+            color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+            size: 28,
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -1028,17 +1086,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               children: [
                 Text(
                   item['name'] ?? '',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: _primaryBlue,
+                    color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '${'timeline'.tr()}: ${item['date'] ?? 'unknown'.tr()}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1059,15 +1120,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildMedicationsSection() {
+    final bool isDark = _isDarkMode;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _isAddingMedication ? null : _cardBg,
+        color: _isAddingMedication
+            ? null
+            : (isDark ? const Color(0xFF121212) : _cardBg),
         gradient: _isAddingMedication ? _meshGradient : null,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1121,8 +1187,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                     onPressed: () =>
                         setState(() => _isAddingMedication = false),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _primaryBlue,
-                      side: const BorderSide(color: _primaryBlue),
+                      foregroundColor: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      side: BorderSide(
+                        color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1175,17 +1243,24 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildMedicationItem(int index, Map<String, dynamic> item) {
+    final bool isDark = _isDarkMode;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.medication_outlined, color: _primaryBlue, size: 28),
+          Icon(
+            Icons.medication_outlined,
+            color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+            size: 28,
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
@@ -1193,17 +1268,20 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               children: [
                 Text(
                   item['name'] ?? '',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
-                    color: _primaryBlue,
+                    color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '${item['dosage']} • ${item['frequency']}',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  style: TextStyle(
+                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1224,16 +1302,17 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildCardTitleRow(String title, int count) {
+    final bool isDark = _isDarkMode;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
               fontSize: 16,
-              color: _primaryBlue,
+              color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -1244,13 +1323,13 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFE2F5E1),
+              color: isDark ? const Color(0xFF1E3A2B) : const Color(0xFFE2F5E1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               '$count ${'active'.tr()}',
-              style: const TextStyle(
-                color: Color(0xFF34C759),
+              style: TextStyle(
+                color: isDark ? const Color(0xFF4ADE80) : const Color(0xFF34C759),
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -1261,6 +1340,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildDottedAddButton(String text, VoidCallback onTap) {
+    final bool isDark = _isDarkMode;
     return GestureDetector(
       onTap: () {
         if (!_hasActiveSubscription) {
@@ -1279,10 +1359,14 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: _redButton.withValues(alpha: 0.05),
+          color: isDark
+              ? const Color(0xFF1E1E1E)
+              : _redButton.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _redButton.withValues(alpha: 0.3),
+            color: isDark
+                ? _redButton.withValues(alpha: 0.4)
+                : _redButton.withValues(alpha: 0.3),
             style: BorderStyle.solid,
           ),
         ),
@@ -1299,12 +1383,13 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildFormLabel(String text) {
+    final bool isDark = _isDarkMode;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
-          color: _primaryBlue,
+        style: TextStyle(
+          color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
           fontWeight: FontWeight.bold,
           fontSize: 13,
         ),
@@ -1319,38 +1404,46 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
     String hint, {
     IconData? icon,
   }) {
+    final bool isDark = _isDarkMode;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
       ),
       child: TextField(
         controller: controller,
         autofocus: false,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: _primaryBlue,
+          color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
         ),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: TextStyle(color: Colors.grey.shade400),
+          hintStyle: TextStyle(
+            color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+          ),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
             vertical: 14,
           ),
-          suffixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
+          suffixIcon: icon != null
+              ? Icon(icon, color: isDark ? Colors.grey.shade500 : Colors.grey)
+              : null,
         ),
       ),
     );
   }
 
   Widget _buildIntensitySlider() {
+    final bool isDark = _isDarkMode;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
       ),
       child: Column(
         children: [
@@ -1358,7 +1451,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: _redButton,
               thumbColor: _redButton,
-              inactiveTrackColor: Colors.grey.shade300,
+              inactiveTrackColor: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
               trackHeight: 6,
             ),
             child: Slider(
@@ -1375,10 +1468,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               Flexible(
                 child: Text(
                   'mild'.tr(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: _primaryBlue,
+                    color: isDark ? const Color(0xFFA8A8A8) : _primaryBlue,
                   ),
                   textAlign: TextAlign.left,
                 ),
@@ -1386,10 +1479,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               Flexible(
                 child: Text(
                   'moderate'.tr(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: _primaryBlue,
+                    color: isDark ? const Color(0xFFA8A8A8) : _primaryBlue,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -1397,10 +1490,10 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               Flexible(
                 child: Text(
                   'severe'.tr(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: _primaryBlue,
+                    color: isDark ? const Color(0xFFA8A8A8) : _primaryBlue,
                   ),
                   textAlign: TextAlign.right,
                 ),
@@ -1413,6 +1506,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildTypeChips() {
+    final bool isDark = _isDarkMode;
     List<String> types = [
       'injury'.tr(),
       'chronic'.tr(),
@@ -1432,15 +1526,19 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               ),
               selected: _conType == t,
               onSelected: (val) => setState(() => _conType = t),
-              selectedColor: _primaryBlue,
-              backgroundColor: Colors.white,
+              selectedColor: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
               labelStyle: TextStyle(
-                color: _conType == t ? Colors.white : _primaryBlue,
+                color: _conType == t
+                    ? Colors.white
+                    : (isDark ? const Color(0xFFF5F5F5) : _primaryBlue),
                 fontWeight: FontWeight.bold,
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(color: Colors.transparent),
+                side: BorderSide(
+                  color: isDark ? const Color(0xFF262626) : Colors.transparent,
+                ),
               ),
             ),
           )
@@ -1449,15 +1547,19 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
   }
 
   Widget _buildBottomNavBar() {
+    final bool isDark = _isDarkMode;
+    final Color navBg = isDark ? const Color(0xFF121212) : _primaryBlue;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: _primaryBlue,
+        color: navBg,
         borderRadius: BorderRadius.circular(40),
+        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),

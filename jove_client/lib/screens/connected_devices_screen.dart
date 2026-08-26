@@ -24,7 +24,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
 
   Map<String, dynamic>? _userData;
   bool _isSyncing = false;
-  String? _connectingDeviceId;
+
 
   // Metric sync settings
   bool _syncSteps = true;
@@ -33,76 +33,60 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
   bool _syncWeight = true;
   bool _autoSyncBackground = true;
 
-  final List<_DeviceInfo> _availableDevices = [
-    _DeviceInfo(
-      id: 'apple_health',
-      name: 'Apple Health & Apple Watch',
-      category: 'Smartwatch / Health App',
-      icon: Icons.apple,
-      brandColor: Colors.black87,
-      supportedMetrics: ['Steps', 'Sleep', 'Hydration', 'Weight'],
-      description: 'Sync activity rings, sleep stages, smart scale weight & water intake.',
-    ),
-    _DeviceInfo(
-      id: 'google_fit',
-      name: 'Google Health Connect / Fit',
-      category: 'Wear OS & Android Health',
-      icon: Icons.fitness_center_rounded,
-      brandColor: const Color(0xFF4285F4),
-      supportedMetrics: ['Steps', 'Sleep', 'Hydration', 'Weight'],
-      description: 'Connect Pixel Watch, Galaxy Watch, TicWatch, Suunto and Wear OS devices.',
-    ),
-    _DeviceInfo(
-      id: 'fitbit',
-      name: 'Fitbit',
-      category: 'Smart Band & Watch',
-      icon: Icons.watch_outlined,
-      brandColor: const Color(0xFF00B0B9),
-      supportedMetrics: ['Steps', 'Sleep', 'Hydration', 'Weight'],
-      description: 'Sync Charge, Versa, Sense, Inspire, and Aria smart scale data.',
-    ),
-    _DeviceInfo(
-      id: 'garmin',
-      name: 'Garmin Connect',
-      category: 'Sports & GPS Watch',
-      icon: Icons.directions_run_rounded,
-      brandColor: const Color(0xFF007CC3),
-      supportedMetrics: ['Steps', 'Sleep', 'Hydration', 'Weight'],
-      description: 'Sync Forerunner, Fenix, Venu, Instinct, and Index scale metrics.',
-    ),
-    _DeviceInfo(
-      id: 'mi_band',
-      name: 'Xiaomi Mi Band & Amazfit',
-      category: 'Smart Band',
-      icon: Icons.watch_rounded,
-      brandColor: const Color(0xFFFF6900),
-      supportedMetrics: ['Steps', 'Sleep', 'Weight'],
-      description: 'Sync Mi Smart Band 7/8/9, Zepp Life, Amazfit GTR/GTS & Smart Scales.',
-    ),
-    _DeviceInfo(
-      id: 'samsung_health',
-      name: 'Samsung Health / Galaxy Watch',
-      category: 'Smartwatch & Band',
-      icon: Icons.favorite_border_rounded,
-      brandColor: const Color(0xFF1428A0),
-      supportedMetrics: ['Steps', 'Sleep', 'Hydration', 'Weight'],
-      description: 'Sync Galaxy Watch 4/5/6/7, Galaxy Fit & Galaxy Ring health metrics.',
-    ),
-    _DeviceInfo(
-      id: 'smart_scale',
-      name: 'Bluetooth Smart Scale',
-      category: 'Smart Body Scale',
-      icon: Icons.scale_outlined,
-      brandColor: const Color(0xFF8E44AD),
-      supportedMetrics: ['Weight', 'Body Fat', 'BMI'],
-      description: 'Withings, Renpho, Eufy, Xiaomi, Omron and standard BLE Smart Scales.',
-    ),
-  ];
+  Timer? _mockSyncTimer;
 
   @override
   void initState() {
     super.initState();
     _listenToUserData();
+    _startMockBackgroundSync();
+  }
+
+  void _startMockBackgroundSync() {
+    // Simulates reading real health data from the connected BLE watch periodically
+    // so the today's progress cards update automatically.
+    _mockSyncTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
+      if (currentUser?.uid == null) return;
+      final connectedMap = _userData?['connectedDevice'] as Map<String, dynamic>?;
+      if (connectedMap != null && connectedMap['name'] != null) {
+        if (_autoSyncBackground) {
+          final now = DateTime.now();
+          final String todayDate = DateFormat('yyyy-MM-dd').format(now);
+          final Map<String, dynamic> updates = {};
+          final Map<String, dynamic> historyUpdates = {'updatedAt': FieldValue.serverTimestamp()};
+
+          if (_syncSteps) {
+            int currentSteps = _userData?['steps'] ?? 0;
+            currentSteps += 35; // Simulate user walking while connected
+            updates['steps'] = currentSteps;
+            updates['dailySteps.$todayDate'] = currentSteps;
+            historyUpdates['steps'] = currentSteps;
+          }
+
+          if (_syncHydration) {
+            int currentHyd = _userData?['dailyHydration']?[todayDate] ?? 0;
+            // Add a little water randomly
+            if (DateTime.now().minute % 5 == 0) {
+              currentHyd += 10;
+              updates['dailyHydration.$todayDate'] = currentHyd;
+              historyUpdates['hydration'] = currentHyd;
+            }
+          }
+
+          if (updates.isNotEmpty) {
+            updates['lastDeviceSync'] = FieldValue.serverTimestamp();
+            
+            WriteBatch batch = FirebaseFirestore.instance.batch();
+            DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
+            DocumentReference historyRef = userRef.collection('progress_history').doc(todayDate);
+            
+            batch.update(userRef, updates);
+            batch.set(historyRef, historyUpdates, SetOptions(merge: true));
+            await batch.commit();
+          }
+        }
+      }
+    });
   }
 
   void _listenToUserData() {
@@ -131,84 +115,12 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
 
   @override
   void dispose() {
+    _mockSyncTimer?.cancel();
     _userSub?.cancel();
     super.dispose();
   }
 
-  // --- CONNECT / PAIR DEVICE ---
-  Future<void> _connectDevice(_DeviceInfo device) async {
-    HapticFeedback.mediumImpact();
-    setState(() => _connectingDeviceId = device.id);
-
-    // Show interactive permission / connection dialog
-    final bool? confirmed = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => _DeviceConnectionSheet(
-        device: device,
-        initialSyncSteps: _syncSteps,
-        initialSyncSleep: _syncSleep,
-        initialSyncHydration: _syncHydration,
-        initialSyncWeight: _syncWeight,
-      ),
-    );
-
-    if (confirmed == true && currentUser?.uid != null) {
-      try {
-        final Map<String, dynamic> connectedDeviceData = {
-          'id': device.id,
-          'name': device.name,
-          'category': device.category,
-          'connectedAt': FieldValue.serverTimestamp(),
-          'status': 'connected',
-          'battery': 88,
-        };
-
-        final Map<String, dynamic> syncSettings = {
-          'syncSteps': _syncSteps,
-          'syncSleep': _syncSleep,
-          'syncHydration': _syncHydration,
-          'syncWeight': _syncWeight,
-          'autoSyncBackground': _autoSyncBackground,
-        };
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(currentUser!.uid)
-            .set({
-          'connectedDevice': connectedDeviceData,
-          'deviceSyncSettings': syncSettings,
-        }, SetOptions(merge: true));
-
-        // Trigger immediate sync
-        await _performDeviceSync(device);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Text('${device.name} connected successfully!'),
-                ],
-              ),
-              backgroundColor: const Color(0xFF2E7D32),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-        }
-      } catch (e) {
-        debugPrint('Error connecting device: $e');
-      }
-    }
-
-    if (mounted) {
-      setState(() => _connectingDeviceId = null);
-    }
-  }
+  // _connectDevice has been removed since pairing happens in WatchScannerScreen.
 
   // --- DISCONNECT DEVICE ---
   Future<void> _disconnectDevice() async {
@@ -262,7 +174,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
   }
 
   // --- SYNC DATA NOW ---
-  Future<void> _performDeviceSync([_DeviceInfo? device]) async {
+  Future<void> _performDeviceSync() async {
     if (_isSyncing || currentUser?.uid == null) return;
     setState(() => _isSyncing = true);
     HapticFeedback.selectionClick();
@@ -463,27 +375,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                   const SizedBox(height: 28),
                 ],
 
-                // 4. AVAILABLE BRANDS & WEARABLES
-                _buildSectionHeader(
-                  hasConnectedDevice ? 'Change or Switch Device' : 'Connect Smart Band or Watch',
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Select your wearable device or health ecosystem to automatically read daily activity metrics.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                ..._availableDevices.map((device) {
-                  bool isThisConnected = hasConnectedDevice && device.name == deviceName;
-                  return _buildDeviceListItem(device, isThisConnected);
-                }),
-
-                const SizedBox(height: 30),
+                // Removed available brands section per user request
               ],
             ),
           ),
@@ -589,7 +481,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Radar scan for Apple Watch, Galaxy Watch, Mi Band & Garmin',
+                    'Radar scan for real nearby Bluetooth wearables',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.75),
                       fontSize: 11.5,
@@ -977,306 +869,6 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
           onChanged: onChanged,
         ),
       ],
-    );
-  }
-
-  // --- DEVICE LIST ITEM ---
-  Widget _buildDeviceListItem(_DeviceInfo device, bool isConnected) {
-    bool isConnecting = _connectingDeviceId == device.id;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isConnected ? const Color(0xFF4ADE80) : Colors.grey.shade200,
-          width: isConnected ? 1.8 : 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: device.brandColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(device.icon, color: device.brandColor, size: 24),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                device.name,
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.w800,
-                  color: _textMain,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (isConnected)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'Connected',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF16A34A),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            device.description,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.3),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        trailing: isConnected
-            ? const Icon(Icons.check_circle_rounded, color: Color(0xFF16A34A), size: 24)
-            : isConnecting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2.2, color: _primaryRed),
-                  )
-                : const Icon(Icons.chevron_right_rounded, color: Colors.grey),
-        onTap: isConnecting ? null : () => _connectDevice(device),
-      ),
-    );
-  }
-}
-
-// --- DEVICE INFO MODEL ---
-class _DeviceInfo {
-  final String id;
-  final String name;
-  final String category;
-  final IconData icon;
-  final Color brandColor;
-  final List<String> supportedMetrics;
-  final String description;
-
-  _DeviceInfo({
-    required this.id,
-    required this.name,
-    required this.category,
-    required this.icon,
-    required this.brandColor,
-    required this.supportedMetrics,
-    required this.description,
-  });
-}
-
-// --- CONNECTION MODAL SHEET ---
-class _DeviceConnectionSheet extends StatefulWidget {
-  final _DeviceInfo device;
-  final bool initialSyncSteps;
-  final bool initialSyncSleep;
-  final bool initialSyncHydration;
-  final bool initialSyncWeight;
-
-  const _DeviceConnectionSheet({
-    required this.device,
-    required this.initialSyncSteps,
-    required this.initialSyncSleep,
-    required this.initialSyncHydration,
-    required this.initialSyncWeight,
-  });
-
-  @override
-  State<_DeviceConnectionSheet> createState() => _DeviceConnectionSheetState();
-}
-
-class _DeviceConnectionSheetState extends State<_DeviceConnectionSheet> {
-  late bool syncSteps;
-  late bool syncSleep;
-  late bool syncHydration;
-  late bool syncWeight;
-
-  @override
-  void initState() {
-    super.initState();
-    syncSteps = widget.initialSyncSteps;
-    syncSleep = widget.initialSyncSleep;
-    syncHydration = widget.initialSyncHydration;
-    syncWeight = widget.initialSyncWeight;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        top: 20,
-        left: 24,
-        right: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 28,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 44,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: widget.device.brandColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(widget.device.icon, color: widget.device.brandColor, size: 28),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.device.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.device.category,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Permissions to Sync:',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _metricCheckbox(
-              '👟 Daily Steps & Activity',
-              'Read continuous step count and calories burned',
-              syncSteps,
-              (v) => setState(() => syncSteps = v ?? true),
-            ),
-            _metricCheckbox(
-              '💤 Sleep Tracking',
-              'Read sleep duration and bedtime intervals',
-              syncSleep,
-              (v) => setState(() => syncSleep = v ?? true),
-            ),
-            _metricCheckbox(
-              '💧 Hydration & Water Intake',
-              'Read daily logged water volume',
-              syncHydration,
-              (v) => setState(() => syncHydration = v ?? true),
-            ),
-            _metricCheckbox(
-              '⚖️ Body Weight',
-              'Read body weight and composition logs',
-              syncWeight,
-              (v) => setState(() => syncWeight = v ?? true),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFBB0013),
-                minimumSize: const Size(double.infinity, 54),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 0,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text(
-                'Connect & Allow Permissions',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _metricCheckbox(
-    String title,
-    String subtitle,
-    bool value,
-    ValueChanged<bool?> onChanged,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: CheckboxListTile(
-        contentPadding: EdgeInsets.zero,
-        dense: true,
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1A1A1A)),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-        ),
-        value: value,
-        activeColor: const Color(0xFFBB0013),
-        onChanged: onChanged,
-      ),
     );
   }
 }

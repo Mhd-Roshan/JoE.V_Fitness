@@ -313,85 +313,87 @@ class _ProgressScreenState extends State<ProgressScreen>
             ),
           ),
           child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 90,
-                  height: 90,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFDDF5D8),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    color: Color(0xFF146C2E),
-                    size: 50,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'goal_achieved'.tr(),
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: _textMain,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                RichText(
-                  textAlign: TextAlign.center,
-                  text: TextSpan(
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey.shade600,
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFDDF5D8),
+                      shape: BoxShape.circle,
                     ),
-                    children: [
-                      TextSpan(text: 'msg_completed_part1'.tr()),
-                      TextSpan(
-                        text: '$goalName ${'msg_completed_part2'.tr()}',
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: Color(0xFF146C2E),
+                      size: 50,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'goal_achieved'.tr(),
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: _textMain,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                      children: [
+                        TextSpan(text: 'msg_completed_part1'.tr()),
+                        TextSpan(
+                          text: '$goalName ${'msg_completed_part2'.tr()}',
+                          style: const TextStyle(
+                            color: _textMain,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        TextSpan(text: 'msg_current_status'.tr()),
+                        TextSpan(
+                          text: '$currentValue / $goalValue',
+                          style: const TextStyle(
+                            color: _activeBlue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade600,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'btn_done'.tr(),
                         style: const TextStyle(
-                          color: _textMain,
+                          color: Colors.white,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      TextSpan(text: 'msg_current_status'.tr()),
-                      TextSpan(
-                        text: '$currentValue / $goalValue',
-                        style: const TextStyle(
-                          color: _activeBlue,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red.shade600,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'btn_done'.tr(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -667,28 +669,34 @@ class _ProgressScreenState extends State<ProgressScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "Set Today's Goals",
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: _textMain,
-                                letterSpacing: -0.5,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Set Today's Goals",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                  color: _textMain,
+                                  letterSpacing: -0.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('EEEE, MMM d, yyyy').format(DateTime.now()),
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                                fontWeight: FontWeight.w600,
+                              const SizedBox(height: 4),
+                              Text(
+                                DateFormat('EEEE, MMM d, yyyy').format(DateTime.now()),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.close, color: Colors.grey),
@@ -874,28 +882,36 @@ class _ProgressScreenState extends State<ProgressScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      shape: BoxShape.circle,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(icon, color: iconColor, size: 18),
                     ),
-                    child: Icon(icon, color: iconColor, size: 18),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: _textMain,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: _textMain,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _circleStepperBtn(Icons.remove, onDecrement),
                   Padding(
@@ -917,6 +933,7 @@ class _ProgressScreenState extends State<ProgressScreen>
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: List.generate(presets.length, (i) {
               final val = presets[i];
               final label = presetLabels[i];
@@ -1037,21 +1054,19 @@ class _ProgressScreenState extends State<ProgressScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          hasSetGoalsToday
-                              ? "Today's Goals Active"
-                              : "Set Today's Fitness Goals",
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w800,
-                            color: hasSetGoalsToday
-                                ? const Color(0xFF15803D)
-                                : const Color(0xFFBE123C),
-                          ),
-                        ),
-                      ],
+                    Text(
+                      hasSetGoalsToday
+                          ? "Today's Goals Active"
+                          : "Set Today's Fitness Goals",
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: hasSetGoalsToday
+                            ? const Color(0xFF15803D)
+                            : const Color(0xFFBE123C),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -1290,6 +1305,7 @@ class _ProgressScreenState extends State<ProgressScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
     if (_cachedUserData == null) {
       return const Scaffold(
         backgroundColor: _bgColor,
@@ -1460,7 +1476,7 @@ class _ProgressScreenState extends State<ProgressScreen>
                   ),
                 ),
               ),
-              if (widget.showBottomNav) _buildBottomNavBar(),
+              if (widget.showBottomNav && !isKeyboardOpen) _buildBottomNavBar(),
             ],
           ),
         );
@@ -1798,6 +1814,7 @@ class _ProgressScreenState extends State<ProgressScreen>
           const SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
+              itemExtent: 68.0,
               padding: const EdgeInsets.only(bottom: 20),
               physics: const BouncingScrollPhysics(),
               itemCount: 15,
@@ -1885,14 +1902,20 @@ class _ProgressScreenState extends State<ProgressScreen>
             fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 2),
-        Text(
-          val,
-          style: const TextStyle(
-            color: _activeBlue,
-            fontSize: 13,
-            fontWeight: FontWeight.w900,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            val,
+            style: const TextStyle(
+              color: _activeBlue,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
       ],
@@ -1964,9 +1987,14 @@ class _ProgressScreenState extends State<ProgressScreen>
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                             ),
-                            child: Text('hydration_title'.tr(), maxLines: 1),
+                            child: Text(
+                              'hydration_title'.tr(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
@@ -1979,7 +2007,11 @@ class _ProgressScreenState extends State<ProgressScreen>
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
-                              child: Text('label_current'.tr()),
+                              child: Text(
+                                'label_current'.tr(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                             AnimatedDefaultTextStyle(
                               duration: const Duration(milliseconds: 300),
@@ -1992,8 +2024,11 @@ class _ProgressScreenState extends State<ProgressScreen>
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
                               ),
-                              child: Text(
-                                '${(currentWater / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}L',
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  '${(currentWater / 1000).toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), '')}L',
+                                ),
                               ),
                             ),
                           ],
@@ -2313,36 +2348,41 @@ class _WeightCardState extends State<_WeightCard> {
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            ValueListenableBuilder<double>(
-                              valueListenable: _weightNotifier,
-                              builder: (context, weight, child) {
-                                return Text(
-                                  weight.toStringAsFixed(1),
-                                  style: TextStyle(
-                                    color: AppThemeController.isDark
-                                        ? const Color(0xFFF5F5F5)
-                                        : const Color(0xFF1A1A1A),
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              'unit_kg'.tr(),
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              ValueListenableBuilder<double>(
+                                valueListenable: _weightNotifier,
+                                builder: (context, weight, child) {
+                                  return Text(
+                                    weight.toStringAsFixed(1),
+                                    style: TextStyle(
+                                      color: AppThemeController.isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : const Color(0xFF1A1A1A),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  );
+                                },
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 2),
+                              Text(
+                                'unit_kg'.tr(),
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -2368,6 +2408,7 @@ class _WeightCardState extends State<_WeightCard> {
                       },
                       child: ListView.builder(
                         controller: _scrollController,
+                        itemExtent: _pixelsPerTick,
                         scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(
                           parent: AlwaysScrollableScrollPhysics(),
@@ -2568,15 +2609,20 @@ class _SleepCardState extends State<_SleepCard> {
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      Text(
-                        '${h}h ${m}m',
-                        style: TextStyle(
-                          color: AppThemeController.isDark
-                              ? const Color(0xFFF5F5F5)
-                              : const Color(0xFF1A1A1A),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '${h}h ${m}m',
+                          style: TextStyle(
+                            color: AppThemeController.isDark
+                                ? const Color(0xFFF5F5F5)
+                                : const Color(0xFF1A1A1A),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ],
@@ -2909,15 +2955,20 @@ class _StepsCardState extends State<_StepsCard> {
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      Text(
-                        '$_currentSteps',
-                        style: TextStyle(
-                          color: AppThemeController.isDark
-                              ? const Color(0xFFF5F5F5)
-                              : const Color(0xFF1A1A1A),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          '$_currentSteps',
+                          style: TextStyle(
+                            color: AppThemeController.isDark
+                                ? const Color(0xFFF5F5F5)
+                                : const Color(0xFF1A1A1A),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ],
