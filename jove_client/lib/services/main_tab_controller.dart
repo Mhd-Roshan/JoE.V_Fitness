@@ -10,11 +10,7 @@ class MainTabController {
     if (selectedIndex.value == index) return;
     selectedIndex.value = index;
     if (pageController.hasClients) {
-      pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-      );
+      pageController.jumpToPage(index);
     }
   }
 }

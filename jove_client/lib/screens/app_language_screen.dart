@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -165,8 +166,7 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
       context: context,
       barrierColor: Colors.black12,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -236,11 +236,7 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
               SafeArea(
                 bottom: false,
                 child: _isLoading
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                        ),
-                      )
+                    ? const Center(child: CustomLoadingIndicator())
                     : RepaintBoundary(
                         child: SingleChildScrollView(
                           physics: const BouncingScrollPhysics(),
@@ -254,11 +250,15 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                               _buildSectionTitle('select_language'.tr()),
 
                               Container(
-                                margin: const EdgeInsets.symmetric(horizontal: 24),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                ),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(20),
                                   border: isDark
-                                      ? Border.all(color: const Color(0xFF262626))
+                                      ? Border.all(
+                                          color: const Color(0xFF262626),
+                                        )
                                       : null,
                                   boxShadow: [
                                     BoxShadow(
@@ -271,7 +271,9 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                                   ],
                                 ),
                                 child: Material(
-                                  color: isDark ? const Color(0xFF121212) : Colors.white,
+                                  color: isDark
+                                      ? const Color(0xFF121212)
+                                      : Colors.white,
                                   borderRadius: BorderRadius.circular(20),
                                   clipBehavior: Clip.antiAlias,
                                   child: ValueListenableBuilder<String>(
@@ -300,10 +302,14 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                                                     children: [
                                                       Container(
                                                         padding:
-                                                            const EdgeInsets.all(8),
+                                                            const EdgeInsets.all(
+                                                              8,
+                                                            ),
                                                         decoration: BoxDecoration(
                                                           color: isDark
-                                                              ? const Color(0xFF1E1E1E)
+                                                              ? const Color(
+                                                                  0xFF1E1E1E,
+                                                                )
                                                               : _iconBg,
                                                           borderRadius:
                                                               BorderRadius.circular(
@@ -318,37 +324,44 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                                                               : null,
                                                         ),
                                                         child: Icon(
-                                                          lang['icon'] as IconData,
+                                                          lang['icon']
+                                                              as IconData,
                                                           size: 20,
                                                           color: isDark
-                                                              ? const Color(0xFF3B82F6)
+                                                              ? const Color(
+                                                                  0xFF3B82F6,
+                                                                )
                                                               : _navBgColor,
                                                         ),
                                                       ),
                                                       const SizedBox(width: 16),
                                                       Expanded(
                                                         child: Text(
-                                                          lang['title'] as String,
+                                                          lang['title']
+                                                              as String,
                                                           style: TextStyle(
                                                             fontSize: 15,
-                                                            fontWeight: isSelected
-                                                                ? FontWeight.w900
-                                                                : FontWeight.bold,
+                                                            fontWeight:
+                                                                isSelected
+                                                                ? FontWeight
+                                                                      .w900
+                                                                : FontWeight
+                                                                      .bold,
                                                             color: isSelected
                                                                 ? (isDark
-                                                                    ? const Color(
-                                                                        0xFF3B82F6,
-                                                                      )
-                                                                    : _navBgColor)
+                                                                      ? const Color(
+                                                                          0xFF3B82F6,
+                                                                        )
+                                                                      : _navBgColor)
                                                                 : (isDark
-                                                                    ? const Color(
-                                                                        0xFFF5F5F5,
-                                                                      )
-                                                                    : _textMain),
+                                                                      ? const Color(
+                                                                          0xFFF5F5F5,
+                                                                        )
+                                                                      : _textMain),
                                                           ),
                                                           maxLines: 1,
-                                                          overflow:
-                                                              TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
                                                       ),
                                                       if (isSelected)
@@ -356,7 +369,9 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                                                           Icons
                                                               .check_circle_rounded,
                                                           color: isDark
-                                                              ? const Color(0xFF3B82F6)
+                                                              ? const Color(
+                                                                  0xFF3B82F6,
+                                                                )
                                                               : _navBgColor,
                                                           size: 22,
                                                         )
@@ -364,15 +379,20 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                                                         Icon(
                                                           Icons.circle_outlined,
                                                           color: isDark
-                                                              ? const Color(0xFF444444)
-                                                              : Colors.grey.shade300,
+                                                              ? const Color(
+                                                                  0xFF444444,
+                                                                )
+                                                              : Colors
+                                                                    .grey
+                                                                    .shade300,
                                                           size: 22,
                                                         ),
                                                     ],
                                                   ),
                                                 ),
                                               ),
-                                              if (index != _languages.length - 1)
+                                              if (index !=
+                                                  _languages.length - 1)
                                                 Divider(
                                                   height: 1,
                                                   thickness: 1,
@@ -396,7 +416,10 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
                       ),
               ),
               if (!isKeyboardOpen)
-                Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
             ],
           ),
         );
@@ -448,7 +471,9 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -515,7 +540,9 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(40),
-        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),

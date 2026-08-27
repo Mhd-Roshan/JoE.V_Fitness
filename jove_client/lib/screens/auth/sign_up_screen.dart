@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -240,18 +241,46 @@ class _SignUpScreenState extends State<SignUpScreen>
     try {
       final formattedPhone = '+91$phone';
 
-      final existingUserQuery = await FirebaseFirestore.instance
+      // 1. Check if phone exists in 'users'
+      final existingPhoneQuery = await FirebaseFirestore.instance
           .collection('users')
           .where('phone', isEqualTo: formattedPhone)
           .where('role', isEqualTo: 'client')
           .limit(1)
           .get();
 
+      // 2. Check if email exists in 'users'
+      final existingEmailQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .where('role', isEqualTo: 'client')
+          .limit(1)
+          .get();
+
+      // 3. Check if phone exists in 'pending_users'
+      final pendingPhoneDoc = await FirebaseFirestore.instance
+          .collection('pending_users')
+          .doc(formattedPhone)
+          .get();
+
+      // 4. Check if email exists in 'pending_users'
+      final pendingEmailQuery = await FirebaseFirestore.instance
+          .collection('pending_users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
       if (!mounted) return;
 
-      if (existingUserQuery.docs.isNotEmpty) {
+      if (existingPhoneQuery.docs.isNotEmpty || pendingPhoneDoc.exists) {
         setState(() => _isLoading = false);
         _showModernSnackBar('err_phone_registered'.tr(), isError: false);
+        return;
+      }
+
+      if (existingEmailQuery.docs.isNotEmpty || pendingEmailQuery.docs.isNotEmpty) {
+        setState(() => _isLoading = false);
+        _showModernSnackBar('Email is already registered. Please sign in.', isError: false);
         return;
       }
 
@@ -288,314 +317,315 @@ class _SignUpScreenState extends State<SignUpScreen>
         );
       },
       child: Scaffold(
-      body: Stack(
-        children: [
-          // OPTIMIZATION: RepaintBoundary prevents this background from repainting during animations
-          RepaintBoundary(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF003DD0), // Deep blue at the top
-                    Color(0xFF1C75F9), // Lighter medium blue in the middle
-                    Color(0xFFE6EFFF), // Icy light white-blue at the bottom
-                  ],
-                  stops: [0.0, 0.45, 1.0], // Controls the smooth fade
+        body: Stack(
+          children: [
+            // OPTIMIZATION: RepaintBoundary prevents this background from repainting during animations
+            RepaintBoundary(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF003DD0), // Deep blue at the top
+                      Color(0xFF1C75F9), // Lighter medium blue in the middle
+                      Color(0xFFE6EFFF), // Icy light white-blue at the bottom
+                    ],
+                    stops: [0.0, 0.45, 1.0], // Controls the smooth fade
+                  ),
                 ),
               ),
             ),
-          ),
 
-          // --- ENTRANCE FADE + SLIDE WRAPPER ---
-          FadeTransition(
-            opacity: _fadeAnim,
-            child: SlideTransition(
-              position: _slideAnim,
-              child: SafeArea(
-                // OPTIMIZATION: Replaced IntrinsicHeight + LayoutBuilder with CustomScrollView + SliverFillRemaining
-                // This is vastly faster and smoother for rendering screen-filling forms.
-                child: CustomScrollView(
-                  physics: const BouncingScrollPhysics(
-                    parent: AlwaysScrollableScrollPhysics(),
-                  ),
-                  slivers: [
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            const SizedBox(height: 10),
+            // --- ENTRANCE FADE + SLIDE WRAPPER ---
+            FadeTransition(
+              opacity: _fadeAnim,
+              child: SlideTransition(
+                position: _slideAnim,
+                child: SafeArea(
+                  // OPTIMIZATION: Replaced IntrinsicHeight + LayoutBuilder with CustomScrollView + SliverFillRemaining
+                  // This is vastly faster and smoother for rendering screen-filling forms.
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    slivers: [
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const SizedBox(height: 10),
 
-                            // --- GLASSMORPHIC BACK BUTTON ---
-                            Align(
-                              alignment: Alignment.topLeft,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(30),
-                                child: BackdropFilter(
-                                  filter: ImageFilter.blur(
-                                    sigmaX: 10,
-                                    sigmaY: 10,
-                                  ),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.1,
-                                      ),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
+                              // --- GLASSMORPHIC BACK BUTTON ---
+                              Align(
+                                alignment: Alignment.topLeft,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(30),
+                                  child: BackdropFilter(
+                                    filter: ImageFilter.blur(
+                                      sigmaX: 10,
+                                      sigmaY: 10,
+                                    ),
+                                    child: Container(
+                                      decoration: BoxDecoration(
                                         color: Colors.white.withValues(
-                                          alpha: 0.2,
+                                          alpha: 0.1,
+                                        ),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.2,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                    child: IconButton(
-                                      icon: const Icon(
-                                        Icons.arrow_back,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                      onPressed: () {
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const LoginScreen(),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // --- ORIGINAL LOGO ---
-                            Image.asset(
-                              'assets/images/landing_photo.png',
-                              height: 80,
-                              fit: BoxFit.contain,
-                              errorBuilder: (context, error, stackTrace) {
-                                return const Icon(
-                                  Icons.fitness_center,
-                                  size: 80,
-                                  color: Colors.white,
-                                );
-                              },
-                            ),
-
-                            const SizedBox(height: 30),
-
-                            // --- TITLE & SUBTITLE ---
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'sign_up_to_joe'.tr(),
-                                  style: GoogleFonts.workSans(
-                                    fontSize: 28,
-                                    fontWeight:
-                                        FontWeight.w700, // Reduced from w900
-                                    color: Colors.white,
-                                    height: 1.0,
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 4.0,
-                                    right: 6.0,
-                                    bottom: 0.0,
-                                  ),
-                                  child: SvgPicture.asset(
-                                    'assets/images/kettlebell-icon.svg',
-                                    height: 15,
-                                    colorFilter: const ColorFilter.mode(
-                                      Color(0xFFBB0013),
-                                      BlendMode.srcIn,
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  'V',
-                                  style: GoogleFonts.workSans(
-                                    fontSize: 28,
-                                    fontWeight:
-                                        FontWeight.w700, // Reduced from w900
-                                    color: Colors.white,
-                                    height: 1.0,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'register_subtitle'.tr(),
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white70,
-                              ),
-                            ),
-
-                            const SizedBox(height: 40),
-
-                            // --- Smooth Input Fields (Glassmorphic) ---
-                            _AnimatedInputField(
-                              label: 'name_label'.tr(),
-                              hint: 'name_hint'.tr(),
-                              icon: Icons.person_outline,
-                              controller: _nameController,
-                              error: _nameError,
-                            ),
-                            const SizedBox(height: 20),
-
-                            _AnimatedInputField(
-                              label: 'email_label'.tr(),
-                              hint: 'email_hint'.tr(),
-                              icon: Icons.email_outlined,
-                              controller: _emailController,
-                              error: _emailError,
-                              keyboardType: TextInputType.emailAddress,
-                            ),
-                            const SizedBox(height: 20),
-
-                            _AnimatedInputField(
-                              label: 'phone_label'.tr(),
-                              hint: 'phone_hint'.tr(),
-                              icon: Icons.phone_outlined,
-                              controller: _phoneController,
-                              error: _phoneError,
-                              keyboardType: TextInputType.phone,
-                              isPhone: true,
-                              inputFormatters: [
-                                FilteringTextInputFormatter.digitsOnly,
-                                LengthLimitingTextInputFormatter(10),
-                              ],
-                            ),
-                            const SizedBox(height: 32),
-
-                            // OPTIMIZATION: Using isolated _BouncingButton
-                            // Prevents full page rebuilds when user just taps the button
-                            _BouncingButton(
-                              onTap: _isLoading ? null : _handleSignUp,
-                              child: SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _handleSignUp,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFBB0013),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(22),
-                                    ),
-                                    elevation: 0,
-                                  ),
-                                  child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 200),
-                                    child: _isLoading
-                                        ? const SizedBox(
-                                            key: ValueKey('loader'),
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2.5,
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.arrow_back,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  const LoginScreen(),
                                             ),
-                                          )
-                                        : Row(
-                                            key: const ValueKey('label'),
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              Text(
-                                                'sign_up_btn'.tr(),
-                                                style: GoogleFonts.workSans(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              const Icon(
-                                                Icons.arrow_forward,
-                                                color: Colors.white,
-                                                size: 20,
-                                              ),
-                                            ],
-                                          ),
+                                          );
+                                        },
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
 
-                            const Spacer(),
+                              const SizedBox(height: 20),
 
-                            // --- Footer ---
-                            // CHANGED: Dark colors because bottom background is very light
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 40.0,
-                                top: 20.0,
+                              // --- ORIGINAL LOGO ---
+                              Image.asset(
+                                'assets/images/landing_photo.png',
+                                height: 80,
+                                fit: BoxFit.contain,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(
+                                    Icons.fitness_center,
+                                    size: 80,
+                                    color: Colors.white,
+                                  );
+                                },
                               ),
-                              child: Wrap(
-                                alignment: WrapAlignment.center,
-                                crossAxisAlignment: WrapCrossAlignment.center,
+
+                              const SizedBox(height: 30),
+
+                              // --- TITLE & SUBTITLE ---
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    'already_have_account'.tr(),
+                                    'sign_up_to_joe'.tr(),
                                     style: GoogleFonts.workSans(
-                                      color: const Color(
-                                        0xFF333333,
-                                      ), // Dark grey
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 28,
+                                      fontWeight:
+                                          FontWeight.w700, // Reduced from w900
+                                      color: Colors.white,
+                                      height: 1.0,
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  GestureDetector(
-                                    onTap: () => Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const LoginScreen(),
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 4.0,
+                                      right: 6.0,
+                                      bottom: 0.0,
+                                    ),
+                                    child: SvgPicture.asset(
+                                      'assets/images/kettlebell-icon.svg',
+                                      height: 15,
+                                      colorFilter: const ColorFilter.mode(
+                                        Color(0xFFBB0013),
+                                        BlendMode.srcIn,
                                       ),
                                     ),
-                                    child: Text(
-                                      'sign_in_link_dot'.tr(),
-                                      style: GoogleFonts.workSans(
-                                        color: const Color(
-                                          0xFF003DD0,
-                                        ), // Deep blue
-                                        fontWeight: FontWeight.w800,
-                                        decoration: TextDecoration.underline,
-                                        decorationColor: const Color(
-                                          0xFF003DD0,
-                                        ),
-                                        fontSize: 14,
-                                      ),
+                                  ),
+                                  Text(
+                                    'V',
+                                    style: GoogleFonts.workSans(
+                                      fontSize: 28,
+                                      fontWeight:
+                                          FontWeight.w700, // Reduced from w900
+                                      color: Colors.white,
+                                      height: 1.0,
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 12),
+                              Text(
+                                'register_subtitle'.tr(),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white70,
+                                ),
+                              ),
+
+                              const SizedBox(height: 40),
+
+                              // --- Smooth Input Fields (Glassmorphic) ---
+                              _AnimatedInputField(
+                                label: 'name_label'.tr(),
+                                hint: 'name_hint'.tr(),
+                                icon: Icons.person_outline,
+                                controller: _nameController,
+                                error: _nameError,
+                              ),
+                              const SizedBox(height: 20),
+
+                              _AnimatedInputField(
+                                label: 'email_label'.tr(),
+                                hint: 'email_hint'.tr(),
+                                icon: Icons.email_outlined,
+                                controller: _emailController,
+                                error: _emailError,
+                                keyboardType: TextInputType.emailAddress,
+                              ),
+                              const SizedBox(height: 20),
+
+                              _AnimatedInputField(
+                                label: 'phone_label'.tr(),
+                                hint: 'phone_hint'.tr(),
+                                icon: Icons.phone_outlined,
+                                controller: _phoneController,
+                                error: _phoneError,
+                                keyboardType: TextInputType.phone,
+                                isPhone: true,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                  LengthLimitingTextInputFormatter(10),
+                                ],
+                              ),
+                              const SizedBox(height: 32),
+
+                              // OPTIMIZATION: Using isolated _BouncingButton
+                              // Prevents full page rebuilds when user just taps the button
+                              _BouncingButton(
+                                onTap: _isLoading ? null : _handleSignUp,
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  height: 56,
+                                  child: ElevatedButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _handleSignUp,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFBB0013),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(22),
+                                      ),
+                                      elevation: 0,
+                                    ),
+                                    child: AnimatedSwitcher(
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      child: _isLoading
+                                          ? const SizedBox(
+                                              key: ValueKey('loader'),
+                                              width: 24,
+                                              height: 24,
+                                              child: CustomLoadingIndicator(),
+                                            )
+                                          : Row(
+                                              key: const ValueKey('label'),
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                Text(
+                                                  'sign_up_btn'.tr(),
+                                                  style: GoogleFonts.workSans(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                const Icon(
+                                                  Icons.arrow_forward,
+                                                  color: Colors.white,
+                                                  size: 20,
+                                                ),
+                                              ],
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const Spacer(),
+
+                              // --- Footer ---
+                              // CHANGED: Dark colors because bottom background is very light
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 40.0,
+                                  top: 20.0,
+                                ),
+                                child: Wrap(
+                                  alignment: WrapAlignment.center,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      'already_have_account'.tr(),
+                                      style: GoogleFonts.workSans(
+                                        color: const Color(
+                                          0xFF333333,
+                                        ), // Dark grey
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    GestureDetector(
+                                      onTap: () => Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const LoginScreen(),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'sign_in_link_dot'.tr(),
+                                        style: GoogleFonts.workSans(
+                                          color: const Color(
+                                            0xFF003DD0,
+                                          ), // Deep blue
+                                          fontWeight: FontWeight.w800,
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: const Color(
+                                            0xFF003DD0,
+                                          ),
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 }
@@ -608,10 +638,7 @@ class _BouncingButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
 
-  const _BouncingButton({
-    required this.child,
-    required this.onTap,
-  });
+  const _BouncingButton({required this.child, required this.onTap});
 
   @override
   State<_BouncingButton> createState() => _BouncingButtonState();

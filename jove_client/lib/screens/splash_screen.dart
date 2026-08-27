@@ -39,13 +39,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateToNext() async {
-    // Fast 450ms splash display
-    await Future.delayed(const Duration(milliseconds: 450));
+    // Increased splash display time
+    await Future.delayed(const Duration(milliseconds: 1800));
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 180),
+        transitionDuration: const Duration(milliseconds: 300),
 
         pageBuilder: (context, animation, secondaryAnimation) {
           // 2. ADDED A CURVE so the fade feels organic, not robotic

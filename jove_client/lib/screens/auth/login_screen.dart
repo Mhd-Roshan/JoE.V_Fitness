@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +11,6 @@ import 'package:easy_localization/easy_localization.dart';
 
 import 'sign_up_screen.dart';
 import 'otp_screen.dart';
-import 'assessment_screen.dart';
 import '../auth_wrapper.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -322,38 +322,58 @@ class _LoginScreenState extends State<LoginScreen>
             .doc(user.uid);
         final userDoc = await userDocRef.get();
 
-        bool hasCompletedAssessment = false;
-
         if (!userDoc.exists) {
+          // Check if this email already exists under a Phone UID
+          final existingUserByEmail = await FirebaseFirestore.instance
+              .collection('users')
+              .where('email', isEqualTo: user.email)
+              .where('role', isEqualTo: 'client')
+              .limit(1)
+              .get();
+
+          if (existingUserByEmail.docs.isNotEmpty) {
+            await FirebaseAuth.instance.signOut();
+            setState(() => _isLoading = false);
+            _showModernSnackBar('Email already registered via Phone. Please use Phone Login.', isError: true);
+            return;
+          }
+
+          // Check if there is a pending user with this email
+          final pendingUserQuery = await FirebaseFirestore.instance
+              .collection('pending_users')
+              .where('email', isEqualTo: user.email)
+              .limit(1)
+              .get();
+
+          String name = user.displayName ?? '';
+          String phone = user.phoneNumber ?? '';
+
+          if (pendingUserQuery.docs.isNotEmpty) {
+             final pendingData = pendingUserQuery.docs.first.data();
+             name = pendingData['name'] ?? name;
+             phone = pendingData['phone'] ?? phone;
+             // delete pending doc
+             await FirebaseFirestore.instance.collection('pending_users').doc(pendingUserQuery.docs.first.id).delete();
+          }
+
           await userDocRef.set({
             'role': 'client',
             'authProvider': 'google',
-            'fullName': user.displayName ?? '',
+            'fullName': name,
             'email': user.email ?? '',
-            'phone': user.phoneNumber ?? '',
+            'phone': phone,
             'assessmentCompleted': false,
             'createdAt': FieldValue.serverTimestamp(),
           });
-        } else {
-          hasCompletedAssessment =
-              userDoc.data()?['assessmentCompleted'] ?? false;
         }
-
+        
         if (!mounted) return;
 
-        if (hasCompletedAssessment) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const AuthWrapper()),
-            (route) => false,
-          );
-        } else {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const AssessmentScreen()),
-            (route) => false,
-          );
-        }
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthWrapper()),
+          (route) => false,
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -555,10 +575,7 @@ class _LoginScreenState extends State<LoginScreen>
                                             key: ValueKey('loader'),
                                             width: 24,
                                             height: 24,
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2.5,
-                                            ),
+                                            child: CustomLoadingIndicator(),
                                           )
                                         : Text(
                                             'sign_in_btn'.tr(),

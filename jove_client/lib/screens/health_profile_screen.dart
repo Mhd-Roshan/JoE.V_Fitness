@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -125,7 +126,8 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
       if (doc.exists && doc.data() != null) {
         var data = doc.data() as Map<String, dynamic>;
 
-        _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+        _hasActiveSubscription =
+            data['hasActiveSubscription'] == true ||
             (data['subscription'] is Map &&
                 data['subscription']['status'] == 'Active');
 
@@ -278,8 +280,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
       context: context,
       barrierColor: Colors.transparent,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _primaryBlue)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -358,11 +359,7 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 child: SafeArea(
                   bottom: false,
                   child: _isLoading
-                      ? Center(
-                          child: CircularProgressIndicator(
-                            color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
-                          ),
-                        )
+                      ? const Center(child: CustomLoadingIndicator())
                       : SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.only(bottom: 120),
@@ -372,7 +369,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                               RepaintBoundary(child: _buildTopAppBar()),
                               const SizedBox(height: 16),
 
-                              _buildSectionHeader('health_condition_title'.tr()),
+                              _buildSectionHeader(
+                                'health_condition_title'.tr(),
+                              ),
                               _buildMedicalSection(),
 
                               const SizedBox(height: 24),
@@ -448,7 +447,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -655,7 +656,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 Text(
                   '${'diagnosed'.tr()}: ${item['diagnosed'] ?? 'unknown'.tr()}',
                   style: TextStyle(
-                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                    color: isDark
+                        ? const Color(0xFFA8A8A8)
+                        : Colors.grey.shade600,
                     fontSize: 12,
                   ),
                   maxLines: 1,
@@ -730,7 +733,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                     onPressed: () =>
                         setState(() => _isAddingConstraint = false),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      foregroundColor: isDark
+                          ? const Color(0xFF3B82F6)
+                          : _primaryBlue,
                       side: BorderSide(
                         color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
                       ),
@@ -821,7 +826,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
-                              color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
+                              color: isDark
+                                  ? const Color(0xFFF5F5F5)
+                                  : _primaryBlue,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -829,7 +836,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                           Text(
                             '${'since'.tr()}: ${item['duration'] ?? 'unknown'.tr()}',
                             style: TextStyle(
-                              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                              color: isDark
+                                  ? const Color(0xFFA8A8A8)
+                                  : Colors.grey.shade600,
                               fontSize: 12,
                             ),
                             maxLines: 1,
@@ -865,7 +874,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
           const SizedBox(height: 12),
           LinearProgressIndicator(
             value: (item['intensity'] ?? 1.0) / 2,
-            backgroundColor: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+            backgroundColor: isDark
+                ? const Color(0xFF262626)
+                : Colors.grey.shade200,
             color: _redButton,
             minHeight: 6,
             borderRadius: BorderRadius.circular(10),
@@ -959,7 +970,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
+                border: isDark
+                    ? Border.all(color: const Color(0xFF262626))
+                    : null,
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -971,7 +984,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                         Text(
                           'ongoing_rehab'.tr(),
                           style: TextStyle(
-                            color: isDark ? const Color(0xFFF5F5F5) : _primaryBlue,
+                            color: isDark
+                                ? const Color(0xFFF5F5F5)
+                                : _primaryBlue,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),
@@ -981,7 +996,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                         Text(
                           'seeing_pt'.tr(),
                           style: TextStyle(
-                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
+                            color: isDark
+                                ? const Color(0xFFA8A8A8)
+                                : Colors.grey,
                             fontSize: 12,
                           ),
                           maxLines: 2,
@@ -1006,7 +1023,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                   child: OutlinedButton(
                     onPressed: () => setState(() => _isAddingSurgery = false),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      foregroundColor: isDark
+                          ? const Color(0xFF3B82F6)
+                          : _primaryBlue,
                       side: BorderSide(
                         color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
                       ),
@@ -1097,7 +1116,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 Text(
                   '${'timeline'.tr()}: ${item['date'] ?? 'unknown'.tr()}',
                   style: TextStyle(
-                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                    color: isDark
+                        ? const Color(0xFFA8A8A8)
+                        : Colors.grey.shade600,
                     fontSize: 12,
                   ),
                   maxLines: 1,
@@ -1187,7 +1208,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                     onPressed: () =>
                         setState(() => _isAddingMedication = false),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
+                      foregroundColor: isDark
+                          ? const Color(0xFF3B82F6)
+                          : _primaryBlue,
                       side: BorderSide(
                         color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
                       ),
@@ -1279,7 +1302,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
                 Text(
                   '${item['dosage']} • ${item['frequency']}',
                   style: TextStyle(
-                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                    color: isDark
+                        ? const Color(0xFFA8A8A8)
+                        : Colors.grey.shade600,
                     fontSize: 12,
                   ),
                   maxLines: 1,
@@ -1329,7 +1354,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             child: Text(
               '$count ${'active'.tr()}',
               style: TextStyle(
-                color: isDark ? const Color(0xFF4ADE80) : const Color(0xFF34C759),
+                color: isDark
+                    ? const Color(0xFF4ADE80)
+                    : const Color(0xFF34C759),
                 fontWeight: FontWeight.bold,
                 fontSize: 12,
               ),
@@ -1451,7 +1478,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: _redButton,
               thumbColor: _redButton,
-              inactiveTrackColor: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+              inactiveTrackColor: isDark
+                  ? const Color(0xFF262626)
+                  : Colors.grey.shade300,
               trackHeight: 6,
             ),
             child: Slider(
@@ -1556,7 +1585,9 @@ class _HealthProfileScreenState extends State<HealthProfileScreen> {
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(40),
-        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),

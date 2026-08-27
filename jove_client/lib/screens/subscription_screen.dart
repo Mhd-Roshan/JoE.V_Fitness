@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
@@ -355,8 +356,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -435,7 +435,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -462,7 +464,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                  color: isDark
+                      ? const Color(0xFFA8A8A8)
+                      : Colors.grey.shade600,
                   fontSize: 14,
                 ),
               ),
@@ -476,7 +480,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     Navigator.pop(context);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                    backgroundColor: isDark
+                        ? const Color(0xFF3B82F6)
+                        : _navBgColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -510,6 +516,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final bool isDark = _isDarkMode;
 
     List<Map<String, dynamic>> availableMethods = [
+      {'name': 'Razorpay', 'icon': Icons.payment_rounded},
       {'name': 'UPI • jon@okicici', 'icon': Icons.paypal_rounded},
       {'name': 'Credit Card •••• 1234', 'icon': Icons.credit_card_rounded},
       {'name': 'Apple Pay • jon@doe.com', 'icon': Icons.apple_rounded},
@@ -531,7 +538,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -620,8 +629,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.3),
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -704,11 +712,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               SafeArea(
                 bottom: false,
                 child: _isLoading
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                        ),
-                      )
+                    ? const Center(child: CustomLoadingIndicator())
                     : SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.only(bottom: 120),
@@ -730,7 +734,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     style: TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
-                                      color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+                                      color: isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : _navBgColor,
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -738,13 +744,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     'manage_elite_membership'.tr(),
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                                      color: isDark
+                                          ? const Color(0xFFA8A8A8)
+                                          : Colors.grey.shade600,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   const SizedBox(height: 24),
 
-                                  RepaintBoundary(child: _buildCurrentPlanCard()),
+                                  RepaintBoundary(
+                                    child: _buildCurrentPlanCard(),
+                                  ),
                                   const SizedBox(height: 14),
 
                                   // SWITCH / UPGRADE PLAN ACTION
@@ -757,19 +767,24 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => const PackageSelectScreen(),
+                                            builder: (_) =>
+                                                const PackageSelectScreen(),
                                           ),
                                         );
                                       },
                                       icon: Icon(
                                         Icons.swap_horiz_rounded,
-                                        color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                                        color: isDark
+                                            ? const Color(0xFF3B82F6)
+                                            : _navBgColor,
                                         size: 20,
                                       ),
                                       label: Text(
                                         'Change or Upgrade Plan',
                                         style: TextStyle(
-                                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                                          color: isDark
+                                              ? const Color(0xFF3B82F6)
+                                              : _navBgColor,
                                           fontSize: 14,
                                           fontWeight: FontWeight.w800,
                                         ),
@@ -777,12 +792,22 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                       style: OutlinedButton.styleFrom(
                                         side: BorderSide(
                                           color: isDark
-                                              ? const Color(0xFF3B82F6).withValues(alpha: 0.5)
-                                              : _navBgColor.withValues(alpha: 0.3),
+                                              ? const Color(
+                                                  0xFF3B82F6,
+                                                ).withValues(alpha: 0.5)
+                                              : _navBgColor.withValues(
+                                                  alpha: 0.3,
+                                                ),
                                           width: 1.5,
                                         ),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                        ),
+                                        backgroundColor: isDark
+                                            ? const Color(0xFF1E1E1E)
+                                            : Colors.white,
                                       ),
                                     ),
                                   ),
@@ -794,12 +819,16 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+                                      color: isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : _navBgColor,
                                     ),
                                   ),
                                   const SizedBox(height: 12),
 
-                                  RepaintBoundary(child: _buildPaymentMethodCard()),
+                                  RepaintBoundary(
+                                    child: _buildPaymentMethodCard(),
+                                  ),
                                   const SizedBox(height: 28),
 
                                   Text(
@@ -807,7 +836,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+                                      color: isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : _navBgColor,
                                     ),
                                   ),
                                   const SizedBox(height: 12),
@@ -882,7 +913,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -1136,6 +1169,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     IconData getMethodIcon() {
       String lower = methodInfo.toLowerCase();
+      if (lower.contains('razorpay')) {
+        return Icons.payment_rounded;
+      }
       if (lower.contains('upi') || lower.contains('paypal')) {
         return Icons.paypal_rounded;
       }
@@ -1283,7 +1319,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             child: Text(
                               month.toUpperCase(),
                               style: TextStyle(
-                                color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                                color: isDark
+                                    ? const Color(0xFF3B82F6)
+                                    : _navBgColor,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 14,
                               ),
@@ -1298,7 +1336,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                   item['packageName']?.toString() ??
                                       'default_package'.tr(),
                                   style: TextStyle(
-                                    color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                    color: isDark
+                                        ? const Color(0xFFF5F5F5)
+                                        : _textMain,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 15,
                                   ),
@@ -1309,7 +1349,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                 Text(
                                   '$fullDate • ${item['method']?.toString() ?? 'UPI'}',
                                   style: TextStyle(
-                                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                                    color: isDark
+                                        ? const Color(0xFFA8A8A8)
+                                        : Colors.grey.shade500,
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -1353,7 +1395,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 Divider(
                   height: 1,
                   thickness: 1,
-                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
+                  color: isDark
+                      ? const Color(0xFF262626)
+                      : Colors.grey.shade100,
                   indent: 84,
                   endIndent: 20,
                 ),
@@ -1403,7 +1447,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(40),
-        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),

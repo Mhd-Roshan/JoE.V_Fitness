@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -163,9 +164,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         ),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.all(20),
       ),
     );
@@ -207,13 +206,18 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: _primaryRed,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             onPressed: () {
               Navigator.pop(context);
               _startRazorpayPayment();
             },
-            child: const Text('Retry Payment', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Retry Payment',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -236,8 +240,13 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
     final num price = widget.packageData['price'] ?? 0;
     final String planName = widget.packageData['name'] ?? 'Premium Plan';
     final String billingCycle =
-        widget.packageData['billingCycle']?.toString().toUpperCase() ?? 'MONTHLY';
-    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+        widget.packageData['billingCycle']?.toString().toUpperCase() ??
+        'MONTHLY';
+    final formatter = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
 
     showModalBottomSheet(
       context: context,
@@ -307,15 +316,26 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                 ),
                 child: Column(
                   children: [
-                    _receiptRow('Amount Paid', formatter.format(price), isBold: true),
+                    _receiptRow(
+                      'Amount Paid',
+                      formatter.format(price),
+                      isBold: true,
+                    ),
                     const Divider(height: 16),
                     _receiptRow('Plan Type', '$planName ($billingCycle)'),
                     const SizedBox(height: 8),
                     _receiptRow('Payment Method', 'Razorpay UPI / Cards'),
                     const SizedBox(height: 8),
-                    _receiptRow('Payment ID', response.paymentId ?? 'N/A', isMonospace: true),
+                    _receiptRow(
+                      'Payment ID',
+                      response.paymentId ?? 'N/A',
+                      isMonospace: true,
+                    ),
                     const SizedBox(height: 8),
-                    _receiptRow('Date', DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now())),
+                    _receiptRow(
+                      'Date',
+                      DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now()),
+                    ),
                   ],
                 ),
               ),
@@ -338,13 +358,17 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                     if (widget.isOnboarding) {
                       Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (_) => const SelectTrainerScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const SelectTrainerScreen(),
+                        ),
                         (route) => false,
                       );
                     } else {
                       Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (_) => const HomeDashboardScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const HomeDashboardScreen(),
+                        ),
                         (route) => false,
                       );
                     }
@@ -369,7 +393,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
     );
   }
 
-  Widget _receiptRow(String label, String value, {bool isBold = false, bool isMonospace = false}) {
+  Widget _receiptRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    bool isMonospace = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -397,18 +426,26 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
   @override
   Widget build(BuildContext context) {
     final num price = widget.packageData['price'] ?? 0;
-    final String planName = widget.packageData['name'] ?? 'Premium Fitness Plan';
+    final String planName =
+        widget.packageData['name'] ?? 'Premium Fitness Plan';
     final String billingCycle =
-        widget.packageData['billingCycle']?.toString().toUpperCase() ?? 'MONTHLY';
-    final List<dynamic> features = widget.packageData['features'] ?? [
-      'Unlimited 1-on-1 Trainer Guidance',
-      'Personalized Workout & Gym Routines',
-      'Custom Diet & Nutrition Plans',
-      'Real-time Chat & Video Consultation',
-      'Smartwatch & Band Health Syncing',
-    ];
+        widget.packageData['billingCycle']?.toString().toUpperCase() ??
+        'MONTHLY';
+    final List<dynamic> features =
+        widget.packageData['features'] ??
+        [
+          'Unlimited 1-on-1 Trainer Guidance',
+          'Personalized Workout & Gym Routines',
+          'Custom Diet & Nutrition Plans',
+          'Real-time Chat & Video Consultation',
+          'Smartwatch & Band Health Syncing',
+        ];
 
-    final formatter = NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0);
+    final formatter = NumberFormat.currency(
+      locale: 'en_IN',
+      symbol: '₹',
+      decimalDigits: 0,
+    );
 
     return ValueListenableBuilder<bool>(
       valueListenable: AppThemeController.isDarkMode,
@@ -423,11 +460,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
             backgroundColor: currentBg,
             elevation: 0,
             leading: IconButton(
-              icon: Icon(
-                Icons.arrow_back_ios_new,
-                color: textColor,
-                size: 20,
-              ),
+              icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 20),
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
@@ -454,10 +487,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                     gradient: const LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF00225D),
-                        Color(0xFF011438),
-                      ],
+                      colors: [Color(0xFF00225D), Color(0xFF011438)],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
@@ -475,7 +505,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF01BCE3),
                               borderRadius: BorderRadius.circular(8),
@@ -492,7 +525,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                           ),
                           Row(
                             children: const [
-                              Icon(Icons.verified_rounded, color: Color(0xFF01BCE3), size: 18),
+                              Icon(
+                                Icons.verified_rounded,
+                                color: Color(0xFF01BCE3),
+                                size: 18,
+                              ),
                               SizedBox(width: 5),
                               Text(
                                 'Official Plan',
@@ -633,7 +670,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
 
                 // 3. AUTO-RENEW TOGGLE
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: cardBg,
                     borderRadius: BorderRadius.circular(20),
@@ -646,7 +686,9 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF01BCE3).withValues(alpha: 0.12),
+                          color: const Color(
+                            0xFF01BCE3,
+                          ).withValues(alpha: 0.12),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
@@ -711,9 +753,17 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                   ),
                   child: Column(
                     children: [
-                      _priceRow('Subtotal', formatter.format(price), isDark: isDark),
+                      _priceRow(
+                        'Subtotal',
+                        formatter.format(price),
+                        isDark: isDark,
+                      ),
                       const SizedBox(height: 10),
-                      _priceRow('GST & Taxes', 'Included (18%)', isDark: isDark),
+                      _priceRow(
+                        'GST & Taxes',
+                        'Included (18%)',
+                        isDark: isDark,
+                      ),
                       const Divider(height: 22),
                       _priceRow(
                         'Total Payable',
@@ -732,7 +782,11 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.shield_outlined, color: Color(0xFF2E7D32), size: 16),
+                      const Icon(
+                        Icons.shield_outlined,
+                        color: Color(0xFF2E7D32),
+                        size: 16,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'Secured by Razorpay • 256-Bit SSL Encryption',
@@ -761,15 +815,14 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
                       elevation: 6,
                       shadowColor: _primaryRed.withValues(alpha: 0.4),
                     ),
-                    onPressed: _isProcessingPayment ? null : _startRazorpayPayment,
+                    onPressed: _isProcessingPayment
+                        ? null
+                        : _startRazorpayPayment,
                     child: _isProcessingPayment
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
+                            child: CustomLoadingIndicator(),
                           )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -823,7 +876,10 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         prefixIcon: Icon(icon, color: Colors.grey.shade500, size: 20),
         filled: true,
         fillColor: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF9FAFB),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -832,7 +888,12 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
     );
   }
 
-  Widget _priceRow(String label, String value, {bool isTotal = false, required bool isDark}) {
+  Widget _priceRow(
+    String label,
+    String value, {
+    bool isTotal = false,
+    required bool isDark,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [

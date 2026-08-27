@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,21 +11,48 @@ import 'entry_pass_paywall_screen.dart';
 import 'trainer_selection_screen.dart';
 import 'home_dashboard_screen.dart';
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
+
+  @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  late final Stream<User?> _authStream;
+  Stream<DocumentSnapshot>? _userStream;
+  String? _currentUid;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStream = FirebaseAuth.instance.authStateChanges();
+  }
+
+  void _updateUserStream(String? uid) {
+    if (_currentUid != uid) {
+      _currentUid = uid;
+      if (uid != null) {
+        _userStream = FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .snapshots();
+      } else {
+        _userStream = null;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       initialData: FirebaseAuth.instance.currentUser,
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: _authStream,
       builder: (context, authSnapshot) {
         if (authSnapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             backgroundColor: Colors.black,
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFFBA0C19)),
-            ),
+            body: Center(child: CustomLoadingIndicator()),
           );
         }
 
@@ -33,20 +61,18 @@ class AuthWrapper extends StatelessWidget {
           return const WelcomeScreen();
         }
 
+        // Setup stream for this specific user
+        _updateUserStream(authSnapshot.data!.uid);
+
         // If user IS logged in, fetch their Firestore profile
         return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(authSnapshot.data!.uid)
-              .snapshots(),
+          stream: _userStream,
           builder: (context, userSnapshot) {
             if (userSnapshot.connectionState == ConnectionState.waiting &&
                 !userSnapshot.hasData) {
               return const Scaffold(
                 backgroundColor: Colors.white,
-                body: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF00225D)),
-                ),
+                body: Center(child: CustomLoadingIndicator()),
               );
             }
 
@@ -71,22 +97,23 @@ class AuthWrapper extends StatelessWidget {
                 : userData['packageEndDate'] as Timestamp?;
             bool isPackageExpired = false;
             if (nextBillingDate != null) {
-              isPackageExpired = DateTime.now().isAfter(nextBillingDate.toDate());
+              isPackageExpired = DateTime.now().isAfter(
+                nextBillingDate.toDate(),
+              );
             }
 
-            final bool hasActiveSubscription = !isPackageExpired &&
+            final bool hasActiveSubscription =
+                !isPackageExpired &&
                 (userData['hasActiveSubscription'] == true ||
-                (userData['subscription'] is Map &&
-                    userData['subscription']['status'] == 'Active'));
+                    (userData['subscription'] is Map &&
+                        userData['subscription']['status'] == 'Active'));
             final bool hasSeenFirstPreview =
                 userData['hasSeenFirstPreview'] == true;
-            final bool hasPaidEntryFee =
-                userData['hasPaidEntryFee'] == true;
-            final bool hasSeenSecondPreview =
-                userData['hasSeenSecondPreview'] == true;
+            final bool hasPaidEntryFee = userData['hasPaidEntryFee'] == true;
 
-            // If a previous paid package has expired, direct client immediately to PackageSelectScreen
-            if (isPackageExpired) {
+            // If a previous paid package has expired AND they haven't paid the ₹99 entry fee, block them
+            // (If they HAVE paid ₹99, they simply downgrade to basic app access)
+            if (isPackageExpired && !hasPaidEntryFee) {
               return const PackageSelectScreen();
             }
 
@@ -108,13 +135,12 @@ class AuthWrapper extends StatelessWidget {
               return const EntryPassPaywallScreen();
             }
 
-            // STAGE D: User paid ₹99 and is currently in their 2nd preview session -> Go straight to Home
-            if (!hasSeenSecondPreview) {
+            // STAGE D: User paid ₹99 -> Permanent basic app access. Never ask again.
+            if (hasPaidEntryFee) {
               return const HomeDashboardScreen();
             }
 
-            // STAGE E: User used both previews (1st free preview + ₹99 paid preview).
-            // On every subsequent restart, they MUST select & pay for a membership package!
+            // Fallback (should not be reached based on above logic, but required by Dart)
             return const PackageSelectScreen();
           },
         );

@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -110,11 +111,15 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
         final String todayDate = DateFormat('yyyy-MM-dd').format(now);
 
         WriteBatch batch = FirebaseFirestore.instance.batch();
-        DocumentReference userRef =
-            FirebaseFirestore.instance.collection('users').doc(_currentUser!.uid);
+        DocumentReference userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(_currentUser!.uid);
         DocumentReference historyRef = userRef
             .collection('payment_history')
-            .doc(response.paymentId ?? DateTime.now().millisecondsSinceEpoch.toString());
+            .doc(
+              response.paymentId ??
+                  DateTime.now().millisecondsSinceEpoch.toString(),
+            );
 
         batch.set(userRef, {
           'hasPaidEntryFee': true,
@@ -181,13 +186,18 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: _primaryRed,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             onPressed: () {
               Navigator.pop(context);
               _startRazorpayPayment();
             },
-            child: const Text('Retry ₹99 Payment', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Retry ₹99 Payment',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -254,10 +264,7 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
               Text(
                 '₹99 payment verified. You have full access to JoE.V Fitness.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
               const SizedBox(height: 24),
               SizedBox(
@@ -369,7 +376,10 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
               children: [
                 // Top Bar with Minimal Logout
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -437,11 +447,16 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                           ),
                         ),
                         style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           backgroundColor: _primaryRed.withValues(alpha: 0.08),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(color: _primaryRed.withValues(alpha: 0.2)),
+                            side: BorderSide(
+                              color: _primaryRed.withValues(alpha: 0.2),
+                            ),
                           ),
                         ),
                       ),
@@ -475,7 +490,9 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                               color: Colors.white,
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.25),
+                                  color: const Color(
+                                    0xFFF59E0B,
+                                  ).withValues(alpha: 0.25),
                                   blurRadius: 24,
                                   spreadRadius: 4,
                                 ),
@@ -483,11 +500,16 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                             ),
                             child: Center(
                               child: ShaderMask(
-                                shaderCallback: (bounds) => const LinearGradient(
-                                  colors: [Color(0xFFF59E0B), Color(0xFFFB7185), Color(0xFF818CF8)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ).createShader(bounds),
+                                shaderCallback: (bounds) =>
+                                    const LinearGradient(
+                                      colors: [
+                                        Color(0xFFF59E0B),
+                                        Color(0xFFFB7185),
+                                        Color(0xFF818CF8),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ).createShader(bounds),
                                 child: const Icon(
                                   Icons.auto_awesome,
                                   size: 34,
@@ -672,11 +694,17 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                       // Alert Banner Above Button: Preview App Only
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFFFBEB), // Soft warm amber
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0xFFFDE68A), width: 1.2),
+                          border: Border.all(
+                            color: const Color(0xFFFDE68A),
+                            width: 1.2,
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -704,10 +732,13 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                                   children: [
                                     TextSpan(
                                       text: 'Preview Mode Only: ',
-                                      style: TextStyle(fontWeight: FontWeight.w800),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                     TextSpan(
-                                      text: 'This pass grants view-only app exploration. Session booking requires a membership package.',
+                                      text:
+                                          'This pass grants view-only app exploration. Session booking requires a membership package.',
                                     ),
                                   ],
                                 ),
@@ -733,20 +764,23 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                             elevation: 4,
                             shadowColor: _primaryRed.withValues(alpha: 0.35),
                           ),
-                          onPressed: _isProcessingPayment ? null : _startRazorpayPayment,
+                          onPressed: _isProcessingPayment
+                              ? null
+                              : _startRazorpayPayment,
                           child: _isProcessingPayment
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2.5,
-                                  ),
+                                  child: CustomLoadingIndicator(),
                                 )
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.flash_on_rounded, color: Colors.white, size: 20),
+                                    const Icon(
+                                      Icons.flash_on_rounded,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Get Started • ₹99',
@@ -872,12 +906,7 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
       ),
-      child: Center(
-        child: Text(
-          emoji,
-          style: const TextStyle(fontSize: 18),
-        ),
-      ),
+      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
     );
   }
 

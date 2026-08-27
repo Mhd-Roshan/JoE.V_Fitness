@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:io';
@@ -66,12 +67,14 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
     // Generate random background ambient star particles
     final random = math.Random();
     for (int i = 0; i < 35; i++) {
-      _stars.add(_StarParticle(
-        x: random.nextDouble(),
-        y: random.nextDouble(),
-        size: random.nextDouble() * 2.2 + 0.8,
-        opacity: random.nextDouble() * 0.7 + 0.3,
-      ));
+      _stars.add(
+        _StarParticle(
+          x: random.nextDouble(),
+          y: random.nextDouble(),
+          size: random.nextDouble() * 2.2 + 0.8,
+          opacity: random.nextDouble() * 0.7 + 0.3,
+        ),
+      );
     }
 
     _startRealDiscovery();
@@ -121,11 +124,12 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
       List<Map<String, dynamic>> devices = [];
       for (ScanResult r in results) {
         // Only show devices with a valid name
-        if (r.device.platformName.isNotEmpty || r.advertisementData.advName.isNotEmpty) {
-          String name = r.device.platformName.isNotEmpty 
-              ? r.device.platformName 
+        if (r.device.platformName.isNotEmpty ||
+            r.advertisementData.advName.isNotEmpty) {
+          String name = r.device.platformName.isNotEmpty
+              ? r.device.platformName
               : r.advertisementData.advName;
-          
+
           devices.add({
             'id': r.device.remoteId.str,
             'name': name,
@@ -134,14 +138,17 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
             'icon': Icons.watch_outlined,
             'color': Colors.blueAccent,
             'rssi': '${r.rssi} dBm',
-            'signal': math.max(0.0, math.min(1.0, (r.rssi + 100) / 60.0)), // Normalization logic
+            'signal': math.max(
+              0.0,
+              math.min(1.0, (r.rssi + 100) / 60.0),
+            ), // Normalization logic
             'battery': 100,
             'mac': r.device.remoteId.str,
             'rawDevice': r.device,
           });
         }
       }
-      
+
       setState(() {
         _discoveredDevices.clear();
         _discoveredDevices.addAll(devices);
@@ -179,7 +186,7 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
         await rawDevice.connect(timeout: const Duration(seconds: 10));
       } catch (e) {
         debugPrint("Error connecting to BLE device: $e");
-        // We will continue anyway for UI purposes to show it as "paired" 
+        // We will continue anyway for UI purposes to show it as "paired"
         // as per the user's current simplified requirement.
       }
     }
@@ -218,10 +225,12 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
         final double initialWeight = 68.5;
 
         WriteBatch batch = FirebaseFirestore.instance.batch();
-        DocumentReference userRef =
-            FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
-        DocumentReference historyRef =
-            userRef.collection('progress_history').doc(todayDate);
+        DocumentReference userRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUser!.uid);
+        DocumentReference historyRef = userRef
+            .collection('progress_history')
+            .doc(todayDate);
 
         batch.set(userRef, {
           'connectedDevice': connectedDeviceData,
@@ -311,17 +320,22 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
 
           // 2. AMBIENT GLOWING RADAR & STAR PARTICLES
           Positioned.fill(
-            child: AnimatedBuilder(
-              animation: Listenable.merge([_radarController, _particleController]),
-              builder: (context, _) {
-                return CustomPaint(
-                  painter: _CosmicRadarPainter(
-                    radarProgress: _radarController.value,
-                    starTwinkle: _particleController.value,
-                    stars: _stars,
-                  ),
-                );
-              },
+            child: RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([
+                  _radarController,
+                  _particleController,
+                ]),
+                builder: (context, _) {
+                  return CustomPaint(
+                    painter: _CosmicRadarPainter(
+                      radarProgress: _radarController.value,
+                      starTwinkle: _particleController.value,
+                      stars: _stars,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
 
@@ -343,9 +357,7 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                 const SizedBox(height: 16),
 
                 // Discovered Devices List
-                Expanded(
-                  child: _buildDiscoveredDevicesList(),
-                ),
+                Expanded(child: _buildDiscoveredDevicesList()),
               ],
             ),
           ),
@@ -454,7 +466,9 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF818CF8).withValues(alpha: 0.45),
+                          color: const Color(
+                            0xFF818CF8,
+                          ).withValues(alpha: 0.45),
                           blurRadius: 28,
                           spreadRadius: 8,
                         ),
@@ -465,9 +479,7 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                         ),
                       ],
                     ),
-                    child: CustomPaint(
-                      painter: _FourPointStarPainter(),
-                    ),
+                    child: CustomPaint(painter: _FourPointStarPainter()),
                   ),
                 ),
               ),
@@ -484,7 +496,9 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                         width: 74,
                         height: 74,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF262626).withValues(alpha: 0.85),
+                          color: const Color(
+                            0xFF262626,
+                          ).withValues(alpha: 0.85),
                           borderRadius: BorderRadius.circular(28),
                           border: Border.all(
                             color: Colors.white.withValues(alpha: 0.25),
@@ -492,7 +506,9 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF6366F1).withValues(alpha: 0.35),
+                              color: const Color(
+                                0xFF6366F1,
+                              ).withValues(alpha: 0.35),
                               blurRadius: 24,
                               spreadRadius: 4,
                             ),
@@ -595,10 +611,7 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
             const SizedBox(
               width: 32,
               height: 32,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: Color(0xFF818CF8),
-              ),
+              child: CustomLoadingIndicator(),
             ),
             const SizedBox(height: 16),
             Text(
@@ -651,7 +664,10 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
               borderRadius: BorderRadius.circular(20),
               onTap: () => _pairDevice(device),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -718,18 +734,20 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                     ),
                     const SizedBox(width: 10),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF6366F1),
-                            Color(0xFF4F46E5),
-                          ],
+                          colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
                         ),
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                            color: const Color(
+                              0xFF6366F1,
+                            ).withValues(alpha: 0.4),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -809,8 +827,8 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                 _pairingProgress < 50
                     ? 'Establishing Bluetooth handshake...'
                     : _pairingProgress < 90
-                        ? 'Configuring Steps, Sleep & Hydration data stream...'
-                        : 'Device connected successfully!',
+                    ? 'Configuring Steps, Sleep & Hydration data stream...'
+                    : 'Device connected successfully!',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.6),
@@ -823,7 +841,9 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
                 child: LinearProgressIndicator(
                   value: _pairingProgress / 100.0,
                   backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Color(0xFF6366F1),
+                  ),
                   minHeight: 6,
                 ),
               ),

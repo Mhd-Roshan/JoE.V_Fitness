@@ -14,7 +14,7 @@ class AppThemeController with WidgetsBindingObserver {
 
   /// Call this in main() to ensure the observer is registered early
   static void initialize() {
-    _instance; 
+    _instance;
   }
 
   static bool _hasUserOverride = false;
@@ -26,7 +26,8 @@ class AppThemeController with WidgetsBindingObserver {
   @override
   void didChangePlatformBrightness() {
     if (!_hasUserOverride) {
-      final isSystemDark = PlatformDispatcher.instance.platformBrightness == Brightness.dark;
+      final isSystemDark =
+          PlatformDispatcher.instance.platformBrightness == Brightness.dark;
       if (isDarkMode.value != isSystemDark) {
         isDarkMode.value = isSystemDark;
       }
@@ -39,8 +40,7 @@ class AppThemeController with WidgetsBindingObserver {
   static Color get scaffoldBg =>
       isDark ? const Color(0xFF000000) : const Color(0xFFFAFAFA);
 
-  static Color get cardBg =>
-      isDark ? const Color(0xFF121212) : Colors.white;
+  static Color get cardBg => isDark ? const Color(0xFF121212) : Colors.white;
 
   static Color get textMain =>
       isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A);
@@ -68,10 +68,9 @@ class AppThemeController with WidgetsBindingObserver {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({'isDarkMode': isDarkMode.value}, SetOptions(merge: true));
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'isDarkMode': isDarkMode.value,
+        }, SetOptions(merge: true));
       } catch (e) {
         debugPrint('Error saving theme preference: $e');
       }
@@ -85,7 +84,8 @@ class AppThemeController with WidgetsBindingObserver {
       isDarkMode.value = data['isDarkMode'];
     } else {
       _hasUserOverride = false;
-      isDarkMode.value = PlatformDispatcher.instance.platformBrightness == Brightness.dark;
+      isDarkMode.value =
+          PlatformDispatcher.instance.platformBrightness == Brightness.dark;
     }
   }
 
@@ -176,10 +176,7 @@ class _FastFadeSlidePageTransitionsBuilder extends PageTransitionsBuilder {
 
     return SlideTransition(
       position: slideAnimation,
-      child: FadeTransition(
-        opacity: curvedAnimation,
-        child: child,
-      ),
+      child: FadeTransition(opacity: curvedAnimation, child: child),
     );
   }
 }

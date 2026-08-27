@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -85,26 +86,32 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   void _markSessionPreviewSeen(String uid) {
     if (uid.isEmpty) return;
-    FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
-      if (doc.exists) {
-        final data = doc.data() ?? {};
-        final Map<String, dynamic> updates = {};
-        if (data['hasSeenFirstPreview'] != true) {
-          updates['hasSeenFirstPreview'] = true;
-          updates['firstPreviewSeenAt'] = FieldValue.serverTimestamp();
-        }
-        if (data['hasPaidEntryFee'] == true && data['hasSeenSecondPreview'] != true) {
-          updates['hasSeenSecondPreview'] = true;
-          updates['secondPreviewSeenAt'] = FieldValue.serverTimestamp();
-        }
-        if (updates.isNotEmpty) {
-          FirebaseFirestore.instance.collection('users').doc(uid).set(
-            updates,
-            SetOptions(merge: true),
-          );
-        }
-      }
-    }).catchError((_) {});
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get()
+        .then((doc) {
+          if (doc.exists) {
+            final data = doc.data() ?? {};
+            final Map<String, dynamic> updates = {};
+            if (data['hasSeenFirstPreview'] != true) {
+              updates['hasSeenFirstPreview'] = true;
+              updates['firstPreviewSeenAt'] = FieldValue.serverTimestamp();
+            }
+            if (data['hasPaidEntryFee'] == true &&
+                data['hasSeenSecondPreview'] != true) {
+              updates['hasSeenSecondPreview'] = true;
+              updates['secondPreviewSeenAt'] = FieldValue.serverTimestamp();
+            }
+            if (updates.isNotEmpty) {
+              FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(uid)
+                  .set(updates, SetOptions(merge: true));
+            }
+          }
+        })
+        .catchError((_) {});
   }
 
   @override
@@ -115,7 +122,9 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
       valueListenable: AppThemeController.isDarkMode,
       builder: (context, isDark, _) {
         return Scaffold(
-          backgroundColor: isDark ? const Color(0xFF000000) : const Color(0xFFFAFAFA),
+          backgroundColor: isDark
+              ? const Color(0xFF000000)
+              : const Color(0xFFFAFAFA),
           extendBody: true,
           body: Stack(
             children: [
@@ -309,17 +318,13 @@ class _HomeTabViewState extends State<_HomeTabView>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final bool isDark = AppThemeController.isDark;
+
 
     return StreamBuilder<DocumentSnapshot>(
       stream: _userStream,
       builder: (context, userSnapshot) {
         if (!userSnapshot.hasData) {
-          return Center(
-            child: CircularProgressIndicator(
-              color: isDark ? Colors.white : Colors.black,
-            ),
-          );
+          return Center(child: CustomLoadingIndicator());
         }
 
         final userData =
@@ -333,7 +338,8 @@ class _HomeTabViewState extends State<_HomeTabView>
           isPackageExpired = DateTime.now().isAfter(nextBillingDate.toDate());
         }
 
-        _hasActiveSubscription = !isPackageExpired &&
+        _hasActiveSubscription =
+            !isPackageExpired &&
             (userData['hasActiveSubscription'] == true ||
                 (userData['subscription'] is Map &&
                     userData['subscription']['status'] == 'Active'));
@@ -355,7 +361,10 @@ class _HomeTabViewState extends State<_HomeTabView>
 
               if (isPackageExpired)
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
@@ -428,7 +437,10 @@ class _HomeTabViewState extends State<_HomeTabView>
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
                         ),
                         child: const Text(
                           'Renew',
@@ -563,7 +575,9 @@ class _HeaderSection extends StatelessWidget {
         userData['firstName'] ??
         currentUser?.displayName ??
         '';
-    final String userName = rawUserName.trim().isNotEmpty ? rawUserName : 'athlete_fallback'.tr();
+    final String userName = rawUserName.trim().isNotEmpty
+        ? rawUserName
+        : 'athlete_fallback'.tr();
     final String profilePic =
         userData['photoURL'] ??
         userData['photoUrl'] ??
@@ -637,7 +651,9 @@ class _HeaderSection extends StatelessWidget {
               child: CircleAvatar(
                 radius: 26,
                 backgroundColor: Colors.grey.shade200,
-                onBackgroundImageError: profilePic.isNotEmpty ? (_, _) {} : null,
+                onBackgroundImageError: profilePic.isNotEmpty
+                    ? (_, _) {}
+                    : null,
                 backgroundImage: profilePic.isNotEmpty
                     ? NetworkImage(profilePic)
                     : null,
@@ -985,14 +1001,39 @@ class _UpcomingSessionSection extends StatelessWidget {
   }
 }
 
-class _DietPlansSection extends StatelessWidget {
+class _DietPlansSection extends StatefulWidget {
   final String userId;
   final VoidCallback onSeeAllTap;
 
-  const _DietPlansSection({
-    required this.userId,
-    required this.onSeeAllTap,
-  });
+  const _DietPlansSection({required this.userId, required this.onSeeAllTap});
+
+  @override
+  State<_DietPlansSection> createState() => _DietPlansSectionState();
+}
+
+class _DietPlansSectionState extends State<_DietPlansSection> {
+  Stream<QuerySnapshot>? _clientDietPlansStream;
+  late final Stream<QuerySnapshot> _dietPlanTemplatesStream;
+  late final Stream<QuerySnapshot> _legacyDietPlansStream;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.userId.isNotEmpty) {
+      _clientDietPlansStream = FirebaseFirestore.instance
+          .collection('clientDietPlans')
+          .where('clientId', isEqualTo: widget.userId)
+          .snapshots();
+    }
+    _dietPlanTemplatesStream = FirebaseFirestore.instance
+        .collection('dietPlanTemplates')
+        .limit(10)
+        .snapshots();
+    _legacyDietPlansStream = FirebaseFirestore.instance
+        .collection('diet_plans')
+        .limit(10)
+        .snapshots();
+  }
 
   // --- FETCH TEMPLATE + SUBCOLLECTION MEALS FROM FIREBASE ---
   static Future<Map<String, dynamic>> _fetchDietPlanData(
@@ -1087,7 +1128,9 @@ class _DietPlansSection extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -1108,7 +1151,9 @@ class _DietPlansSection extends StatelessWidget {
                       ),
                       child: Icon(
                         Icons.restaurant_menu_rounded,
-                        color: isDark ? const Color(0xFF3B82F6) : const Color(0xFF00225D),
+                        color: isDark
+                            ? const Color(0xFF3B82F6)
+                            : const Color(0xFF00225D),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1118,20 +1163,28 @@ class _DietPlansSection extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
+                          color: isDark
+                              ? const Color(0xFFF5F5F5)
+                              : const Color(0xFF1A1A1A),
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close, color: isDark ? Colors.grey.shade400 : Colors.grey),
+                      icon: Icon(
+                        Icons.close,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
-              Divider(height: 16, color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+              Divider(
+                height: 16,
+                color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+              ),
 
               // Fetch Data & Display Dashboard
               Expanded(
@@ -1139,11 +1192,7 @@ class _DietPlansSection extends StatelessWidget {
                   future: _fetchDietPlanData(templateId, rawData),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: isDark ? const Color(0xFF3B82F6) : const Color(0xFF00225D),
-                        ),
-                      );
+                      return const Center(child: CustomLoadingIndicator());
                     }
 
                     var data = snapshot.data ?? rawData;
@@ -1195,7 +1244,9 @@ class _DietPlansSection extends StatelessWidget {
                                   protein,
                                   "g",
                                   Icons.fitness_center,
-                                  isDark ? const Color(0xFF3B82F6) : const Color(0xFF00225D),
+                                  isDark
+                                      ? const Color(0xFF3B82F6)
+                                      : const Color(0xFF00225D),
                                 ),
                               ),
                             ],
@@ -1261,9 +1312,13 @@ class _DietPlansSection extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                color: isDark
+                                    ? const Color(0xFF1E1E1E)
+                                    : Colors.white,
                                 border: Border.all(
-                                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                                  color: isDark
+                                      ? const Color(0xFF262626)
+                                      : Colors.grey.shade200,
                                 ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -1274,7 +1329,9 @@ class _DietPlansSection extends StatelessWidget {
                                     "Prohibitions",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF00225D),
+                                      color: isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : const Color(0xFF00225D),
                                       fontSize: 14,
                                     ),
                                   ),
@@ -1295,7 +1352,9 @@ class _DietPlansSection extends StatelessWidget {
                                               rule.toString(),
                                               style: TextStyle(
                                                 fontSize: 13,
-                                                color: isDark ? const Color(0xFFE5E5E5) : Colors.black87,
+                                                color: isDark
+                                                    ? const Color(0xFFE5E5E5)
+                                                    : Colors.black87,
                                               ),
                                             ),
                                           ),
@@ -1314,7 +1373,9 @@ class _DietPlansSection extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF00225D),
+                              color: isDark
+                                  ? const Color(0xFFF5F5F5)
+                                  : const Color(0xFF00225D),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -1324,13 +1385,19 @@ class _DietPlansSection extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
+                                color: isDark
+                                    ? const Color(0xFF1E1E1E)
+                                    : Colors.grey.shade100,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 "Balanced meals scheduled for this plan.",
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: isDark ? const Color(0xFFA8A8A8) : Colors.grey),
+                                style: TextStyle(
+                                  color: isDark
+                                      ? const Color(0xFFA8A8A8)
+                                      : Colors.grey,
+                                ),
                               ),
                             ),
                           ] else ...[
@@ -1347,8 +1414,7 @@ class _DietPlansSection extends StatelessWidget {
                                   m['meal'] ??
                                   m['title'] ??
                                   '-';
-                              final time =
-                                  m['time'] ?? m['mealTime'] ?? '';
+                              final time = m['time'] ?? m['mealTime'] ?? '';
                               final items =
                                   m['ingredients'] ??
                                   m['items'] ??
@@ -1376,8 +1442,7 @@ class _DietPlansSection extends StatelessWidget {
                                   m['f']?.toString() ??
                                   '0';
 
-                              if (m['macros'] != null &&
-                                  m['macros'] is Map) {
+                              if (m['macros'] != null && m['macros'] is Map) {
                                 final mac = m['macros'] as Map;
                                 p = mac['protein']?.toString() ?? p;
                                 c = mac['carbs']?.toString() ?? c;
@@ -1391,9 +1456,13 @@ class _DietPlansSection extends StatelessWidget {
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                  color: isDark
+                                      ? const Color(0xFF1E1E1E)
+                                      : Colors.white,
                                   border: Border.all(
-                                    color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                                    color: isDark
+                                        ? const Color(0xFF262626)
+                                        : Colors.grey.shade200,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -1403,30 +1472,37 @@ class _DietPlansSection extends StatelessWidget {
                                       width: 50,
                                       height: 50,
                                       decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
-                                        borderRadius:
-                                            BorderRadius.circular(8),
+                                        color: isDark
+                                            ? const Color(0xFF262626)
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: mealImage
-                                              .toString()
-                                              .isNotEmpty
+                                      child: mealImage.toString().isNotEmpty
                                           ? ClipRRect(
                                               borderRadius:
                                                   BorderRadius.circular(8),
                                               child: Image.network(
                                                 mealImage.toString(),
+                                                cacheWidth: 300,
                                                 fit: BoxFit.cover,
                                                 errorBuilder:
-                                                    (context, error, stackTrace) =>
-                                                        Icon(
-                                                  Icons.restaurant_rounded,
-                                                  color: isDark ? Colors.grey.shade600 : Colors.grey,
-                                                ),
+                                                    (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => Icon(
+                                                      Icons.restaurant_rounded,
+                                                      color: isDark
+                                                          ? Colors.grey.shade600
+                                                          : Colors.grey,
+                                                    ),
                                               ),
                                             )
                                           : Icon(
                                               Icons.restaurant_rounded,
-                                              color: isDark ? Colors.grey.shade600 : Colors.grey,
+                                              color: isDark
+                                                  ? Colors.grey.shade600
+                                                  : Colors.grey,
                                             ),
                                     ),
                                     const SizedBox(width: 12),
@@ -1440,7 +1516,9 @@ class _DietPlansSection extends StatelessWidget {
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
-                                              color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
+                                              color: isDark
+                                                  ? const Color(0xFFF5F5F5)
+                                                  : const Color(0xFF1A1A1A),
                                             ),
                                           ),
                                           if (time.toString().isNotEmpty)
@@ -1448,7 +1526,9 @@ class _DietPlansSection extends StatelessWidget {
                                               time.toString(),
                                               style: TextStyle(
                                                 fontSize: 12,
-                                                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                                                color: isDark
+                                                    ? const Color(0xFFA8A8A8)
+                                                    : Colors.grey.shade600,
                                               ),
                                             ),
                                           const SizedBox(height: 4),
@@ -1456,11 +1536,12 @@ class _DietPlansSection extends StatelessWidget {
                                             items.toString(),
                                             style: TextStyle(
                                               fontSize: 13,
-                                              color: isDark ? const Color(0xFFD4D4D4) : Colors.grey.shade700,
+                                              color: isDark
+                                                  ? const Color(0xFFD4D4D4)
+                                                  : Colors.grey.shade700,
                                             ),
                                             maxLines: 2,
-                                            overflow:
-                                                TextOverflow.ellipsis,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                           const SizedBox(height: 6),
                                           Text(
@@ -1468,7 +1549,9 @@ class _DietPlansSection extends StatelessWidget {
                                             style: TextStyle(
                                               fontSize: 11,
                                               fontWeight: FontWeight.w600,
-                                              color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                                              color: isDark
+                                                  ? const Color(0xFFA8A8A8)
+                                                  : Colors.grey.shade500,
                                             ),
                                           ),
                                         ],
@@ -1505,7 +1588,9 @@ class _DietPlansSection extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1528,7 +1613,9 @@ class _DietPlansSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                    color: isDark
+                        ? const Color(0xFFA8A8A8)
+                        : Colors.grey.shade600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1546,7 +1633,9 @@ class _DietPlansSection extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.w900,
-                  color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
+                  color: isDark
+                      ? const Color(0xFFF5F5F5)
+                      : const Color(0xFF1A1A1A),
                 ),
               ),
               const SizedBox(width: 4),
@@ -1555,7 +1644,9 @@ class _DietPlansSection extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                  color: isDark
+                      ? const Color(0xFFA8A8A8)
+                      : Colors.grey.shade500,
                 ),
               ),
             ],
@@ -1576,7 +1667,9 @@ class _DietPlansSection extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+        ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -1633,7 +1726,7 @@ class _DietPlansSection extends StatelessWidget {
               ),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: onSeeAllTap,
+                onTap: widget.onSeeAllTap,
                 child: Padding(
                   padding: const EdgeInsets.all(4.0),
                   child: Icon(
@@ -1650,12 +1743,7 @@ class _DietPlansSection extends StatelessWidget {
         SizedBox(
           height: 94,
           child: StreamBuilder<QuerySnapshot>(
-            stream: userId.isNotEmpty
-                ? FirebaseFirestore.instance
-                    .collection('clientDietPlans')
-                    .where('clientId', isEqualTo: userId)
-                    .snapshots()
-                : null,
+            stream: _clientDietPlansStream,
             builder: (context, clientSnap) {
               final clientDocs = clientSnap.data?.docs ?? [];
               if (clientDocs.isNotEmpty) {
@@ -1664,22 +1752,20 @@ class _DietPlansSection extends StatelessWidget {
 
               // Fallback to dietPlanTemplates
               return StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('dietPlanTemplates')
-                    .limit(10)
-                    .snapshots(),
+                stream: _dietPlanTemplatesStream,
                 builder: (context, tplSnap) {
                   final tplDocs = tplSnap.data?.docs ?? [];
                   if (tplDocs.isNotEmpty) {
-                    return _buildDietList(context, tplDocs, isClientPlan: false);
+                    return _buildDietList(
+                      context,
+                      tplDocs,
+                      isClientPlan: false,
+                    );
                   }
 
                   // Fallback to legacy diet_plans
                   return StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('diet_plans')
-                        .limit(10)
-                        .snapshots(),
+                    stream: _legacyDietPlansStream,
                     builder: (context, legSnap) {
                       final legDocs = legSnap.data?.docs ?? [];
                       if (legDocs.isNotEmpty) {
@@ -1694,10 +1780,14 @@ class _DietPlansSection extends StatelessWidget {
                         margin: const EdgeInsets.symmetric(horizontal: 24),
                         width: double.infinity,
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF121212) : const Color(0xFFF5F7FA),
+                          color: isDark
+                              ? const Color(0xFF121212)
+                              : const Color(0xFFF5F7FA),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                            color: isDark
+                                ? const Color(0xFF262626)
+                                : Colors.grey.shade200,
                             width: 1.5,
                           ),
                         ),
@@ -1706,14 +1796,18 @@ class _DietPlansSection extends StatelessWidget {
                           children: [
                             Icon(
                               Icons.restaurant_menu_rounded,
-                              color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                              color: isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey.shade400,
                               size: 24,
                             ),
                             const SizedBox(width: 10),
                             Text(
                               'no_diet_plans'.tr(),
                               style: TextStyle(
-                                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                                color: isDark
+                                    ? const Color(0xFFA8A8A8)
+                                    : Colors.grey.shade500,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -1751,8 +1845,7 @@ class _DietPlansSection extends StatelessWidget {
             data['title'] ??
             data['name'] ??
             'Diet Plan';
-        final String templateId =
-            data['templateId']?.toString() ?? doc.id;
+        final String templateId = data['templateId']?.toString() ?? doc.id;
 
         String subtitle = 'Active Plan';
         if (data['calories'] != null) {
@@ -1774,12 +1867,7 @@ class _DietPlansSection extends StatelessWidget {
         return _BouncingButton(
           onTap: () {
             HapticFeedback.lightImpact();
-            _showDietPlanDashboard(
-              context,
-              templateId,
-              title,
-              data,
-            );
+            _showDietPlanDashboard(context, templateId, title, data);
           },
           child: Container(
             width: 260,
@@ -1806,12 +1894,16 @@ class _DietPlansSection extends StatelessWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFE8F5E9),
+                    color: isDark
+                        ? const Color(0xFF1E1E1E)
+                        : const Color(0xFFE8F5E9),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Icon(
                     Icons.restaurant_menu_rounded,
-                    color: isDark ? const Color(0xFF4ADE80) : const Color(0xFF2E7D32),
+                    color: isDark
+                        ? const Color(0xFF4ADE80)
+                        : const Color(0xFF2E7D32),
                     size: 26,
                   ),
                 ),
@@ -1825,7 +1917,9 @@ class _DietPlansSection extends StatelessWidget {
                         title,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: isDark ? const Color(0xFFF5F5F5) : Colors.black87,
+                          color: isDark
+                              ? const Color(0xFFF5F5F5)
+                              : Colors.black87,
                           fontSize: 15,
                         ),
                         maxLines: 1,
@@ -1835,7 +1929,9 @@ class _DietPlansSection extends StatelessWidget {
                       Text(
                         subtitle,
                         style: TextStyle(
-                          color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                          color: isDark
+                              ? const Color(0xFFA8A8A8)
+                              : Colors.grey.shade500,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1848,7 +1944,9 @@ class _DietPlansSection extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade50,
+                    color: isDark
+                        ? const Color(0xFF1E1E1E)
+                        : Colors.grey.shade50,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -2110,7 +2208,10 @@ class _ProgressCard extends StatelessWidget {
           color: isDark ? darkCardBgColor : cardBgColor,
           borderRadius: BorderRadius.circular(22),
           border: isDark
-              ? Border.all(color: darkBorderColor.withValues(alpha: 0.5), width: 1.4)
+              ? Border.all(
+                  color: darkBorderColor.withValues(alpha: 0.5),
+                  width: 1.4,
+                )
               : null,
           boxShadow: [
             BoxShadow(
@@ -2366,7 +2467,7 @@ class _NavItem extends StatelessWidget {
         child: Container(
           color: Colors.transparent,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 120),
             curve: Curves.easeOutCubic,
             margin: const EdgeInsets.symmetric(horizontal: 2.0),
             padding: isSelected

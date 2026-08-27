@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -124,8 +125,13 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
       final int day = int.parse(parts[2]);
 
       final int minutes = _parseTimeToMinutes(timeStr);
-      final DateTime sessionDt =
-          DateTime(year, month, day, minutes ~/ 60, minutes % 60);
+      final DateTime sessionDt = DateTime(
+        year,
+        month,
+        day,
+        minutes ~/ 60,
+        minutes % 60,
+      );
 
       final DateTime now = DateTime.now();
       final differenceInMinutes = sessionDt.difference(now).inMinutes;
@@ -136,8 +142,6 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
       return true;
     }
   }
-
-
 
   String _formatTimeStrict(TimeOfDay time) {
     final now = DateTime.now();
@@ -478,12 +482,12 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
 
     final Query bookingsQuery = trainerId.isNotEmpty
         ? FirebaseFirestore.instance
-            .collection('bookings')
-            .where('trainerId', isEqualTo: trainerId)
-            .where('date', isEqualTo: newDateStr)
+              .collection('bookings')
+              .where('trainerId', isEqualTo: trainerId)
+              .where('date', isEqualTo: newDateStr)
         : FirebaseFirestore.instance
-            .collection('bookings')
-            .where('date', isEqualTo: newDateStr);
+              .collection('bookings')
+              .where('date', isEqualTo: newDateStr);
 
     return StreamBuilder<QuerySnapshot>(
       stream: bookingsQuery.snapshots(),
@@ -517,10 +521,13 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
             final data = doc.data() as Map<String, dynamic>;
             final status = (data['status'] ?? '').toString().toLowerCase();
             if (status == 'cancelled' || status == 'rejected') continue;
-            int bStart = data['startMinutes'] ??
+            int bStart =
+                data['startMinutes'] ??
                 _parseTimeToMinutes(
-                    data['startTime'] ?? data['time'] ?? '00:00');
-            int bEnd = data['endMinutes'] ??
+                  data['startTime'] ?? data['time'] ?? '00:00',
+                );
+            int bEnd =
+                data['endMinutes'] ??
                 (bStart + (data['durationMinutes'] ?? 60));
             if (slotStart < bEnd && slotEnd > bStart) {
               return true;
@@ -622,10 +629,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                         ? const SizedBox(
                             width: 20,
                             height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
+                            child: CustomLoadingIndicator(),
                           )
                         : Text(
                             'btn_check'.tr(),
@@ -643,8 +647,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
             if (_availabilityStatus == 'available') ...[
               const SizedBox(height: 14),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.green.shade50,
                   borderRadius: BorderRadius.circular(14),
@@ -672,8 +678,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
             ] else if (_availabilityStatus == 'taken') ...[
               const SizedBox(height: 14),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.red.shade50,
                   borderRadius: BorderRadius.circular(14),
@@ -681,11 +689,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.cancel,
-                      color: Colors.red,
-                      size: 18,
-                    ),
+                    const Icon(Icons.cancel, color: Colors.red, size: 18),
                     const SizedBox(width: 8),
                     Text(
                       'slot_booked'.tr(),
@@ -701,8 +705,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
             ] else if (_availabilityStatus == 'past') ...[
               const SizedBox(height: 14),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.orange.shade50,
                   borderRadius: BorderRadius.circular(14),
@@ -745,8 +751,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                     ),
                   ),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFE8F5E9),
                       borderRadius: BorderRadius.circular(10),
@@ -790,7 +798,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                   spacing: 10,
                   runSpacing: 10,
                   children: availableSlots.map((slot) {
-                    final bool isSelected = _selectedTime?.hour == slot.hour &&
+                    final bool isSelected =
+                        _selectedTime?.hour == slot.hour &&
                         _selectedTime?.minute == slot.minute;
                     final String timeText = _formatTimeStrict(slot);
 
@@ -820,8 +829,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                           boxShadow: isSelected
                               ? [
                                   BoxShadow(
-                                    color:
-                                        _redButtonColor.withValues(alpha: 0.25),
+                                    color: _redButtonColor.withValues(
+                                      alpha: 0.25,
+                                    ),
                                     blurRadius: 6,
                                     offset: const Offset(0, 3),
                                   ),
@@ -969,518 +979,560 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
             child: SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 40),
               physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RepaintBoundary(child: _buildTopAppBar()),
-              const SizedBox(height: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  RepaintBoundary(child: _buildTopAppBar()),
+                  const SizedBox(height: 12),
 
-              // Current Session Card
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  'current_session'.tr(),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF121212) : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: isDark
-                      ? Border.all(color: const Color(0xFF262626), width: 1.2)
-                      : null,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isDark ? 0.25 : 0.03,
+                  // Current Session Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'current_session'.tr(),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                        letterSpacing: -0.5,
                       ),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
                     ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: _activeBlue.withValues(alpha: isDark ? 0.2 : 0.1),
-                            borderRadius: BorderRadius.circular(14),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF121212) : Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: isDark
+                          ? Border.all(
+                              color: const Color(0xFF262626),
+                              width: 1.2,
+                            )
+                          : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.25 : 0.03,
                           ),
-                          child: const Icon(
-                            Icons.fitness_center,
-                            color: _activeBlue,
-                            size: 24,
-                          ),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.bookingData['sessionType'] ??
-                                    'training_default'.tr(),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 18,
-                                  color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: _activeBlue.withValues(
+                                  alpha: isDark ? 0.2 : 0.1,
                                 ),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              const SizedBox(height: 4),
-                              Row(
+                              child: const Icon(
+                                Icons.fitness_center,
+                                color: _activeBlue,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Icons.person_outline,
-                                    size: 14,
-                                    color: isDark
-                                        ? const Color(0xFFA8A8A8)
-                                        : Colors.grey.shade600,
+                                  Text(
+                                    widget.bookingData['sessionType'] ??
+                                        'training_default'.tr(),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 18,
+                                      color: isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : _textMain,
+                                    ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      'trainer_name_format'.tr(
-                                        namedArgs: {'trainerName': trainerName},
-                                      ),
-                                      style: TextStyle(
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.person_outline,
+                                        size: 14,
                                         color: isDark
                                             ? const Color(0xFFA8A8A8)
                                             : Colors.grey.shade600,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          'trainer_name_format'.tr(
+                                            namedArgs: {
+                                              'trainerName': trainerName,
+                                            },
+                                          ),
+                                          style: TextStyle(
+                                            color: isDark
+                                                ? const Color(0xFFA8A8A8)
+                                                : Colors.grey.shade600,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(
+                              Icons.check_circle,
+                              color: Colors.green,
+                              size: 24,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Divider(
+                          color: isDark
+                              ? const Color(0xFF262626)
+                              : Colors.grey.shade200,
+                          height: 1,
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.calendar_month,
+                                      color: isDark
+                                          ? const Color(0xFFA8A8A8)
+                                          : Colors.grey.shade500,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'date_label'.tr(),
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? const Color(0xFFA8A8A8)
+                                            : Colors.grey.shade500,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  oldDateDisplay,
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFFF5F5F5)
+                                        : _textMain,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.access_time,
+                                      color: isDark
+                                          ? const Color(0xFFA8A8A8)
+                                          : Colors.grey.shade500,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'time_label'.tr(),
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? const Color(0xFFA8A8A8)
+                                            : Colors.grey.shade500,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  widget.bookingData['time'] ??
+                                      widget.bookingData['startTime'] ??
+                                      '',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFFF5F5F5)
+                                        : _textMain,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  if (!_canRescheduleSession()) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF330C10)
+                            : const Color(0xFFFFEBEE),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF7F1D1D)
+                              : const Color(0xFFFFCDD2),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.timer_off_outlined,
+                            color: isDark
+                                ? const Color(0xFFF87171)
+                                : const Color(0xFFC62828),
+                            size: 26,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Rescheduling Locked',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFFFCA5A5)
+                                        : const Color(0xFFC62828),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  'Sessions can only be rescheduled at least 2 hours before the scheduled session start time.',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFFFECACA)
+                                        : const Color(0xFFB71C1C),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 32),
+
+                  // Date Selection
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'select_new_date'.tr(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        Text(
+                          currentMonthYear,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 88,
+                    width: double.infinity,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        children: _next6Days.map((date) {
+                          bool isSelected = _selectedDate == date;
+                          return _BouncingButton(
+                            onTap: () {
+                              HapticFeedback.lightImpact();
+                              setState(() {
+                                _selectedDate = date;
+                                _availabilityStatus = 'none';
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              curve: Curves.easeOutCubic,
+                              margin: const EdgeInsets.only(right: 12),
+                              width: 58,
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? _activeBlue
+                                    : (isDark
+                                          ? const Color(0xFF141414)
+                                          : Colors.white),
+                                borderRadius: BorderRadius.circular(35),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.transparent
+                                      : (isDark
+                                            ? const Color(0xFF262626)
+                                            : Colors.grey.shade300),
+                                  width: 1.2,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: _activeBlue.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ]
+                                    : [],
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    DateFormat(
+                                      'EEE',
+                                    ).format(date).toUpperCase(),
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : (isDark
+                                                ? const Color(0xFFA8A8A8)
+                                                : Colors.grey.shade500),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : (isDark
+                                                ? const Color(0xFF1E1E1E)
+                                                : Colors.grey.shade100),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      DateFormat('d').format(date),
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? _activeBlue
+                                            : (isDark
+                                                  ? const Color(0xFFF5F5F5)
+                                                  : _textMain),
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-                        const Icon(
-                          Icons.check_circle,
-                          color: Colors.green,
-                          size: 24,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Divider(
-                      color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
-                      height: 1,
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.calendar_month,
-                                  color: isDark
-                                      ? const Color(0xFFA8A8A8)
-                                      : Colors.grey.shade500,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'date_label'.tr(),
-                                  style: TextStyle(
-                                    color: isDark
-                                        ? const Color(0xFFA8A8A8)
-                                        : Colors.grey.shade500,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              oldDateDisplay,
-                              style: TextStyle(
-                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.access_time,
-                                  color: isDark
-                                      ? const Color(0xFFA8A8A8)
-                                      : Colors.grey.shade500,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'time_label'.tr(),
-                                  style: TextStyle(
-                                    color: isDark
-                                        ? const Color(0xFFA8A8A8)
-                                        : Colors.grey.shade500,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              widget.bookingData['time'] ??
-                                  widget.bookingData['startTime'] ??
-                                  '',
-                              style: TextStyle(
-                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              if (!_canRescheduleSession()) ...[
-                const SizedBox(height: 20),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF330C10) : const Color(0xFFFFEBEE),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFFCDD2),
-                      width: 1.2,
+                          );
+                        }).toList(),
+                      ),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.timer_off_outlined,
-                        color: isDark ? const Color(0xFFF87171) : const Color(0xFFC62828),
-                        size: 26,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Rescheduling Locked',
-                              style: TextStyle(
-                                color: isDark ? const Color(0xFFFCA5A5) : const Color(0xFFC62828),
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14.5,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'Sessions can only be rescheduled at least 2 hours before the scheduled session start time.',
-                              style: TextStyle(
-                                color: isDark ? const Color(0xFFFECACA) : const Color(0xFFB71C1C),
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
 
-              const SizedBox(height: 32),
+                  const SizedBox(height: 40),
 
-              // Date Selection
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'select_new_date'.tr(),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    Text(
-                      currentMonthYear,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 88,
-                width: double.infinity,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    children: _next6Days.map((date) {
-                      bool isSelected = _selectedDate == date;
-                      return _BouncingButton(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          setState(() {
-                            _selectedDate = date;
-                            _availabilityStatus = 'none';
-                          });
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          curve: Curves.easeOutCubic,
-                          margin: const EdgeInsets.only(right: 12),
-                          width: 58,
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? _activeBlue
-                                : (isDark ? const Color(0xFF141414) : Colors.white),
-                            borderRadius: BorderRadius.circular(35),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.transparent
-                                  : (isDark
-                                      ? const Color(0xFF262626)
-                                      : Colors.grey.shade300),
-                              width: 1.2,
-                            ),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: _activeBlue.withValues(alpha: 0.3),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ]
-                                : [],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                DateFormat('EEE').format(date).toUpperCase(),
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : (isDark
-                                          ? const Color(0xFFA8A8A8)
-                                          : Colors.grey.shade500),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : (isDark
-                                          ? const Color(0xFF1E1E1E)
-                                          : Colors.grey.shade100),
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  DateFormat('d').format(date),
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? _activeBlue
-                                        : (isDark
-                                            ? const Color(0xFFF5F5F5)
-                                            : _textMain),
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 40),
-
-              // Time Selection & Reason
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF121212) : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: isDark
-                      ? Border.all(color: const Color(0xFF262626), width: 1.2)
-                      : null,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isDark ? 0.25 : 0.03,
-                      ),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildTimeSelectionCard(),
-
-                    const SizedBox(height: 32),
-                    Divider(
-                      color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
-                      height: 1,
-                    ),
-                    const SizedBox(height: 24),
-
-                    Text(
-                      'reason_optional'.tr(),
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E1E1E) : _bgColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: isDark
-                            ? Border.all(color: const Color(0xFF333333), width: 1)
-                            : null,
-                      ),
-                      child: TextField(
-                        controller: _reasonController,
-                        maxLines: 3,
-                        style: TextStyle(
-                          color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                          fontSize: 14,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'reason_hint'.tr(),
-                          hintStyle: TextStyle(
-                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade400,
-                            fontSize: 14,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.all(16),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 40),
-
-              // Confirm Button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: _BouncingButton(
-                  onTap: (_canRescheduleSession() &&
-                          _availabilityStatus == 'available' &&
-                          !_isUpdating)
-                      ? () {
-                          HapticFeedback.mediumImpact();
-                          _confirmReschedule();
-                        }
-                      : () {
-                          if (!_canRescheduleSession()) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Rescheduling is locked: only allowed at least 2 hours before session start time.',
-                                ),
-                                backgroundColor: Color(0xFFC62828),
-                              ),
-                            );
-                          }
-                        },
-                  child: Container(
-                    width: double.infinity,
-                    height: 56,
-                    alignment: Alignment.center,
+                  // Time Selection & Reason
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: (_canRescheduleSession() &&
+                      color: isDark ? const Color(0xFF121212) : Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      border: isDark
+                          ? Border.all(
+                              color: const Color(0xFF262626),
+                              width: 1.2,
+                            )
+                          : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: isDark ? 0.25 : 0.03,
+                          ),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTimeSelectionCard(),
+
+                        const SizedBox(height: 32),
+                        Divider(
+                          color: isDark
+                              ? const Color(0xFF262626)
+                              : Colors.grey.shade200,
+                          height: 1,
+                        ),
+                        const SizedBox(height: 24),
+
+                        Text(
+                          'reason_optional'.tr(),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E1E1E) : _bgColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: isDark
+                                ? Border.all(
+                                    color: const Color(0xFF333333),
+                                    width: 1,
+                                  )
+                                : null,
+                          ),
+                          child: TextField(
+                            controller: _reasonController,
+                            maxLines: 3,
+                            style: TextStyle(
+                              color: isDark
+                                  ? const Color(0xFFF5F5F5)
+                                  : _textMain,
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'reason_hint'.tr(),
+                              hintStyle: TextStyle(
+                                color: isDark
+                                    ? const Color(0xFFA8A8A8)
+                                    : Colors.grey.shade400,
+                                fontSize: 14,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.all(16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // Confirm Button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: _BouncingButton(
+                      onTap:
+                          (_canRescheduleSession() &&
                               _availabilityStatus == 'available' &&
                               !_isUpdating)
-                          ? _redButtonColor
-                          : Colors.grey.shade400,
-                      borderRadius: BorderRadius.circular(28),
+                          ? () {
+                              HapticFeedback.mediumImpact();
+                              _confirmReschedule();
+                            }
+                          : () {
+                              if (!_canRescheduleSession()) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Rescheduling is locked: only allowed at least 2 hours before session start time.',
+                                    ),
+                                    backgroundColor: Color(0xFFC62828),
+                                  ),
+                                );
+                              }
+                            },
+                      child: Container(
+                        width: double.infinity,
+                        height: 56,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color:
+                              (_canRescheduleSession() &&
+                                  _availabilityStatus == 'available' &&
+                                  !_isUpdating)
+                              ? _redButtonColor
+                              : Colors.grey.shade400,
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        child: _isUpdating
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CustomLoadingIndicator(),
+                              )
+                            : Text(
+                                'confirm_changes'.tr(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
                     ),
-                    child: _isUpdating
-                        ? const SizedBox(
-                            height: 24,
-                            width: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
-                          )
-                        : Text(
-                            'confirm_changes'.tr(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    );
+        );
       },
     );
   }

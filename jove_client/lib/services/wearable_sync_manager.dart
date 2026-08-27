@@ -28,21 +28,22 @@ class WearableSyncManager {
         .doc(user.uid)
         .snapshots()
         .listen((snapshot) {
-      if (snapshot.exists && snapshot.data() != null) {
-        final data = snapshot.data() as Map<String, dynamic>;
-        final device = data['connectedDevice'] as Map<String, dynamic>?;
-        final settings = data['deviceSyncSettings'] as Map<String, dynamic>?;
+          if (snapshot.exists && snapshot.data() != null) {
+            final data = snapshot.data() as Map<String, dynamic>;
+            final device = data['connectedDevice'] as Map<String, dynamic>?;
+            final settings =
+                data['deviceSyncSettings'] as Map<String, dynamic>?;
 
-        _connectedDevice = device;
-        _syncSettings = settings;
+            _connectedDevice = device;
+            _syncSettings = settings;
 
-        if (device != null && device['status'] == 'connected') {
-          _startContinuousLiveSync(user.uid);
-        } else {
-          _stopContinuousLiveSync();
-        }
-      }
-    });
+            if (device != null && device['status'] == 'connected') {
+              _startContinuousLiveSync(user.uid);
+            } else {
+              _stopContinuousLiveSync();
+            }
+          }
+        });
   }
 
   /// Starts the continuous live sync stream to automatically read and update progress activities
@@ -72,19 +73,24 @@ class WearableSyncManager {
       final now = DateTime.now();
       final String todayDate = DateFormat('yyyy-MM-dd').format(now);
 
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
       if (!userDoc.exists) return;
 
       final data = userDoc.data() ?? {};
       final dailySteps = data['dailySteps'] as Map<String, dynamic>? ?? {};
       final dailySleep = data['dailySleep'] as Map<String, dynamic>? ?? {};
-      final dailyHydration = data['dailyHydration'] as Map<String, dynamic>? ?? {};
+      final dailyHydration =
+          data['dailyHydration'] as Map<String, dynamic>? ?? {};
       final dailyWeight = data['dailyWeight'] as Map<String, dynamic>? ?? {};
 
       int currentSteps = (dailySteps[todayDate] as num?)?.toInt() ?? 0;
       double currentSleep = (dailySleep[todayDate] as num?)?.toDouble() ?? 0.0;
       int currentHydration = (dailyHydration[todayDate] as num?)?.toInt() ?? 0;
-      double currentWeight = (dailyWeight[todayDate] as num?)?.toDouble() ??
+      double currentWeight =
+          (dailyWeight[todayDate] as num?)?.toDouble() ??
           (data['weight'] as num?)?.toDouble() ??
           70.0;
 
@@ -156,14 +162,20 @@ class WearableSyncManager {
       }
 
       WriteBatch batch = FirebaseFirestore.instance.batch();
-      DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-      DocumentReference historyRef = userRef.collection('progress_history').doc(todayDate);
+      DocumentReference userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid);
+      DocumentReference historyRef = userRef
+          .collection('progress_history')
+          .doc(todayDate);
 
       batch.update(userRef, updates);
       batch.set(historyRef, historyUpdates, SetOptions(merge: true));
 
       await batch.commit();
-      debugPrint('Wearable live activity synced: $newSteps steps, $newSleep hrs sleep');
+      debugPrint(
+        'Wearable live activity synced: $newSteps steps, $newSleep hrs sleep',
+      );
     } catch (e) {
       debugPrint('Wearable live sync error: $e');
     }

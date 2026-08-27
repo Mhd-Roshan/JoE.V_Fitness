@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -118,16 +119,22 @@ class _BookingScreenState extends State<BookingScreen>
   void _loadUserSubscription() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
-      FirebaseFirestore.instance.collection('users').doc(uid).get().then((doc) {
-        if (doc.exists && mounted) {
-          final data = doc.data() ?? {};
-          setState(() {
-            _hasActiveSubscription = data['hasActiveSubscription'] == true ||
-                (data['subscription'] is Map &&
-                    data['subscription']['status'] == 'Active');
-          });
-        }
-      }).catchError((_) {});
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get()
+          .then((doc) {
+            if (doc.exists && mounted) {
+              final data = doc.data() ?? {};
+              setState(() {
+                _hasActiveSubscription =
+                    data['hasActiveSubscription'] == true ||
+                    (data['subscription'] is Map &&
+                        data['subscription']['status'] == 'Active');
+              });
+            }
+          })
+          .catchError((_) {});
     }
   }
 
@@ -213,10 +220,12 @@ class _BookingScreenState extends State<BookingScreen>
 
       if (placemarks.isNotEmpty && mounted) {
         Placemark place = placemarks.first;
-        final locTitle = place.locality ?? place.subLocality ?? 'Current Location';
-        final locAddr = '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.administrativeArea ?? ''}'
-            .trim()
-            .replaceAll(RegExp(r'^,\s*|,\s*$|,(?=\s*,)'), '');
+        final locTitle =
+            place.locality ?? place.subLocality ?? 'Current Location';
+        final locAddr =
+            '${place.street ?? ''}, ${place.subLocality ?? ''}, ${place.administrativeArea ?? ''}'
+                .trim()
+                .replaceAll(RegExp(r'^,\s*|,\s*$|,(?=\s*,)'), '');
         setState(() {
           _locationTitle = locTitle;
           _locationAddress = locAddr;
@@ -1132,7 +1141,10 @@ class _BookingScreenState extends State<BookingScreen>
               ),
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(12),
@@ -1140,7 +1152,11 @@ class _BookingScreenState extends State<BookingScreen>
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, color: Color(0xFF0284C7), size: 18),
+                    const Icon(
+                      Icons.info_outline,
+                      color: Color(0xFF0284C7),
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1219,7 +1235,8 @@ class _BookingScreenState extends State<BookingScreen>
             .doc(user.uid)
             .get();
         final userData = uDoc.data() ?? {};
-        final bool hasActiveSubscription = userData['hasActiveSubscription'] == true ||
+        final bool hasActiveSubscription =
+            userData['hasActiveSubscription'] == true ||
             (userData['subscription'] is Map &&
                 userData['subscription']['status'] == 'Active');
 
@@ -1696,10 +1713,7 @@ class _BookingScreenState extends State<BookingScreen>
                   ? const SizedBox(
                       height: 24,
                       width: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
-                      ),
+                      child: CustomLoadingIndicator(),
                     )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1845,12 +1859,12 @@ class _BookingScreenState extends State<BookingScreen>
 
     final Query bookingsQuery = _trainer != null
         ? FirebaseFirestore.instance
-            .collection('bookings')
-            .where('trainerId', isEqualTo: _trainer!.id)
-            .where('date', isEqualTo: dbDate)
+              .collection('bookings')
+              .where('trainerId', isEqualTo: _trainer!.id)
+              .where('date', isEqualTo: dbDate)
         : FirebaseFirestore.instance
-            .collection('bookings')
-            .where('date', isEqualTo: dbDate);
+              .collection('bookings')
+              .where('date', isEqualTo: dbDate);
 
     return StreamBuilder<QuerySnapshot>(
       stream: bookingsQuery.snapshots(),
@@ -1882,10 +1896,13 @@ class _BookingScreenState extends State<BookingScreen>
             final data = doc.data() as Map<String, dynamic>;
             final status = (data['status'] ?? '').toString().toLowerCase();
             if (status == 'cancelled' || status == 'rejected') continue;
-            int bStart = data['startMinutes'] ??
+            int bStart =
+                data['startMinutes'] ??
                 _parseTimeToMinutes(
-                    data['startTime'] ?? data['time'] ?? '00:00');
-            int bEnd = data['endMinutes'] ??
+                  data['startTime'] ?? data['time'] ?? '00:00',
+                );
+            int bEnd =
+                data['endMinutes'] ??
                 (bStart + (data['durationMinutes'] ?? 60));
             if (slotStart < bEnd && slotEnd > bStart) {
               return true;
@@ -1935,7 +1952,9 @@ class _BookingScreenState extends State<BookingScreen>
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                  color: isDark
+                      ? const Color(0xFFA8A8A8)
+                      : Colors.grey.shade600,
                 ),
               ),
               const SizedBox(height: 8),
@@ -1968,7 +1987,9 @@ class _BookingScreenState extends State<BookingScreen>
                                   ? 'choose'.tr()
                                   : _formatTimeStrict(_selectedTime!, locale),
                               style: TextStyle(
-                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                color: isDark
+                                    ? const Color(0xFFF5F5F5)
+                                    : _textMain,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -2022,10 +2043,7 @@ class _BookingScreenState extends State<BookingScreen>
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              child: CustomLoadingIndicator(),
                             )
                           : const Text(
                               'Check',
@@ -2130,8 +2148,10 @@ class _BookingScreenState extends State<BookingScreen>
                       ),
                     ),
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFE8F5E9),
                         borderRadius: BorderRadius.circular(10),
@@ -2155,17 +2175,23 @@ class _BookingScreenState extends State<BookingScreen>
                     padding: const EdgeInsets.all(16),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF9FAFB),
+                      color: isDark
+                          ? const Color(0xFF1E1E1E)
+                          : const Color(0xFFF9FAFB),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                        color: isDark
+                            ? const Color(0xFF262626)
+                            : Colors.grey.shade200,
                       ),
                     ),
                     child: Text(
                       'No available slots on this date. Please pick another date or custom time.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                        color: isDark
+                            ? const Color(0xFFA8A8A8)
+                            : Colors.grey.shade600,
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2176,7 +2202,8 @@ class _BookingScreenState extends State<BookingScreen>
                     spacing: 10,
                     runSpacing: 10,
                     children: availableSlots.map((slot) {
-                      final bool isSelected = _selectedTime?.hour == slot.hour &&
+                      final bool isSelected =
+                          _selectedTime?.hour == slot.hour &&
                           _selectedTime?.minute == slot.minute;
                       final String timeText = _formatTimeStrict(slot, locale);
 
@@ -2203,15 +2230,16 @@ class _BookingScreenState extends State<BookingScreen>
                               color: isSelected
                                   ? _redButtonColor
                                   : (isDark
-                                      ? const Color(0xFF333333)
-                                      : Colors.grey.shade300),
+                                        ? const Color(0xFF333333)
+                                        : Colors.grey.shade300),
                               width: 1.2,
                             ),
                             boxShadow: isSelected
                                 ? [
                                     BoxShadow(
-                                      color:
-                                          _redButtonColor.withValues(alpha: 0.25),
+                                      color: _redButtonColor.withValues(
+                                        alpha: 0.25,
+                                      ),
                                       blurRadius: 6,
                                       offset: const Offset(0, 3),
                                     ),
@@ -2235,8 +2263,8 @@ class _BookingScreenState extends State<BookingScreen>
                                   color: isSelected
                                       ? Colors.white
                                       : (isDark
-                                          ? const Color(0xFFF5F5F5)
-                                          : _textMain),
+                                            ? const Color(0xFFF5F5F5)
+                                            : _textMain),
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -2335,7 +2363,10 @@ class _BookingScreenState extends State<BookingScreen>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isInErnakulam
                       ? const Color(0xFF10B981).withValues(alpha: 0.12)
@@ -2352,17 +2383,25 @@ class _BookingScreenState extends State<BookingScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      isInErnakulam ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                      isInErnakulam
+                          ? Icons.check_circle_rounded
+                          : Icons.cancel_rounded,
                       size: 13,
-                      color: isInErnakulam ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                      color: isInErnakulam
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFEF4444),
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      isInErnakulam ? 'Ernakulam District' : 'Outside Ernakulam',
+                      isInErnakulam
+                          ? 'Ernakulam District'
+                          : 'Outside Ernakulam',
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: isInErnakulam ? const Color(0xFF059669) : const Color(0xFFDC2626),
+                        color: isInErnakulam
+                            ? const Color(0xFF059669)
+                            : const Color(0xFFDC2626),
                       ),
                     ),
                   ],
@@ -2404,10 +2443,7 @@ class _BookingScreenState extends State<BookingScreen>
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
-                          color: _activeBlue,
-                          strokeWidth: 2,
-                        ),
+                        child: CustomLoadingIndicator(),
                       )
                     : Icon(
                         Icons.my_location_rounded,
@@ -2546,7 +2582,7 @@ class _BookingScreenState extends State<BookingScreen>
         builder: (context, isDark, _) {
           return Scaffold(
             backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
-            body: const Center(child: CircularProgressIndicator(color: _activeBlue)),
+            body: const Center(child: CustomLoadingIndicator()),
           );
         },
       );
@@ -2583,7 +2619,9 @@ class _BookingScreenState extends State<BookingScreen>
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
-                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                color: isDark
+                                    ? const Color(0xFFF5F5F5)
+                                    : _textMain,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -2592,7 +2630,9 @@ class _BookingScreenState extends State<BookingScreen>
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
-                                color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                color: isDark
+                                    ? const Color(0xFFF5F5F5)
+                                    : _textMain,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -2642,15 +2682,15 @@ class _BookingScreenState extends State<BookingScreen>
                                       color: isSelected
                                           ? _activeBlue
                                           : (isDark
-                                              ? const Color(0xFF141414)
-                                              : Colors.white),
+                                                ? const Color(0xFF141414)
+                                                : Colors.white),
                                       borderRadius: BorderRadius.circular(35),
                                       border: Border.all(
                                         color: isSelected
                                             ? Colors.transparent
                                             : (isDark
-                                                ? const Color(0xFF262626)
-                                                : Colors.grey.shade300),
+                                                  ? const Color(0xFF262626)
+                                                  : Colors.grey.shade300),
                                         width: 1,
                                       ),
                                       boxShadow: isSelected
@@ -2666,7 +2706,8 @@ class _BookingScreenState extends State<BookingScreen>
                                           : [],
                                     ),
                                     child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         Text(
                                           dayName,
@@ -2674,8 +2715,8 @@ class _BookingScreenState extends State<BookingScreen>
                                             color: isSelected
                                                 ? Colors.white
                                                 : (isDark
-                                                    ? const Color(0xFFA8A8A8)
-                                                    : Colors.grey.shade500),
+                                                      ? const Color(0xFFA8A8A8)
+                                                      : Colors.grey.shade500),
                                             fontSize: 13,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -2688,8 +2729,8 @@ class _BookingScreenState extends State<BookingScreen>
                                             color: isSelected
                                                 ? Colors.white
                                                 : (isDark
-                                                    ? const Color(0xFF222222)
-                                                    : Colors.grey.shade100),
+                                                      ? const Color(0xFF222222)
+                                                      : Colors.grey.shade100),
                                             shape: BoxShape.circle,
                                           ),
                                           alignment: Alignment.center,
@@ -2699,8 +2740,10 @@ class _BookingScreenState extends State<BookingScreen>
                                               color: isSelected
                                                   ? _activeBlue
                                                   : (isDark
-                                                      ? const Color(0xFFF5F5F5)
-                                                      : _textMain),
+                                                        ? const Color(
+                                                            0xFFF5F5F5,
+                                                          )
+                                                        : _textMain),
                                               fontSize: 15,
                                               fontWeight: FontWeight.w900,
                                             ),
@@ -2784,14 +2827,17 @@ class _BookingScreenState extends State<BookingScreen>
                                       borderRadius: BorderRadius.circular(20),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: _redButtonColor.withValues(alpha: 0.25),
+                                          color: _redButtonColor.withValues(
+                                            alpha: 0.25,
+                                          ),
                                           blurRadius: 12,
                                           offset: const Offset(0, 4),
                                         ),
                                       ],
                                     ),
                                     child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: const [
                                         Icon(
                                           Icons.lock_outline_rounded,
@@ -2822,88 +2868,93 @@ class _BookingScreenState extends State<BookingScreen>
                 RepaintBoundary(
                   child: Align(
                     alignment: Alignment.bottomCenter,
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF121212)
-                          : const Color(0xFF00215F),
-                      borderRadius: BorderRadius.circular(32),
-                      border: isDark
-                          ? Border.all(color: const Color(0xFF262626), width: 1.2)
-                          : null,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(
-                            alpha: isDark ? 0.35 : 0.15,
+                    child: Container(
+                      margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF121212)
+                            : const Color(0xFF00215F),
+                        borderRadius: BorderRadius.circular(32),
+                        border: isDark
+                            ? Border.all(
+                                color: const Color(0xFF262626),
+                                width: 1.2,
+                              )
+                            : null,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(
+                              alpha: isDark ? 0.35 : 0.15,
+                            ),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
                           ),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: ValueListenableBuilder<int>(
-                      valueListenable: _selectedIndexNotifier,
-                      builder: (context, selectedIndex, _) {
-                        return Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _NavItem(
-                              index: 0,
-                              icon: Icons.home_rounded,
-                              label: 'home_nav'.tr(),
-                              selectedIndex: selectedIndex,
-                              onTap: () => _handleStandardNavigation(
-                                const HomeDashboardScreen(),
-                                0,
+                        ],
+                      ),
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _selectedIndexNotifier,
+                        builder: (context, selectedIndex, _) {
+                          return Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _NavItem(
+                                index: 0,
+                                icon: Icons.home_rounded,
+                                label: 'home_nav'.tr(),
+                                selectedIndex: selectedIndex,
+                                onTap: () => _handleStandardNavigation(
+                                  const HomeDashboardScreen(),
+                                  0,
+                                ),
                               ),
-                            ),
-                            _NavItem(
-                              index: 1,
-                              icon: Icons.calendar_today_rounded,
-                              label: 'booking_nav'.tr(),
-                              selectedIndex: selectedIndex,
-                              onTap: () {},
-                            ),
-                            _NavItem(
-                              index: 2,
-                              icon: Icons.bar_chart_rounded,
-                              label: 'stats_nav'.tr(),
-                              selectedIndex: selectedIndex,
-                              onTap: () => _handleStandardNavigation(
-                                const ProgressScreen(),
-                                2,
+                              _NavItem(
+                                index: 1,
+                                icon: Icons.calendar_today_rounded,
+                                label: 'booking_nav'.tr(),
+                                selectedIndex: selectedIndex,
+                                onTap: () {},
                               ),
-                            ),
-                            _NavItem(
-                              index: 3,
-                              icon: Icons.chat_bubble_outline_rounded,
-                              label: 'chats_nav'.tr(),
-                              selectedIndex: selectedIndex,
-                              onTap: () =>
-                                  _handleStandardNavigation(const ChatScreen(), 3),
-                            ),
-                            _NavItem(
-                              index: 4,
-                              icon: Icons.person_outline_rounded,
-                              label: 'profile_nav'.tr(),
-                              selectedIndex: selectedIndex,
-                              onTap: () => _handleStandardNavigation(
-                                const ProfileScreen(),
-                                4,
+                              _NavItem(
+                                index: 2,
+                                icon: Icons.bar_chart_rounded,
+                                label: 'stats_nav'.tr(),
+                                selectedIndex: selectedIndex,
+                                onTap: () => _handleStandardNavigation(
+                                  const ProgressScreen(),
+                                  2,
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      },
+                              _NavItem(
+                                index: 3,
+                                icon: Icons.chat_bubble_outline_rounded,
+                                label: 'chats_nav'.tr(),
+                                selectedIndex: selectedIndex,
+                                onTap: () => _handleStandardNavigation(
+                                  const ChatScreen(),
+                                  3,
+                                ),
+                              ),
+                              _NavItem(
+                                index: 4,
+                                icon: Icons.person_outline_rounded,
+                                label: 'profile_nav'.tr(),
+                                selectedIndex: selectedIndex,
+                                onTap: () => _handleStandardNavigation(
+                                  const ProfileScreen(),
+                                  4,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         );
@@ -2968,8 +3019,8 @@ class _SessionSelectionListState extends State<_SessionSelectionList> {
                     color: isSelected
                         ? Colors.transparent
                         : (isDark
-                            ? const Color(0xFF262626)
-                            : Colors.grey.shade300),
+                              ? const Color(0xFF262626)
+                              : Colors.grey.shade300),
                     width: 1,
                   ),
                   boxShadow: isSelected
@@ -2994,8 +3045,8 @@ class _SessionSelectionListState extends State<_SessionSelectionList> {
                         color: isSelected
                             ? Colors.white
                             : (isDark
-                                ? const Color(0xFF222222)
-                                : Colors.grey.shade100),
+                                  ? const Color(0xFF222222)
+                                  : Colors.grey.shade100),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
@@ -3003,8 +3054,8 @@ class _SessionSelectionListState extends State<_SessionSelectionList> {
                         color: isSelected
                             ? Colors.black87
                             : (isDark
-                                ? const Color(0xFFF5F5F5)
-                                : Colors.black87),
+                                  ? const Color(0xFFF5F5F5)
+                                  : Colors.black87),
                         size: 20,
                       ),
                     ),
@@ -3015,8 +3066,8 @@ class _SessionSelectionListState extends State<_SessionSelectionList> {
                         color: isSelected
                             ? const Color(0xFF1A1A1A)
                             : (isDark
-                                ? const Color(0xFFF5F5F5)
-                                : const Color(0xFF1A1A1A)),
+                                  ? const Color(0xFFF5F5F5)
+                                  : const Color(0xFF1A1A1A)),
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),

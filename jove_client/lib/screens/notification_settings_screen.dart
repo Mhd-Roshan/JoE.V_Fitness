@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart';
@@ -167,8 +168,7 @@ class _NotificationSettingsScreenState
       context: context,
       barrierColor: Colors.black12,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -239,11 +239,7 @@ class _NotificationSettingsScreenState
               SafeArea(
                 bottom: false,
                 child: _isLoading
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                        ),
-                      )
+                    ? const Center(child: CustomLoadingIndicator())
                     : SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.only(bottom: 120),
@@ -268,7 +264,8 @@ class _NotificationSettingsScreenState
                               ),
                               _buildSwitchItem(
                                 icon: Icons.calendar_today_outlined,
-                                title: 'booking_confirmations'.tr(), // TRANSLATED
+                                title: 'booking_confirmations'
+                                    .tr(), // TRANSLATED
                                 subtitle: 'booking_confirmations_desc'
                                     .tr(), // TRANSLATED
                                 notifier: _bookingConfirmations,
@@ -306,11 +303,14 @@ class _NotificationSettingsScreenState
                             const SizedBox(height: 24),
 
                             // --- BILLING SECTION ---
-                            _buildSectionTitle('billing_title'.tr()), // TRANSLATED
+                            _buildSectionTitle(
+                              'billing_title'.tr(),
+                            ), // TRANSLATED
                             _buildCard([
                               _buildSwitchItem(
                                 icon: Icons.credit_card_outlined,
-                                title: 'renewal_payment_alert'.tr(), // TRANSLATED
+                                title: 'renewal_payment_alert'
+                                    .tr(), // TRANSLATED
                                 subtitle: 'renewal_payment_alert_desc'
                                     .tr(), // TRANSLATED
                                 notifier: _renewalAlert,
@@ -326,7 +326,10 @@ class _NotificationSettingsScreenState
               ),
 
               if (!isKeyboardOpen)
-                Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
             ],
           ),
         );
@@ -347,11 +350,7 @@ class _NotificationSettingsScreenState
           Row(
             children: [
               IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new,
-                  color: textMain,
-                  size: 20,
-                ),
+                icon: Icon(Icons.arrow_back_ios_new, color: textMain, size: 20),
                 onPressed: () {
                   HapticFeedback.selectionClick();
                   Navigator.pop(context);
@@ -372,7 +371,9 @@ class _NotificationSettingsScreenState
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -474,7 +475,9 @@ class _NotificationSettingsScreenState
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1E1E1E) : _iconBg,
                   borderRadius: BorderRadius.circular(10),
-                  border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
+                  border: isDark
+                      ? Border.all(color: const Color(0xFF262626))
+                      : null,
                 ),
                 child: Icon(
                   icon,
@@ -501,7 +504,9 @@ class _NotificationSettingsScreenState
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                        color: isDark
+                            ? const Color(0xFFA8A8A8)
+                            : Colors.grey.shade500,
                       ),
                     ),
                   ],
@@ -520,7 +525,9 @@ class _NotificationSettingsScreenState
                       value: value,
                       onChanged: (val) =>
                           _togglePreference(prefKey, notifier, val),
-                      activeTrackColor: isDark ? const Color(0xFF3B82F6) : _cyanAccent,
+                      activeTrackColor: isDark
+                          ? const Color(0xFF3B82F6)
+                          : _cyanAccent,
                     ),
                   );
                 },
@@ -550,7 +557,9 @@ class _NotificationSettingsScreenState
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(40),
-        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),

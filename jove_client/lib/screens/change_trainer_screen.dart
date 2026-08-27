@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // REQUIRED FOR METHODCHANNEL
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -104,7 +105,8 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
       }
       _userData = userDoc.data() as Map<String, dynamic>? ?? {};
 
-      _hasActiveSubscription = _userData?['hasActiveSubscription'] == true ||
+      _hasActiveSubscription =
+          _userData?['hasActiveSubscription'] == true ||
           (_userData?['subscription'] is Map &&
               _userData?['subscription']?['status'] == 'Active');
 
@@ -163,8 +165,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -317,7 +318,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                                 style: TextStyle(
                                   fontSize: 26,
                                   fontWeight: FontWeight.w900,
-                                  color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                  color: isDark
+                                      ? const Color(0xFFF5F5F5)
+                                      : _textMain,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -326,7 +329,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.bold,
-                                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                                  color: isDark
+                                      ? const Color(0xFFA8A8A8)
+                                      : Colors.grey.shade600,
                                 ),
                               ),
                             ],
@@ -377,7 +382,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                       bio,
                       style: TextStyle(
                         fontSize: 14,
-                        color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade700,
+                        color: isDark
+                            ? const Color(0xFFA8A8A8)
+                            : Colors.grey.shade700,
                         height: 1.5,
                       ),
                     ),
@@ -404,14 +411,22 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                                   vertical: 8,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E1E1E) : _iconBg,
+                                  color: isDark
+                                      ? const Color(0xFF1E1E1E)
+                                      : _iconBg,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
+                                  border: isDark
+                                      ? Border.all(
+                                          color: const Color(0xFF262626),
+                                        )
+                                      : null,
                                 ),
                                 child: Text(
                                   tag.toString(),
                                   style: TextStyle(
-                                    color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                                    color: isDark
+                                        ? const Color(0xFF3B82F6)
+                                        : _navBgColor,
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -431,7 +446,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                border: isDark ? Border(top: BorderSide(color: const Color(0xFF262626))) : null,
+                border: isDark
+                    ? Border(top: BorderSide(color: const Color(0xFF262626)))
+                    : null,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
@@ -449,7 +466,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _redButton,
-                  disabledBackgroundColor: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                  disabledBackgroundColor: isDark
+                      ? const Color(0xFF262626)
+                      : Colors.grey.shade300,
                   minimumSize: const Size(double.infinity, 56),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -463,7 +482,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                   style: TextStyle(
                     color: _isPackageExpired
                         ? Colors.white
-                        : (isDark ? const Color(0xFF666666) : Colors.grey.shade500),
+                        : (isDark
+                              ? const Color(0xFF666666)
+                              : Colors.grey.shade500),
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -509,8 +530,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
       context: context,
       barrierColor: Colors.transparent,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -587,11 +607,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
               SafeArea(
                 bottom: false,
                 child: _isLoading
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                        ),
-                      )
+                    ? const Center(child: CustomLoadingIndicator())
                     : CustomScrollView(
                         physics: const BouncingScrollPhysics(),
                         slivers: [
@@ -610,13 +626,18 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
 
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.only(left: 24, bottom: 12),
+                              padding: const EdgeInsets.only(
+                                left: 24,
+                                bottom: 12,
+                              ),
                               child: Text(
                                 'select_trainers'.tr(),
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+                                  color: isDark
+                                      ? const Color(0xFFF5F5F5)
+                                      : _navBgColor,
                                 ),
                               ),
                             ),
@@ -631,12 +652,17 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
 
                           _buildTrainerSliverList(),
 
-                          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: 120),
+                          ),
                         ],
                       ),
               ),
               if (!isKeyboardOpen)
-                Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
             ],
           ),
         );
@@ -656,11 +682,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
           Row(
             children: [
               IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new,
-                  color: textMain,
-                  size: 20,
-                ),
+                icon: Icon(Icons.arrow_back_ios_new, color: textMain, size: 20),
                 onPressed: () {
                   HapticFeedback.selectionClick();
                   Navigator.pop(context);
@@ -681,7 +703,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -937,7 +961,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                 "switch_trainer_warning".tr(),
                 style: TextStyle(
                   fontSize: 13,
-                  color: isDark ? const Color(0xFFFBBF24) : Colors.orange.shade900,
+                  color: isDark
+                      ? const Color(0xFFFBBF24)
+                      : Colors.orange.shade900,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1020,7 +1046,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                       children: [
                         CircleAvatar(
                           radius: 35,
-                          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.blue.shade50,
+                          backgroundColor: isDark
+                              ? const Color(0xFF1E1E1E)
+                              : Colors.blue.shade50,
                           backgroundImage: imageUrl.isNotEmpty
                               ? NetworkImage(imageUrl)
                               : null,
@@ -1028,7 +1056,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                               ? Icon(
                                   Icons.person,
                                   size: 40,
-                                  color: isDark ? const Color(0xFF3B82F6) : Colors.blue,
+                                  color: isDark
+                                      ? const Color(0xFF3B82F6)
+                                      : Colors.blue,
                                 )
                               : null,
                         ),
@@ -1046,7 +1076,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
-                                  color: isDark ? const Color(0xFFF5F5F5) : Colors.black,
+                                  color: isDark
+                                      ? const Color(0xFFF5F5F5)
+                                      : Colors.black,
                                 ),
                               ),
                             ],
@@ -1064,7 +1096,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w900,
-                              color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                              color: isDark
+                                  ? const Color(0xFFF5F5F5)
+                                  : _textMain,
                             ),
                           ),
                           if (specialty.isNotEmpty) ...[
@@ -1074,7 +1108,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                                color: isDark
+                                    ? const Color(0xFFA8A8A8)
+                                    : Colors.grey.shade500,
                               ),
                             ),
                           ],
@@ -1091,14 +1127,22 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                                         vertical: 4,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF1E1E1E) : _iconBg,
+                                        color: isDark
+                                            ? const Color(0xFF1E1E1E)
+                                            : _iconBg,
                                         borderRadius: BorderRadius.circular(6),
-                                        border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
+                                        border: isDark
+                                            ? Border.all(
+                                                color: const Color(0xFF262626),
+                                              )
+                                            : null,
                                       ),
                                       child: Text(
                                         tag.toString(),
                                         style: TextStyle(
-                                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                                          color: isDark
+                                              ? const Color(0xFF3B82F6)
+                                              : _navBgColor,
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -1124,14 +1168,20 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           side: BorderSide(
-                            color: isDark ? const Color(0xFF3B82F6) : Colors.grey.shade300,
+                            color: isDark
+                                ? const Color(0xFF3B82F6)
+                                : Colors.grey.shade300,
                           ),
-                          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.transparent,
+                          backgroundColor: isDark
+                              ? const Color(0xFF1E1E1E)
+                              : Colors.transparent,
                         ),
                         child: Text(
                           'view_details'.tr(),
                           style: TextStyle(
-                            color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                            color: isDark
+                                ? const Color(0xFF3B82F6)
+                                : _navBgColor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1145,7 +1195,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _redButton,
-                          disabledBackgroundColor: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                          disabledBackgroundColor: isDark
+                              ? const Color(0xFF262626)
+                              : Colors.grey.shade300,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -1156,7 +1208,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                           style: TextStyle(
                             color: _isPackageExpired
                                 ? Colors.white
-                                : (isDark ? const Color(0xFF666666) : Colors.grey.shade500),
+                                : (isDark
+                                      ? const Color(0xFF666666)
+                                      : Colors.grey.shade500),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1182,7 +1236,9 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(40),
-        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),

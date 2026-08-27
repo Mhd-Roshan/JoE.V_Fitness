@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -80,7 +81,8 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       if (doc.exists && doc.data() != null) {
         var data = doc.data() as Map<String, dynamic>;
 
-        _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+        _hasActiveSubscription =
+            data['hasActiveSubscription'] == true ||
             (data['subscription'] is Map &&
                 data['subscription']['status'] == 'Active');
 
@@ -205,8 +207,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       context: context,
       barrierColor: Colors.transparent,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _primaryBlue)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -284,11 +285,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
               SafeArea(
                 bottom: false,
                 child: _isLoadingUserData
-                    ? Center(
-                        child: CircularProgressIndicator(
-                          color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
-                        ),
-                      )
+                    ? const Center(child: CustomLoadingIndicator())
                     : StreamBuilder<QuerySnapshot>(
                         stream: _availableGoalsStream,
                         builder: (context, goalsSnapshot) {
@@ -310,7 +307,9 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
                                     style: TextStyle(
                                       fontSize: 26,
                                       fontWeight: FontWeight.w800,
-                                      color: isDark ? const Color(0xFFA8A8A8) : const Color(0xFF6B6B6B),
+                                      color: isDark
+                                          ? const Color(0xFFA8A8A8)
+                                          : const Color(0xFF6B6B6B),
                                       height: 1.2,
                                       letterSpacing: -0.5,
                                     ),
@@ -331,7 +330,10 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
                       ),
               ),
               if (!isKeyboardOpen)
-                Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
             ],
           ),
         );
@@ -340,13 +342,11 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
   }
 
   Widget _buildGoalsList(AsyncSnapshot<QuerySnapshot> snapshot) {
-    final bool isDark = _isDarkMode;
+
     if (snapshot.connectionState == ConnectionState.waiting) {
-      return Padding(
-        padding: const EdgeInsets.all(40),
-        child: CircularProgressIndicator(
-          color: isDark ? const Color(0xFF3B82F6) : _primaryBlue,
-        ),
+      return const Padding(
+        padding: EdgeInsets.all(40),
+        child: CustomLoadingIndicator(),
       );
     }
 
@@ -388,11 +388,7 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
           Row(
             children: [
               IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new,
-                  color: textMain,
-                  size: 20,
-                ),
+                icon: Icon(Icons.arrow_back_ios_new, color: textMain, size: 20),
                 onPressed: () {
                   HapticFeedback.selectionClick();
                   if (Navigator.canPop(context)) {
@@ -417,7 +413,9 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -470,7 +468,9 @@ class _MyGoalsScreenState extends State<MyGoalsScreen> {
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(40),
-        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
@@ -594,14 +594,12 @@ class GoalCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: borderColor,
-            width: 1.5,
-          ),
+          border: Border.all(color: borderColor, width: 1.5),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: (isDark ? const Color(0xFF3B82F6) : primaryBlue).withValues(alpha: 0.3),
+                    color: (isDark ? const Color(0xFF3B82F6) : primaryBlue)
+                        .withValues(alpha: 0.3),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -616,11 +614,7 @@ class GoalCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              dynamicIcon,
-              color: contentColor,
-              size: 24,
-            ),
+            Icon(dynamicIcon, color: contentColor, size: 24),
             const SizedBox(width: 16),
             Expanded(
               child: Text(

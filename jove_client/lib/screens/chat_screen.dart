@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -39,10 +40,31 @@ class _ChatScreenState extends State<ChatScreen>
   bool _isNavigating = false;
   bool _hasActiveSubscription = false;
 
+  Stream<QuerySnapshot>? _messagesStream50;
+  Stream<QuerySnapshot>? _messagesStream100;
+  final Map<String, Future<Map<String, dynamic>>> _dietPlanCache = {};
+
   @override
   void initState() {
     super.initState();
     _checkSubscription();
+    if (currentUser != null) {
+      _messagesStream50 = FirebaseFirestore.instance
+          .collection('chatThreads')
+          .doc(currentUser!.uid)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .snapshots();
+          
+      _messagesStream100 = FirebaseFirestore.instance
+          .collection('chatThreads')
+          .doc(currentUser!.uid)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(100)
+          .snapshots();
+    }
   }
 
   void _checkSubscription() {
@@ -52,15 +74,16 @@ class _ChatScreenState extends State<ChatScreen>
         .doc(currentUser!.uid)
         .snapshots()
         .listen((snap) {
-      if (snap.exists && mounted) {
-        final data = snap.data() ?? {};
-        setState(() {
-          _hasActiveSubscription = data['hasActiveSubscription'] == true ||
-              (data['subscription'] is Map &&
-                  data['subscription']['status'] == 'Active');
+          if (snap.exists && mounted) {
+            final data = snap.data() ?? {};
+            setState(() {
+              _hasActiveSubscription =
+                  data['hasActiveSubscription'] == true ||
+                  (data['subscription'] is Map &&
+                      data['subscription']['status'] == 'Active');
+            });
+          }
         });
-      }
-    });
   }
 
   @override
@@ -240,7 +263,9 @@ class _ChatScreenState extends State<ChatScreen>
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
+                  color: isDark
+                      ? const Color(0xFF333333)
+                      : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -278,25 +303,27 @@ class _ChatScreenState extends State<ChatScreen>
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.close, color: isDark ? Colors.grey.shade400 : Colors.grey),
+                      icon: Icon(
+                        Icons.close,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
               ),
-              Divider(height: 16, color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+              Divider(
+                height: 16,
+                color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+              ),
 
               // Fetch Data & Display Dashboard
               Expanded(
                 child: FutureBuilder<Map<String, dynamic>>(
-                  future: _fetchDietPlanData(templateId),
+                  future: _dietPlanCache.putIfAbsent(templateId, () => _fetchDietPlanData(templateId)),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                        ),
-                      );
+                      return const Center(child: CustomLoadingIndicator());
                     }
 
                     if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -307,12 +334,18 @@ class _ChatScreenState extends State<ChatScreen>
                             Icon(
                               Icons.error_outline,
                               size: 48,
-                              color: isDark ? Colors.grey.shade600 : Colors.grey,
+                              color: isDark
+                                  ? Colors.grey.shade600
+                                  : Colors.grey,
                             ),
                             const SizedBox(height: 16),
                             Text(
                               "Diet plan details not found.",
-                              style: TextStyle(color: isDark ? const Color(0xFFA8A8A8) : Colors.grey),
+                              style: TextStyle(
+                                color: isDark
+                                    ? const Color(0xFFA8A8A8)
+                                    : Colors.grey,
+                              ),
                             ),
                           ],
                         ),
@@ -368,7 +401,9 @@ class _ChatScreenState extends State<ChatScreen>
                                   protein,
                                   "g",
                                   Icons.fitness_center,
-                                  isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                                  isDark
+                                      ? const Color(0xFF3B82F6)
+                                      : _navBgColor,
                                 ),
                               ),
                             ],
@@ -434,8 +469,14 @@ class _ChatScreenState extends State<ChatScreen>
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                                border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+                                color: isDark
+                                    ? const Color(0xFF1E1E1E)
+                                    : Colors.white,
+                                border: Border.all(
+                                  color: isDark
+                                      ? const Color(0xFF262626)
+                                      : Colors.grey.shade200,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Column(
@@ -445,7 +486,9 @@ class _ChatScreenState extends State<ChatScreen>
                                     "Prohibitions",
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+                                      color: isDark
+                                          ? const Color(0xFFF5F5F5)
+                                          : _navBgColor,
                                       fontSize: 14,
                                     ),
                                   ),
@@ -466,7 +509,9 @@ class _ChatScreenState extends State<ChatScreen>
                                               rule.toString(),
                                               style: TextStyle(
                                                 fontSize: 13,
-                                                color: isDark ? const Color(0xFFE5E5E5) : Colors.black87,
+                                                color: isDark
+                                                    ? const Color(0xFFE5E5E5)
+                                                    : Colors.black87,
                                               ),
                                             ),
                                           ),
@@ -485,7 +530,9 @@ class _ChatScreenState extends State<ChatScreen>
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
-                              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+                              color: isDark
+                                  ? const Color(0xFFF5F5F5)
+                                  : _navBgColor,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -495,13 +542,19 @@ class _ChatScreenState extends State<ChatScreen>
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
+                                color: isDark
+                                    ? const Color(0xFF1E1E1E)
+                                    : Colors.grey.shade100,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
                                 "No specific meal items listed in this template.",
                                 textAlign: TextAlign.center,
-                                style: TextStyle(color: isDark ? const Color(0xFFA8A8A8) : Colors.grey),
+                                style: TextStyle(
+                                  color: isDark
+                                      ? const Color(0xFFA8A8A8)
+                                      : Colors.grey,
+                                ),
                               ),
                             ),
                           ] else ...[
@@ -560,9 +613,13 @@ class _ChatScreenState extends State<ChatScreen>
                                 margin: const EdgeInsets.only(bottom: 12),
                                 padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                                  color: isDark
+                                      ? const Color(0xFF1E1E1E)
+                                      : Colors.white,
                                   border: Border.all(
-                                    color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                                    color: isDark
+                                        ? const Color(0xFF262626)
+                                        : Colors.grey.shade200,
                                   ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -572,7 +629,9 @@ class _ChatScreenState extends State<ChatScreen>
                                       width: 50,
                                       height: 50,
                                       decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
+                                        color: isDark
+                                            ? const Color(0xFF262626)
+                                            : Colors.grey.shade100,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: mealImage.toString().isNotEmpty
@@ -581,6 +640,7 @@ class _ChatScreenState extends State<ChatScreen>
                                                   BorderRadius.circular(8),
                                               child: Image.network(
                                                 mealImage.toString(),
+                                                cacheWidth: 300,
                                                 fit: BoxFit.cover,
                                                 errorBuilder:
                                                     (
@@ -589,13 +649,17 @@ class _ChatScreenState extends State<ChatScreen>
                                                       stackTrace,
                                                     ) => Icon(
                                                       Icons.restaurant,
-                                                      color: isDark ? Colors.grey.shade600 : Colors.grey,
+                                                      color: isDark
+                                                          ? Colors.grey.shade600
+                                                          : Colors.grey,
                                                     ),
                                               ),
                                             )
                                           : Icon(
                                               Icons.restaurant,
-                                              color: isDark ? Colors.grey.shade600 : Colors.grey,
+                                              color: isDark
+                                                  ? Colors.grey.shade600
+                                                  : Colors.grey,
                                             ),
                                     ),
                                     const SizedBox(width: 16),
@@ -619,14 +683,18 @@ class _ChatScreenState extends State<ChatScreen>
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
-                                              color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
+                                              color: isDark
+                                                  ? const Color(0xFFF5F5F5)
+                                                  : _navBgColor,
                                             ),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
                                             items.toString(),
                                             style: TextStyle(
-                                              color: isDark ? const Color(0xFFD4D4D4) : Colors.grey.shade600,
+                                              color: isDark
+                                                  ? const Color(0xFFD4D4D4)
+                                                  : Colors.grey.shade600,
                                               fontSize: 13,
                                             ),
                                           ),
@@ -638,20 +706,32 @@ class _ChatScreenState extends State<ChatScreen>
                                       children: [
                                         _buildMacroPill(
                                           '${p}g',
-                                          isDark ? const Color(0xFF1E3A2B) : Colors.green.shade100,
-                                          isDark ? const Color(0xFF4ADE80) : Colors.green.shade800,
+                                          isDark
+                                              ? const Color(0xFF1E3A2B)
+                                              : Colors.green.shade100,
+                                          isDark
+                                              ? const Color(0xFF4ADE80)
+                                              : Colors.green.shade800,
                                         ),
                                         const SizedBox(width: 4),
                                         _buildMacroPill(
                                           '${c}g',
-                                          isDark ? const Color(0xFF3B2E1E) : Colors.orange.shade100,
-                                          isDark ? const Color(0xFFFDBA74) : Colors.orange.shade800,
+                                          isDark
+                                              ? const Color(0xFF3B2E1E)
+                                              : Colors.orange.shade100,
+                                          isDark
+                                              ? const Color(0xFFFDBA74)
+                                              : Colors.orange.shade800,
                                         ),
                                         const SizedBox(width: 4),
                                         _buildMacroPill(
                                           '${f}g',
-                                          isDark ? const Color(0xFF3B1E1E) : Colors.red.shade100,
-                                          isDark ? const Color(0xFFFCA5A5) : Colors.red.shade800,
+                                          isDark
+                                              ? const Color(0xFF3B1E1E)
+                                              : Colors.red.shade100,
+                                          isDark
+                                              ? const Color(0xFFFCA5A5)
+                                              : Colors.red.shade800,
                                         ),
                                       ],
                                     ),
@@ -716,7 +796,9 @@ class _ChatScreenState extends State<ChatScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -777,7 +859,9 @@ class _ChatScreenState extends State<ChatScreen>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        border: Border.all(color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+        border: Border.all(
+          color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+        ),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -866,7 +950,9 @@ class _ChatScreenState extends State<ChatScreen>
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
+                    color: isDark
+                        ? const Color(0xFF333333)
+                        : Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -893,27 +979,24 @@ class _ChatScreenState extends State<ChatScreen>
                     ],
                   ),
                 ),
-                Divider(height: 1, color: isDark ? const Color(0xFF262626) : Colors.grey.shade200),
+                Divider(
+                  height: 1,
+                  color: isDark
+                      ? const Color(0xFF262626)
+                      : Colors.grey.shade200,
+                ),
                 Container(
                   constraints: BoxConstraints(
                     maxHeight: MediaQuery.of(context).size.height * 0.5,
                   ),
                   child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('chatThreads')
-                        .doc(currentUser!.uid)
-                        .collection('messages')
-                        .orderBy('createdAt', descending: true)
-                        .limit(50)
-                        .snapshots(),
+                    stream: _messagesStream50,
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Center(
+                        return const Center(
                           child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: CircularProgressIndicator(
-                              color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                            ),
+                            padding: EdgeInsets.all(24.0),
+                            child: CustomLoadingIndicator(),
                           ),
                         );
                       }
@@ -942,13 +1025,17 @@ class _ChatScreenState extends State<ChatScreen>
                               Icon(
                                 Icons.insert_drive_file_outlined,
                                 size: 48,
-                                color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                                color: isDark
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade300,
                               ),
                               const SizedBox(height: 16),
                               Text(
                                 "no_diet_plans".tr(),
                                 style: TextStyle(
-                                  color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                                  color: isDark
+                                      ? const Color(0xFFA8A8A8)
+                                      : Colors.grey.shade500,
                                   fontSize: 16,
                                 ),
                               ),
@@ -1048,7 +1135,9 @@ class _ChatScreenState extends State<ChatScreen>
                                           fileName,
                                           style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            color: isDark ? const Color(0xFFF5F5F5) : _textMain,
+                                            color: isDark
+                                                ? const Color(0xFFF5F5F5)
+                                                : _textMain,
                                             fontSize: 15,
                                           ),
                                           maxLines: 1,
@@ -1058,7 +1147,9 @@ class _ChatScreenState extends State<ChatScreen>
                                         Text(
                                           timeString,
                                           style: TextStyle(
-                                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                                            color: isDark
+                                                ? const Color(0xFFA8A8A8)
+                                                : Colors.grey.shade600,
                                             fontSize: 12,
                                           ),
                                         ),
@@ -1068,7 +1159,9 @@ class _ChatScreenState extends State<ChatScreen>
                                   Icon(
                                     Icons.arrow_forward_ios_rounded,
                                     size: 16,
-                                    color: isDark ? Colors.grey.shade500 : Colors.grey,
+                                    color: isDark
+                                        ? Colors.grey.shade500
+                                        : Colors.grey,
                                   ),
                                 ],
                               ),
@@ -1211,6 +1304,7 @@ class _ChatScreenState extends State<ChatScreen>
                     child: imageUrl.isNotEmpty && imageUrl != 'null'
                         ? Image.network(
                             imageUrl,
+                            cacheWidth: 400,
                             height: 180,
                             width: double.infinity,
                             fit: BoxFit.cover,
@@ -1356,7 +1450,7 @@ class _ChatScreenState extends State<ChatScreen>
     // 🔥 IF WE HAVE A TEMPLATE ID, FETCH DIRECTLY FROM FIREBASE!
     if (templateId.isNotEmpty) {
       return FutureBuilder<Map<String, dynamic>>(
-        future: _fetchDietPlanData(templateId),
+        future: _dietPlanCache.putIfAbsent(templateId, () => _fetchDietPlanData(templateId)),
         builder: (context, snapshot) {
           // While loading or if data is totally empty, parse from text as fallback
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -1660,7 +1754,9 @@ class _ChatScreenState extends State<ChatScreen>
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFEef1f6),
+                color: isDark
+                    ? const Color(0xFF1E1E1E)
+                    : const Color(0xFFEef1f6),
                 borderRadius: BorderRadius.circular(24),
                 border: isDark
                     ? Border.all(color: const Color(0xFF333333), width: 1)
@@ -1670,7 +1766,9 @@ class _ChatScreenState extends State<ChatScreen>
                 controller: _messageController,
                 style: TextStyle(
                   fontSize: 15,
-                  color: isDark ? const Color(0xFFF5F5F5) : const Color(0xFF1A1A1A),
+                  color: isDark
+                      ? const Color(0xFFF5F5F5)
+                      : const Color(0xFF1A1A1A),
                 ),
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendMessage(),
@@ -1742,8 +1840,7 @@ class _ChatScreenState extends State<ChatScreen>
       context: context,
       barrierColor: Colors.transparent,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -1963,13 +2060,7 @@ class _ChatScreenState extends State<ChatScreen>
                               ),
                             )
                           : StreamBuilder<QuerySnapshot>(
-                              stream: FirebaseFirestore.instance
-                                  .collection('chatThreads')
-                                  .doc(currentUser!.uid)
-                                  .collection('messages')
-                                  .orderBy('createdAt', descending: true)
-                                  .limit(100)
-                                  .snapshots(),
+                              stream: _messagesStream100,
                               builder: (context, snapshot) {
                                 if (snapshot.hasError) {
                                   return Center(
@@ -1986,9 +2077,7 @@ class _ChatScreenState extends State<ChatScreen>
                                 if (snapshot.connectionState ==
                                     ConnectionState.waiting) {
                                   return const Center(
-                                    child: CircularProgressIndicator(
-                                      color: _navBgColor,
-                                    ),
+                                    child: CustomLoadingIndicator(),
                                   );
                                 }
 
@@ -2018,7 +2107,8 @@ class _ChatScreenState extends State<ChatScreen>
                                   itemBuilder: (context, index) {
                                     return RepaintBoundary(
                                       child: _buildMessageRouter(
-                                        docs[index].data() as Map<String, dynamic>,
+                                        docs[index].data()
+                                            as Map<String, dynamic>,
                                       ),
                                     );
                                   },

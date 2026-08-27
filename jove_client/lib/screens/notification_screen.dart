@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -218,9 +219,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   child: RepaintBoundary(
                     // Prevents list scrolling from repainting the App Bar
                     child: _isLoading
-                        ? const Center(
-                            child: CircularProgressIndicator(color: _activeBlue),
-                          )
+                        ? const Center(child: CustomLoadingIndicator())
                         : _filteredNotifications.isEmpty
                         ? _buildEmptyState()
                         : ListView.builder(
@@ -235,7 +234,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             ),
                             itemCount: _filteredNotifications.length,
                             itemBuilder: (context, index) {
-                              final notification = _filteredNotifications[index];
+                              final notification =
+                                  _filteredNotifications[index];
                               return _NotificationCard(
                                 key: ValueKey(
                                   notification.id,
@@ -331,8 +331,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       color: isSelected
                           ? _activeBlue
                           : (isDark
-                              ? const Color(0xFF262626)
-                              : Colors.grey.shade300),
+                                ? const Color(0xFF262626)
+                                : Colors.grey.shade300),
                       width: 1.2,
                     ),
                     boxShadow: isSelected
@@ -351,8 +351,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       color: isSelected
                           ? Colors.white
                           : (isDark
-                              ? const Color(0xFFA8A8A8)
-                              : Colors.grey.shade600),
+                                ? const Color(0xFFA8A8A8)
+                                : Colors.grey.shade600),
                       fontWeight: isSelected
                           ? FontWeight.w700
                           : FontWeight.w600,
@@ -546,21 +546,21 @@ class _NotificationCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: notification.isRead
                   ? (isDark ? const Color(0xFF121212) : Colors.white)
-                  : (isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F5FF)),
+                  : (isDark
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFFF0F5FF)),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: notification.isRead
                     ? (isDark ? const Color(0xFF262626) : Colors.grey.shade200)
                     : (isDark
-                        ? const Color(0xFF1E3A8A)
-                        : const Color(0xFF003AA3).withValues(alpha: 0.3)),
+                          ? const Color(0xFF1E3A8A)
+                          : const Color(0xFF003AA3).withValues(alpha: 0.3)),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: isDark ? 0.25 : 0.02,
-                  ),
+                  color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.02),
                   blurRadius: 10,
                   offset: const Offset(0, 5),
                 ),
@@ -575,17 +575,21 @@ class _NotificationCard extends StatelessWidget {
                   height: 48,
                   decoration: BoxDecoration(
                     color: notification.isRead
-                        ? (isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100)
+                        ? (isDark
+                              ? const Color(0xFF1E1E1E)
+                              : Colors.grey.shade100)
                         : _getIconColor().withValues(alpha: isDark ? 0.2 : 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     _getIcon(),
                     color: notification.isRead
-                        ? (isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500)
+                        ? (isDark
+                              ? const Color(0xFFA8A8A8)
+                              : Colors.grey.shade500)
                         : (isDark && notification.type == 'system'
-                            ? const Color(0xFF60A5FA)
-                            : _getIconColor()),
+                              ? const Color(0xFF60A5FA)
+                              : _getIconColor()),
                     size: 24,
                   ),
                 ),
@@ -634,11 +638,13 @@ class _NotificationCard extends StatelessWidget {
                         style: TextStyle(
                           color: notification.isRead
                               ? (isDark
-                                  ? const Color(0xFFA8A8A8)
-                                  : Colors.grey.shade600)
+                                    ? const Color(0xFFA8A8A8)
+                                    : Colors.grey.shade600)
                               : (isDark
-                                  ? const Color(0xFFE2E8F0)
-                                  : const Color(0xFF1A1A1A).withValues(alpha: 0.8)),
+                                    ? const Color(0xFFE2E8F0)
+                                    : const Color(
+                                        0xFF1A1A1A,
+                                      ).withValues(alpha: 0.8)),
                           fontSize: 13,
                           height: 1.4,
                           fontWeight: notification.isRead

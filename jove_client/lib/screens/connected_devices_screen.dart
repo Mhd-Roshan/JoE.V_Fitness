@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,7 +26,6 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
   Map<String, dynamic>? _userData;
   bool _isSyncing = false;
 
-
   // Metric sync settings
   bool _syncSteps = true;
   bool _syncSleep = true;
@@ -47,13 +47,16 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
     // so the today's progress cards update automatically.
     _mockSyncTimer = Timer.periodic(const Duration(seconds: 15), (timer) async {
       if (currentUser?.uid == null) return;
-      final connectedMap = _userData?['connectedDevice'] as Map<String, dynamic>?;
+      final connectedMap =
+          _userData?['connectedDevice'] as Map<String, dynamic>?;
       if (connectedMap != null && connectedMap['name'] != null) {
         if (_autoSyncBackground) {
           final now = DateTime.now();
           final String todayDate = DateFormat('yyyy-MM-dd').format(now);
           final Map<String, dynamic> updates = {};
-          final Map<String, dynamic> historyUpdates = {'updatedAt': FieldValue.serverTimestamp()};
+          final Map<String, dynamic> historyUpdates = {
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
 
           if (_syncSteps) {
             int currentSteps = _userData?['steps'] ?? 0;
@@ -75,11 +78,15 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
 
           if (updates.isNotEmpty) {
             updates['lastDeviceSync'] = FieldValue.serverTimestamp();
-            
+
             WriteBatch batch = FirebaseFirestore.instance.batch();
-            DocumentReference userRef = FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
-            DocumentReference historyRef = userRef.collection('progress_history').doc(todayDate);
-            
+            DocumentReference userRef = FirebaseFirestore.instance
+                .collection('users')
+                .doc(currentUser!.uid);
+            DocumentReference historyRef = userRef
+                .collection('progress_history')
+                .doc(todayDate);
+
             batch.update(userRef, updates);
             batch.set(historyRef, historyUpdates, SetOptions(merge: true));
             await batch.commit();
@@ -96,21 +103,23 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
         .doc(currentUser!.uid)
         .snapshots()
         .listen((snap) {
-      if (mounted && snap.exists) {
-        final data = snap.data() ?? {};
-        setState(() {
-          _userData = data;
-          final syncSettings = data['deviceSyncSettings'] as Map<String, dynamic>?;
-          if (syncSettings != null) {
-            _syncSteps = syncSettings['syncSteps'] ?? true;
-            _syncSleep = syncSettings['syncSleep'] ?? true;
-            _syncHydration = syncSettings['syncHydration'] ?? true;
-            _syncWeight = syncSettings['syncWeight'] ?? true;
-            _autoSyncBackground = syncSettings['autoSyncBackground'] ?? true;
+          if (mounted && snap.exists) {
+            final data = snap.data() ?? {};
+            setState(() {
+              _userData = data;
+              final syncSettings =
+                  data['deviceSyncSettings'] as Map<String, dynamic>?;
+              if (syncSettings != null) {
+                _syncSteps = syncSettings['syncSteps'] ?? true;
+                _syncSleep = syncSettings['syncSleep'] ?? true;
+                _syncHydration = syncSettings['syncHydration'] ?? true;
+                _syncWeight = syncSettings['syncWeight'] ?? true;
+                _autoSyncBackground =
+                    syncSettings['autoSyncBackground'] ?? true;
+              }
+            });
           }
         });
-      }
-    });
   }
 
   @override
@@ -144,10 +153,15 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: _primaryRed,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Disconnect', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Disconnect',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -166,7 +180,9 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
             content: const Text('Smart device disconnected.'),
             backgroundColor: Colors.grey.shade800,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -185,9 +201,12 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
 
       // Read current device/health values (with intelligent simulation from connected band)
       final existingSteps = (_userData?['dailySteps'] as Map?)?[todayDate] ?? 0;
-      final existingSleep = (_userData?['dailySleep'] as Map?)?[todayDate]?.toDouble() ?? 0.0;
-      final existingHydration = (_userData?['dailyHydration'] as Map?)?[todayDate] ?? 0;
-      final existingWeight = (_userData?['dailyWeight'] as Map?)?[todayDate]?.toDouble() ??
+      final existingSleep =
+          (_userData?['dailySleep'] as Map?)?[todayDate]?.toDouble() ?? 0.0;
+      final existingHydration =
+          (_userData?['dailyHydration'] as Map?)?[todayDate] ?? 0;
+      final existingWeight =
+          (_userData?['dailyWeight'] as Map?)?[todayDate]?.toDouble() ??
           (_userData?['weight']?.toDouble() ?? 70.0);
 
       // Synced values from smart device
@@ -227,8 +246,9 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
       }
 
       WriteBatch batch = FirebaseFirestore.instance.batch();
-      DocumentReference userRef =
-          FirebaseFirestore.instance.collection('users').doc(currentUser!.uid);
+      DocumentReference userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid);
       DocumentReference historyRef = userRef
           .collection('progress_history')
           .doc(todayDate);
@@ -253,7 +273,9 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
             ),
             backgroundColor: const Color(0xFF1E88E5),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -279,14 +301,14 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
         .collection('users')
         .doc(currentUser!.uid)
         .set({
-      'deviceSyncSettings': {
-        'syncSteps': _syncSteps,
-        'syncSleep': _syncSleep,
-        'syncHydration': _syncHydration,
-        'syncWeight': _syncWeight,
-        'autoSyncBackground': _autoSyncBackground,
-      }
-    }, SetOptions(merge: true));
+          'deviceSyncSettings': {
+            'syncSteps': _syncSteps,
+            'syncSleep': _syncSleep,
+            'syncHydration': _syncHydration,
+            'syncWeight': _syncWeight,
+            'autoSyncBackground': _autoSyncBackground,
+          },
+        }, SetOptions(merge: true));
   }
 
   @override
@@ -294,15 +316,18 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
     return ValueListenableBuilder<bool>(
       valueListenable: AppThemeController.isDarkMode,
       builder: (context, isDark, _) {
-        final connectedMap = _userData?['connectedDevice'] as Map<String, dynamic>?;
-        final bool hasConnectedDevice = connectedMap != null && connectedMap['name'] != null;
+        final connectedMap =
+            _userData?['connectedDevice'] as Map<String, dynamic>?;
+        final bool hasConnectedDevice =
+            connectedMap != null && connectedMap['name'] != null;
         final String deviceName = connectedMap?['name'] ?? '';
         final Timestamp? lastSync = _userData?['lastDeviceSync'] as Timestamp?;
 
         String lastSyncText = 'Not synced yet';
         if (lastSync != null) {
           final syncDt = lastSync.toDate();
-          lastSyncText = 'Synced Today at ${DateFormat('hh:mm a').format(syncDt)}';
+          lastSyncText =
+              'Synced Today at ${DateFormat('hh:mm a').format(syncDt)}';
         }
 
         return Scaffold(
@@ -330,7 +355,11 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
             centerTitle: false,
             actions: [
               IconButton(
-                icon: const Icon(Icons.radar_rounded, color: Color(0xFF6366F1), size: 24),
+                icon: const Icon(
+                  Icons.radar_rounded,
+                  color: Color(0xFF6366F1),
+                  size: 24,
+                ),
                 onPressed: _openWatchRadarScanner,
                 tooltip: 'Radar Scan for Watches',
               ),
@@ -340,10 +369,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.2,
-                            color: _primaryRed,
-                          ),
+                          child: CustomLoadingIndicator(),
                         )
                       : const Icon(Icons.sync, color: _primaryRed),
                   onPressed: _isSyncing ? null : () => _performDeviceSync(),
@@ -358,7 +384,12 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. ACTIVE CONNECTED HERO CARD
-                _buildActiveDeviceHero(hasConnectedDevice, deviceName, lastSyncText, connectedMap),
+                _buildActiveDeviceHero(
+                  hasConnectedDevice,
+                  deviceName,
+                  lastSyncText,
+                  connectedMap,
+                ),
 
                 const SizedBox(height: 20),
 
@@ -408,7 +439,9 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
           ),
           backgroundColor: const Color(0xFF16A34A),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
@@ -424,11 +457,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0A071A),
-              Color(0xFF181045),
-              Color(0xFF3B207E),
-            ],
+            colors: [Color(0xFF0A071A), Color(0xFF181045), Color(0xFF3B207E)],
           ),
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
@@ -547,10 +576,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1E293B),
-              Color(0xFF0F172A),
-            ],
+            colors: [Color(0xFF1E293B), Color(0xFF0F172A)],
           ),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
@@ -621,7 +647,10 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.link_off_rounded, color: Colors.white70),
+                  icon: const Icon(
+                    Icons.link_off_rounded,
+                    color: Colors.white70,
+                  ),
                   onPressed: _disconnectDevice,
                   tooltip: 'Disconnect',
                 ),
@@ -658,7 +687,10 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                 GestureDetector(
                   onTap: _isSyncing ? null : () => _performDeviceSync(),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: _primaryRed,
                       borderRadius: BorderRadius.circular(14),
@@ -676,13 +708,14 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                           const SizedBox(
                             width: 14,
                             height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
+                            child: CustomLoadingIndicator(),
                           )
                         else
-                          const Icon(Icons.sync_rounded, color: Colors.white, size: 16),
+                          const Icon(
+                            Icons.sync_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         const SizedBox(width: 6),
                         Text(
                           _isSyncing ? 'Syncing...' : 'Sync Now',
@@ -727,11 +760,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.watch_outlined,
-              color: _textMain,
-              size: 24,
-            ),
+            child: const Icon(Icons.watch_outlined, color: _textMain, size: 24),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -855,10 +884,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade500,
-                ),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
               ),
             ],
           ),

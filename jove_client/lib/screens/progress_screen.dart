@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -106,12 +107,16 @@ class _ProgressScreenState extends State<ProgressScreen>
               ? Map<String, dynamic>.from(data['dailySteps'])
               : {};
 
-          int todayStepsGoal = (data['dailyStepsGoals'] as Map?)?[_todayDate] ??
+          int todayStepsGoal =
+              (data['dailyStepsGoals'] as Map?)?[_todayDate] ??
               data['stepsGoal'] ??
               10000;
-          _recalculateChartAndTrend(todayStepsGoal > 0 ? todayStepsGoal : 10000);
+          _recalculateChartAndTrend(
+            todayStepsGoal > 0 ? todayStepsGoal : 10000,
+          );
 
-          final bool hasActiveSub = data['hasActiveSubscription'] == true ||
+          final bool hasActiveSub =
+              data['hasActiveSubscription'] == true ||
               (data['subscription'] is Map &&
                   data['subscription']['status'] == 'Active');
 
@@ -406,12 +411,14 @@ class _ProgressScreenState extends State<ProgressScreen>
       showPackageRequiredSheet(context, featureName: 'Hydration Goal');
       return;
     }
-    int currentGoal = (_cachedUserData?['dailyHydrationGoals'] as Map?)?[_todayDate] ??
+    int currentGoal =
+        (_cachedUserData?['dailyHydrationGoals'] as Map?)?[_todayDate] ??
         _cachedUserData?['hydrationGoal'] ??
         2000;
     double currentGoalL = currentGoal > 0 ? (currentGoal / 1000) : 2.0;
-    TextEditingController controller =
-        TextEditingController(text: currentGoalL.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), ''));
+    TextEditingController controller = TextEditingController(
+      text: currentGoalL.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), ''),
+    );
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -449,10 +456,10 @@ class _ProgressScreenState extends State<ProgressScreen>
                     .collection('users')
                     .doc(currentUser!.uid)
                     .set({
-                  'dailyHydrationGoals': {_todayDate: newGoalMl},
-                  'dailyGoalSetDate': _todayDate,
-                  'hydrationGoal': newGoalMl,
-                }, SetOptions(merge: true));
+                      'dailyHydrationGoals': {_todayDate: newGoalMl},
+                      'dailyGoalSetDate': _todayDate,
+                      'hydrationGoal': newGoalMl,
+                    }, SetOptions(merge: true));
               }
               if (!context.mounted) {
                 return;
@@ -476,11 +483,13 @@ class _ProgressScreenState extends State<ProgressScreen>
       return;
     }
     double currentGoal =
-        (_cachedUserData?['dailySleepGoals'] as Map?)?[_todayDate]?.toDouble() ??
-            (_cachedUserData?['sleepGoal'] as num?)?.toDouble() ??
-            8.0;
-    TextEditingController controller =
-        TextEditingController(text: currentGoal.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), ''));
+        (_cachedUserData?['dailySleepGoals'] as Map?)?[_todayDate]
+            ?.toDouble() ??
+        (_cachedUserData?['sleepGoal'] as num?)?.toDouble() ??
+        8.0;
+    TextEditingController controller = TextEditingController(
+      text: currentGoal.toStringAsFixed(1).replaceAll(RegExp(r'\.0$'), ''),
+    );
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -517,10 +526,10 @@ class _ProgressScreenState extends State<ProgressScreen>
                     .collection('users')
                     .doc(currentUser!.uid)
                     .set({
-                  'dailySleepGoals': {_todayDate: parsedGoal},
-                  'dailyGoalSetDate': _todayDate,
-                  'sleepGoal': parsedGoal,
-                }, SetOptions(merge: true));
+                      'dailySleepGoals': {_todayDate: parsedGoal},
+                      'dailyGoalSetDate': _todayDate,
+                      'sleepGoal': parsedGoal,
+                    }, SetOptions(merge: true));
               }
               if (!context.mounted) {
                 return;
@@ -543,11 +552,13 @@ class _ProgressScreenState extends State<ProgressScreen>
       showPackageRequiredSheet(context, featureName: 'Steps Goal');
       return;
     }
-    int currentGoal = (_cachedUserData?['dailyStepsGoals'] as Map?)?[_todayDate] ??
+    int currentGoal =
+        (_cachedUserData?['dailyStepsGoals'] as Map?)?[_todayDate] ??
         _cachedUserData?['stepsGoal'] ??
         10000;
-    TextEditingController controller =
-        TextEditingController(text: currentGoal.toString());
+    TextEditingController controller = TextEditingController(
+      text: currentGoal.toString(),
+    );
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -582,10 +593,10 @@ class _ProgressScreenState extends State<ProgressScreen>
                     .collection('users')
                     .doc(currentUser!.uid)
                     .set({
-                  'dailyStepsGoals': {_todayDate: parsedGoal},
-                  'dailyGoalSetDate': _todayDate,
-                  'stepsGoal': parsedGoal,
-                }, SetOptions(merge: true));
+                      'dailyStepsGoals': {_todayDate: parsedGoal},
+                      'dailyGoalSetDate': _todayDate,
+                      'stepsGoal': parsedGoal,
+                    }, SetOptions(merge: true));
               }
               if (!context.mounted) {
                 return;
@@ -611,21 +622,22 @@ class _ProgressScreenState extends State<ProgressScreen>
       return;
     }
 
-    int currentStepsGoal = (userData['dailyStepsGoals'] as Map?)?[_todayDate] ??
+    int currentStepsGoal =
+        (userData['dailyStepsGoals'] as Map?)?[_todayDate] ??
         userData['stepsGoal'] ??
         10000;
     if (currentStepsGoal <= 0) currentStepsGoal = 10000;
 
     int currentHydrationGoal =
         (userData['dailyHydrationGoals'] as Map?)?[_todayDate] ??
-            userData['hydrationGoal'] ??
-            2000;
+        userData['hydrationGoal'] ??
+        2000;
     if (currentHydrationGoal <= 0) currentHydrationGoal = 2000;
 
     double currentSleepGoal =
         (userData['dailySleepGoals'] as Map?)?[_todayDate]?.toDouble() ??
-            (userData['sleepGoal'] as num?)?.toDouble() ??
-            8.0;
+        (userData['sleepGoal'] as num?)?.toDouble() ??
+        8.0;
     if (currentSleepGoal <= 0) currentSleepGoal = 8.0;
 
     int selectedSteps = currentStepsGoal;
@@ -686,7 +698,9 @@ class _ProgressScreenState extends State<ProgressScreen>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                DateFormat('EEEE, MMM d, yyyy').format(DateTime.now()),
+                                DateFormat(
+                                  'EEEE, MMM d, yyyy',
+                                ).format(DateTime.now()),
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.grey.shade600,
@@ -763,8 +777,7 @@ class _ProgressScreenState extends State<ProgressScreen>
                       iconColor: const Color(0xFF7E22CE),
                       bgColor: const Color(0xFFF3E8FF),
                       title: "Daily Sleep Target",
-                      valueDisplay:
-                          "${selectedSleep.toStringAsFixed(1)} hrs",
+                      valueDisplay: "${selectedSleep.toStringAsFixed(1)} hrs",
                       onDecrement: () {
                         if (selectedSleep > 4.0) {
                           setModalState(() => selectedSleep -= 0.5);
@@ -778,8 +791,9 @@ class _ProgressScreenState extends State<ProgressScreen>
                       presets: [6.0, 7.0, 8.0, 9.0, 10.0],
                       presetLabels: ["6h", "7h", "8h", "9h", "10h"],
                       selectedPreset: selectedSleep,
-                      onPresetSelected: (val) =>
-                          setModalState(() => selectedSleep = (val as num).toDouble()),
+                      onPresetSelected: (val) => setModalState(
+                        () => selectedSleep = (val as num).toDouble(),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -792,14 +806,16 @@ class _ProgressScreenState extends State<ProgressScreen>
                               .collection('users')
                               .doc(currentUser!.uid)
                               .set({
-                            'dailyStepsGoals': {_todayDate: selectedSteps},
-                            'dailyHydrationGoals': {_todayDate: selectedHydration},
-                            'dailySleepGoals': {_todayDate: selectedSleep},
-                            'dailyGoalSetDate': _todayDate,
-                            'stepsGoal': selectedSteps,
-                            'hydrationGoal': selectedHydration,
-                            'sleepGoal': selectedSleep,
-                          }, SetOptions(merge: true));
+                                'dailyStepsGoals': {_todayDate: selectedSteps},
+                                'dailyHydrationGoals': {
+                                  _todayDate: selectedHydration,
+                                },
+                                'dailySleepGoals': {_todayDate: selectedSleep},
+                                'dailyGoalSetDate': _todayDate,
+                                'stepsGoal': selectedSteps,
+                                'hydrationGoal': selectedHydration,
+                                'sleepGoal': selectedSleep,
+                              }, SetOptions(merge: true));
                         }
                         if (context.mounted) {
                           Navigator.pop(context);
@@ -807,7 +823,11 @@ class _ProgressScreenState extends State<ProgressScreen>
                             SnackBar(
                               content: Row(
                                 children: const [
-                                  Icon(Icons.check_circle, color: Colors.white, size: 20),
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                                   SizedBox(width: 8),
                                   Text("Today's fitness goals have been set!"),
                                 ],
@@ -830,7 +850,9 @@ class _ProgressScreenState extends State<ProgressScreen>
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFBB0013).withValues(alpha: 0.3),
+                              color: const Color(
+                                0xFFBB0013,
+                              ).withValues(alpha: 0.3),
                               blurRadius: 10,
                               offset: const Offset(0, 4),
                             ),
@@ -946,8 +968,10 @@ class _ProgressScreenState extends State<ProgressScreen>
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected ? iconColor : Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -1012,7 +1036,9 @@ class _ProgressScreenState extends State<ProgressScreen>
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            color: hasSetGoalsToday ? const Color(0xFFF0FDF4) : const Color(0xFFFFF1F2),
+            color: hasSetGoalsToday
+                ? const Color(0xFFF0FDF4)
+                : const Color(0xFFFFF1F2),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: hasSetGoalsToday
@@ -1088,7 +1114,10 @@ class _ProgressScreenState extends State<ProgressScreen>
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: hasSetGoalsToday
                       ? Colors.white
@@ -1309,7 +1338,7 @@ class _ProgressScreenState extends State<ProgressScreen>
     if (_cachedUserData == null) {
       return const Scaffold(
         backgroundColor: _bgColor,
-        body: Center(child: CircularProgressIndicator(color: _activeBlue)),
+        body: Center(child: CustomLoadingIndicator()),
       );
     }
 
@@ -1326,16 +1355,16 @@ class _ProgressScreenState extends State<ProgressScreen>
     // Today's Daily Goals
     int todayHydrationGoal =
         (userData['dailyHydrationGoals'] as Map?)?[_todayDate] ??
-            userData['hydrationGoal'] ??
-            0;
+        userData['hydrationGoal'] ??
+        0;
     int todayStepsGoal =
         (userData['dailyStepsGoals'] as Map?)?[_todayDate] ??
-            userData['stepsGoal'] ??
-            0;
+        userData['stepsGoal'] ??
+        0;
     double todaySleepGoal =
         (userData['dailySleepGoals'] as Map?)?[_todayDate]?.toDouble() ??
-            (userData['sleepGoal'] as num?)?.toDouble() ??
-            0.0;
+        (userData['sleepGoal'] as num?)?.toDouble() ??
+        0.0;
 
     String? lastGoalSetDate = userData['dailyGoalSetDate']?.toString();
     bool hasSetGoalsToday = lastGoalSetDate == _todayDate;
@@ -1368,7 +1397,9 @@ class _ProgressScreenState extends State<ProgressScreen>
                           physics: const BouncingScrollPhysics(),
                           children: [
                             RepaintBoundary(child: _buildActivityLevelChart()),
-                            RepaintBoundary(child: _buildHistoricalLog(userData)),
+                            RepaintBoundary(
+                              child: _buildHistoricalLog(userData),
+                            ),
                           ],
                         ),
                       ),
@@ -1380,13 +1411,17 @@ class _ProgressScreenState extends State<ProgressScreen>
                             .map(
                               (i) => AnimatedContainer(
                                 duration: const Duration(milliseconds: 250),
-                                margin: const EdgeInsets.symmetric(horizontal: 4),
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
                                 width: _currentActivityPage == i ? 16 : 8,
                                 height: 8,
                                 decoration: BoxDecoration(
                                   color: _currentActivityPage == i
                                       ? _activeBlue
-                                      : (isDark ? const Color(0xFF333333) : Colors.grey.shade300),
+                                      : (isDark
+                                            ? const Color(0xFF333333)
+                                            : Colors.grey.shade300),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                               ),
@@ -1604,8 +1639,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                       decoration: BoxDecoration(
                         color: isSelected
                             ? (AppThemeController.isDark
-                                ? const Color(0xFF2A2A2A)
-                                : Colors.white)
+                                  ? const Color(0xFF2A2A2A)
+                                  : Colors.white)
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: isSelected
@@ -1623,8 +1658,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                         style: TextStyle(
                           color: isSelected
                               ? (AppThemeController.isDark
-                                  ? const Color(0xFFF5F5F5)
-                                  : _textMain)
+                                    ? const Color(0xFFF5F5F5)
+                                    : _textMain)
                               : Colors.grey.shade600,
                           fontWeight: isSelected
                               ? FontWeight.bold
@@ -1982,8 +2017,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                               color: isWaterHigh
                                   ? Colors.white
                                   : (AppThemeController.isDark
-                                      ? const Color(0xFFF5F5F5)
-                                      : _textMain),
+                                        ? const Color(0xFFF5F5F5)
+                                        : _textMain),
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
                             ),
@@ -2019,8 +2054,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                                 color: isWaterHigh
                                     ? Colors.white
                                     : (AppThemeController.isDark
-                                        ? const Color(0xFFF5F5F5)
-                                        : _textMain),
+                                          ? const Color(0xFFF5F5F5)
+                                          : _textMain),
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -3049,8 +3084,8 @@ class _StepsCardState extends State<_StepsCard> {
                                                 : FontWeight.w600,
                                             color: isSelected
                                                 ? (AppThemeController.isDark
-                                                    ? const Color(0xFFF5F5F5)
-                                                    : const Color(0xFF1A1A1A))
+                                                      ? const Color(0xFFF5F5F5)
+                                                      : const Color(0xFF1A1A1A))
                                                 : Colors.grey.shade500,
                                           ),
                                         ),

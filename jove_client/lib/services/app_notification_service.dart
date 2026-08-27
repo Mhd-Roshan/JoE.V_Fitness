@@ -33,14 +33,14 @@ class AppNotificationService {
 
   static const AndroidNotificationChannel _androidChannel =
       AndroidNotificationChannel(
-    _channelId,
-    _channelName,
-    description: _channelDesc,
-    importance: Importance.max,
-    playSound: true,
-    enableVibration: true,
-    showBadge: true,
-  );
+        _channelId,
+        _channelName,
+        description: _channelDesc,
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+      );
 
   StreamSubscription<QuerySnapshot>? _firestoreNotificationsSub;
   StreamSubscription<User?>? _authSubscription;
@@ -54,10 +54,10 @@ class AppNotificationService {
 
     const DarwinInitializationSettings iosSettings =
         DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+          requestAlertPermission: true,
+          requestBadgePermission: true,
+          requestSoundPermission: true,
+        );
 
     const InitializationSettings initSettings = InitializationSettings(
       android: androidSettings,
@@ -72,7 +72,8 @@ class AppNotificationService {
     // Create Notification Channel for Android
     final androidPlugin = _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     if (androidPlugin != null) {
       await androidPlugin.createNotificationChannel(_androidChannel);
       await androidPlugin.requestNotificationsPermission();
@@ -90,10 +91,11 @@ class AppNotificationService {
         provisional: false,
         sound: true,
       );
-      debugPrint('User notification permission status: ${settings.authorizationStatus}');
+      debugPrint(
+        'User notification permission status: ${settings.authorizationStatus}',
+      );
 
-      FirebaseMessaging.onBackgroundMessage(
-          firebaseMessagingBackgroundHandler);
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       // Handle Foreground FCM
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -125,8 +127,9 @@ class AppNotificationService {
       }
 
       // 3. Listen to Auth State to update FCM Token and Firestore listener
-      _authSubscription =
-          FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      _authSubscription = FirebaseAuth.instance.authStateChanges().listen((
+        User? user,
+      ) {
         if (user != null) {
           _updateFCMToken(user.uid);
           _startFirestoreNotificationListener(user.uid);
@@ -171,45 +174,44 @@ class AppNotificationService {
         .orderBy('timestamp', descending: true)
         .limit(20)
         .snapshots()
-        .listen((snapshot) {
-      if (_isInitialLoad) {
-        for (var doc in snapshot.docs) {
-          _processedNotificationIds.add(doc.id);
-        }
-        _isInitialLoad = false;
-        return;
-      }
+        .listen(
+          (snapshot) {
+            if (_isInitialLoad) {
+              for (var doc in snapshot.docs) {
+                _processedNotificationIds.add(doc.id);
+              }
+              _isInitialLoad = false;
+              return;
+            }
 
-      for (var change in snapshot.docChanges) {
-        if (change.type == DocumentChangeType.added) {
-          final doc = change.doc;
-          if (!_processedNotificationIds.contains(doc.id)) {
-            _processedNotificationIds.add(doc.id);
-            final data = doc.data() as Map<String, dynamic>;
-            final String title = data['title'] ?? 'JoE.V Fitness';
-            final String message = data['message'] ?? '';
-            final String type = data['type'] ?? 'system';
+            for (var change in snapshot.docChanges) {
+              if (change.type == DocumentChangeType.added) {
+                final doc = change.doc;
+                if (!_processedNotificationIds.contains(doc.id)) {
+                  _processedNotificationIds.add(doc.id);
+                  final data = doc.data() as Map<String, dynamic>;
+                  final String title = data['title'] ?? 'JoE.V Fitness';
+                  final String message = data['message'] ?? '';
+                  final String type = data['type'] ?? 'system';
 
-            // Show real outside status bar notification
-            showLocalNotification(
-              id: doc.id.hashCode,
-              title: title,
-              body: message,
-              payload: type,
-            );
+                  // Show real outside status bar notification
+                  showLocalNotification(
+                    id: doc.id.hashCode,
+                    title: title,
+                    body: message,
+                    payload: type,
+                  );
 
-            // Show in-app banner alert if user is inside the app
-            showInAppBanner(
-              title: title,
-              body: message,
-              type: type,
-            );
-          }
-        }
-      }
-    }, onError: (e) {
-      debugPrint('Firestore notification listener error: $e');
-    });
+                  // Show in-app banner alert if user is inside the app
+                  showInAppBanner(title: title, body: message, type: type);
+                }
+              }
+            }
+          },
+          onError: (e) {
+            debugPrint('Firestore notification listener error: $e');
+          },
+        );
   }
 
   void _stopFirestoreNotificationListener() {
@@ -227,17 +229,17 @@ class AppNotificationService {
   }) async {
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDesc,
-      importance: Importance.max,
-      priority: Priority.high,
-      showWhen: true,
-      playSound: true,
-      enableVibration: true,
-      ticker: 'ticker',
-      icon: '@mipmap/ic_launcher',
-    );
+          _channelId,
+          _channelName,
+          channelDescription: _channelDesc,
+          importance: Importance.max,
+          priority: Priority.high,
+          showWhen: true,
+          playSound: true,
+          enableVibration: true,
+          ticker: 'ticker',
+          icon: '@mipmap/ic_launcher',
+        );
 
     const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
       presentAlert: true,
@@ -310,7 +312,10 @@ class AppNotificationService {
           decoration: BoxDecoration(
             color: const Color(0xFF121212),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: borderColor.withValues(alpha: 0.6), width: 1.5),
+            border: Border.all(
+              color: borderColor.withValues(alpha: 0.6),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.5),
@@ -372,7 +377,10 @@ class AppNotificationService {
                   _routeToScreen(type);
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: iconColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
@@ -407,20 +415,16 @@ class AppNotificationService {
           .doc(userId)
           .collection('notifications')
           .add({
-        'title': title,
-        'message': message,
-        'type': type,
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
+            'title': title,
+            'message': message,
+            'type': type,
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+          });
 
       // If sent to current logged-in user, immediately show system notification
       if (FirebaseAuth.instance.currentUser?.uid == userId) {
-        await showLocalNotification(
-          title: title,
-          body: message,
-          payload: type,
-        );
+        await showLocalNotification(title: title, body: message, payload: type);
       }
     } catch (e) {
       debugPrint('Error sending notification: $e');

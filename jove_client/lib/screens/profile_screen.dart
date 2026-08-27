@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -104,10 +105,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         height: 34,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: _isDarkMode ? const Color(0xFF262626) : const Color(0xFFE2E8F0),
+          color: _isDarkMode
+              ? const Color(0xFF262626)
+              : const Color(0xFFE2E8F0),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: _isDarkMode ? const Color(0xFF3F3F46) : const Color(0xFFCBD5E1),
+            color: _isDarkMode
+                ? const Color(0xFF3F3F46)
+                : const Color(0xFFCBD5E1),
             width: 1.2,
           ),
           boxShadow: [
@@ -129,7 +134,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Icon(
                     Icons.wb_sunny_rounded,
                     size: 15,
-                    color: _isDarkMode ? Colors.grey.shade600 : const Color(0xFFF59E0B),
+                    color: _isDarkMode
+                        ? Colors.grey.shade600
+                        : const Color(0xFFF59E0B),
                   ),
                 ),
                 Padding(
@@ -137,7 +144,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Icon(
                     Icons.nightlight_round,
                     size: 14,
-                    color: _isDarkMode ? const Color(0xFF818CF8) : Colors.grey.shade400,
+                    color: _isDarkMode
+                        ? const Color(0xFF818CF8)
+                        : Colors.grey.shade400,
                   ),
                 ),
               ],
@@ -145,7 +154,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             AnimatedAlign(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOutBack,
-              alignment: _isDarkMode ? Alignment.centerRight : Alignment.centerLeft,
+              alignment: _isDarkMode
+                  ? Alignment.centerRight
+                  : Alignment.centerLeft,
               child: Container(
                 width: 26,
                 height: 26,
@@ -163,7 +174,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 child: Icon(
                   _isDarkMode ? Icons.nightlight_round : Icons.wb_sunny_rounded,
                   size: 14,
-                  color: _isDarkMode ? const Color(0xFF818CF8) : const Color(0xFFF59E0B),
+                  color: _isDarkMode
+                      ? const Color(0xFF818CF8)
+                      : const Color(0xFFF59E0B),
                 ),
               ),
             ),
@@ -247,7 +260,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF333333) : Colors.grey.shade300,
+                      color: isDark
+                          ? const Color(0xFF333333)
+                          : Colors.grey.shade300,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -268,7 +283,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600,
+                      color: isDark
+                          ? const Color(0xFFA8A8A8)
+                          : Colors.grey.shade600,
                       fontSize: 14,
                     ),
                   ),
@@ -301,7 +318,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                     decoration: InputDecoration(
                       hintText: "write_review_hint".tr(),
                       hintStyle: TextStyle(
-                        color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                        color: isDark
+                            ? Colors.grey.shade600
+                            : Colors.grey.shade400,
                       ),
                       filled: true,
                       fillColor: isDark ? const Color(0xFF1E1E1E) : _iconBg,
@@ -338,7 +357,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                         navigator.pop();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                        backgroundColor: isDark
+                            ? const Color(0xFF3B82F6)
+                            : _navBgColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -405,8 +426,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       context: context,
       barrierColor: Colors.black12,
       barrierDismissible: false,
-      builder: (_) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (_) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -551,139 +571,159 @@ class _ProfileScreenState extends State<ProfileScreen>
                 bottom: false,
                 child: RepaintBoundary(
                   child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 120),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _buildTopAppBar(),
-                    const SizedBox(height: 16),
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 120),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildTopAppBar(),
+                        const SizedBox(height: 16),
 
-                    ValueListenableBuilder<Map<String, dynamic>>(
-                      valueListenable: _userDataNotifier,
-                      builder: (context, userData, _) {
-                        String rawFullName =
-                            userData['fullName'] ??
-                            currentUser?.displayName ??
-                            '';
-                        String fullName = rawFullName.trim().isNotEmpty ? rawFullName : 'client_user'.tr();
-                        String package =
-                            userData['packageName'] ?? 
-                            (userData['subscription'] != null ? userData['subscription']['planName'] : null) ?? 
-                            'premium_package'.tr();
-                        String photoUrl =
-                            userData['photoURL'] ?? currentUser?.photoURL ?? '';
-                        String trainerName =
-                            userData['assignedTrainerName'] ??
-                            'unassigned'.tr();
+                        ValueListenableBuilder<Map<String, dynamic>>(
+                          valueListenable: _userDataNotifier,
+                          builder: (context, userData, _) {
+                            String rawFullName =
+                                userData['fullName'] ??
+                                currentUser?.displayName ??
+                                '';
+                            String fullName = rawFullName.trim().isNotEmpty
+                                ? rawFullName
+                                : 'client_user'.tr();
+                            String package =
+                                userData['packageName'] ??
+                                (userData['subscription'] != null
+                                    ? userData['subscription']['planName']
+                                    : null) ??
+                                'premium_package'.tr();
+                            String photoUrl =
+                                userData['photoURL'] ??
+                                currentUser?.photoURL ??
+                                '';
+                            String trainerName =
+                                userData['assignedTrainerName'] ??
+                                'unassigned'.tr();
 
-                        String appLangCode = userData['appLanguage'] ?? 'en';
-                        String appLangDisplay = _getLanguageDisplayName(
-                          appLangCode,
-                        );
+                            String appLangCode =
+                                userData['appLanguage'] ?? 'en';
+                            String appLangDisplay = _getLanguageDisplayName(
+                              appLangCode,
+                            );
 
-                        final connectedDeviceMap =
-                            userData['connectedDevice'] as Map<String, dynamic>?;
-                        final String connectedDeviceDisplay =
-                            connectedDeviceMap?['name'] != null
-                                ? connectedDeviceMap!['name'].toString().split(' ').first
+                            final connectedDeviceMap =
+                                userData['connectedDevice']
+                                    as Map<String, dynamic>?;
+                            final String connectedDeviceDisplay =
+                                connectedDeviceMap?['name'] != null
+                                ? connectedDeviceMap!['name']
+                                      .toString()
+                                      .split(' ')
+                                      .first
                                 : 'Connect';
 
-                        return Column(
-                          children: [
-                            RepaintBoundary(
-                              child: _buildProfileHeader(
-                                fullName,
-                                package,
-                                photoUrl,
-                              ),
-                            ),
-                            const SizedBox(height: 32),
-
-                            _buildSectionTitle('account_section'.tr()),
-                            _buildMenuCard([
-                              _MenuItemData(
-                                icon: Icons.person_outline_rounded,
-                                title: 'personal_details'.tr(),
-                                onTap: () =>
-                                    _pushScreen(const PersonalDetailsScreen()),
-                              ),
-                              _MenuItemData(
-                                icon: Icons.emoji_events_outlined,
-                                title: 'my_goals'.tr(),
-                                onTap: () => _pushScreen(const MyGoalsScreen()),
-                              ),
-                              _MenuItemData(
-                                icon: Icons.health_and_safety_outlined,
-                                title: 'health_profile'.tr(),
-                                onTap: () =>
-                                    _pushScreen(const HealthProfileScreen()),
-                              ),
-                              _MenuItemData(
-                                icon: Icons.watch_outlined,
-                                title: 'Connected Devices & Smart Bands',
-                                trailingText: connectedDeviceDisplay,
-                                onTap: () =>
-                                    _pushScreen(const ConnectedDevicesScreen()),
-                              ),
-                              _MenuItemData(
-                                icon: Icons.credit_card_outlined,
-                                title: 'subscription_billing'.tr(),
-                                onTap: () =>
-                                    _pushScreen(const SubscriptionScreen()),
-                              ),
-                              _MenuItemData(
-                                icon: Icons.swap_horiz_rounded,
-                                title: 'change_trainer'.tr(),
-                                trailingText: trainerName,
-                                onTap: () =>
-                                    _pushScreen(const ChangeTrainerScreen()),
-                              ),
-                            ]),
-
-                            const SizedBox(height: 24),
-
-                            _buildSectionTitle('preference_section'.tr()),
-                            _buildMenuCard([
-                              _MenuItemData(
-                                icon: Icons.notifications_none_rounded,
-                                title: 'notifications'.tr(),
-                                onTap: () => _pushScreen(
-                                  const NotificationSettingsScreen(),
+                            return Column(
+                              children: [
+                                RepaintBoundary(
+                                  child: _buildProfileHeader(
+                                    fullName,
+                                    package,
+                                    photoUrl,
+                                  ),
                                 ),
-                              ),
-                              _MenuItemData(
-                                icon: Icons.flag_outlined,
-                                title: 'app_languages'.tr(),
-                                trailingText: appLangDisplay,
-                                onTap: () =>
-                                    _pushScreen(const AppLanguageScreen()),
-                              ),
-                              _MenuItemData(
-                                icon: Icons.help_outline_rounded,
-                                title: 'support'.tr(),
-                                onTap: () => _pushScreen(const SupportScreen()),
-                              ),
-                            ]),
-                          ],
-                        );
-                      },
-                    ),
+                                const SizedBox(height: 32),
 
-                    const SizedBox(height: 32),
-                    _buildSignOutButton(),
-                    const SizedBox(height: 20),
-                  ],
+                                _buildSectionTitle('account_section'.tr()),
+                                _buildMenuCard([
+                                  _MenuItemData(
+                                    icon: Icons.person_outline_rounded,
+                                    title: 'personal_details'.tr(),
+                                    onTap: () => _pushScreen(
+                                      const PersonalDetailsScreen(),
+                                    ),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.emoji_events_outlined,
+                                    title: 'my_goals'.tr(),
+                                    onTap: () =>
+                                        _pushScreen(const MyGoalsScreen()),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.health_and_safety_outlined,
+                                    title: 'health_profile'.tr(),
+                                    onTap: () => _pushScreen(
+                                      const HealthProfileScreen(),
+                                    ),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.watch_outlined,
+                                    title: 'Connected Devices & Smart Bands',
+                                    trailingText: connectedDeviceDisplay,
+                                    onTap: () => _pushScreen(
+                                      const ConnectedDevicesScreen(),
+                                    ),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.credit_card_outlined,
+                                    title: 'subscription_billing'.tr(),
+                                    onTap: () =>
+                                        _pushScreen(const SubscriptionScreen()),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.swap_horiz_rounded,
+                                    title: 'change_trainer'.tr(),
+                                    trailingText: trainerName,
+                                    onTap: () => _pushScreen(
+                                      const ChangeTrainerScreen(),
+                                    ),
+                                  ),
+                                ]),
+
+                                const SizedBox(height: 24),
+
+                                _buildSectionTitle('preference_section'.tr()),
+                                _buildMenuCard([
+                                  _MenuItemData(
+                                    icon: Icons.notifications_none_rounded,
+                                    title: 'notifications'.tr(),
+                                    onTap: () => _pushScreen(
+                                      const NotificationSettingsScreen(),
+                                    ),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.flag_outlined,
+                                    title: 'app_languages'.tr(),
+                                    trailingText: appLangDisplay,
+                                    onTap: () =>
+                                        _pushScreen(const AppLanguageScreen()),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.help_outline_rounded,
+                                    title: 'support'.tr(),
+                                    onTap: () =>
+                                        _pushScreen(const SupportScreen()),
+                                  ),
+                                ]),
+                              ],
+                            );
+                          },
+                        ),
+
+                        const SizedBox(height: 32),
+                        _buildSignOutButton(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
 
-          if (widget.showBottomNav && !isKeyboardOpen)
-            Align(alignment: Alignment.bottomCenter, child: _buildBottomNavBar()),
-        ],
-      ),
-    );
+              if (widget.showBottomNav && !isKeyboardOpen)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
+            ],
+          ),
+        );
       },
     );
   }
@@ -718,7 +758,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Widget _buildProfileHeader(String name, String package, String photoUrl) {
     final Color textMain = _isDarkMode ? const Color(0xFFF5F5F5) : _textMain;
-    final Color textSub = _isDarkMode ? const Color(0xFFA8A8A8) : Colors.grey.shade600;
+    final Color textSub = _isDarkMode
+        ? const Color(0xFFA8A8A8)
+        : Colors.grey.shade600;
     final Color ringColor = _isDarkMode
         ? const Color(0xFF262626)
         : _navBgColor.withValues(alpha: 0.1);
@@ -729,14 +771,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(
-              color: ringColor,
-              width: 3,
-            ),
+            border: Border.all(color: ringColor, width: 3),
           ),
           child: CircleAvatar(
             radius: 50,
-            backgroundColor: _isDarkMode ? const Color(0xFF262626) : Colors.grey.shade300,
+            backgroundColor: _isDarkMode
+                ? const Color(0xFF262626)
+                : Colors.grey.shade300,
             onBackgroundImageError: photoUrl.isNotEmpty ? (_, _) {} : null,
             backgroundImage: photoUrl.isNotEmpty
                 ? NetworkImage(photoUrl)
@@ -797,7 +838,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildSectionTitle(String title) {
-    final Color sectionColor = _isDarkMode ? const Color(0xFFF5F5F5) : _navBgColor;
+    final Color sectionColor = _isDarkMode
+        ? const Color(0xFFF5F5F5)
+        : _navBgColor;
 
     return Padding(
       padding: const EdgeInsets.only(left: 28, bottom: 12),
@@ -820,10 +863,18 @@ class _ProfileScreenState extends State<ProfileScreen>
     final Color iconBg = _isDarkMode ? const Color(0xFF262626) : _iconBg;
     final Color iconColor = _isDarkMode ? Colors.white : _navBgColor;
     final Color textMain = _isDarkMode ? const Color(0xFFF5F5F5) : _textMain;
-    final Color textSub = _isDarkMode ? const Color(0xFFA8A8A8) : Colors.grey.shade500;
-    final Color chevronBg = _isDarkMode ? const Color(0xFF1F1F1F) : Colors.grey.shade100;
-    final Color chevronColor = _isDarkMode ? Colors.grey.shade500 : Colors.grey.shade400;
-    final Color dividerColor = _isDarkMode ? const Color(0xFF1F1F1F) : Colors.grey.shade100;
+    final Color textSub = _isDarkMode
+        ? const Color(0xFFA8A8A8)
+        : Colors.grey.shade500;
+    final Color chevronBg = _isDarkMode
+        ? const Color(0xFF1F1F1F)
+        : Colors.grey.shade100;
+    final Color chevronColor = _isDarkMode
+        ? Colors.grey.shade500
+        : Colors.grey.shade400;
+    final Color dividerColor = _isDarkMode
+        ? const Color(0xFF1F1F1F)
+        : Colors.grey.shade100;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -930,7 +981,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildSignOutButton() {
-    final Color lightRed = _isDarkMode ? const Color(0xFFEF4444) : Colors.red.shade400;
+    final Color lightRed = _isDarkMode
+        ? const Color(0xFFEF4444)
+        : Colors.red.shade400;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),

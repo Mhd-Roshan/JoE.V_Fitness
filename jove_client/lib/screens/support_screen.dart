@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -217,7 +218,7 @@ class _SupportScreenState extends State<SupportScreen> {
       barrierColor: Colors.black12,
       barrierDismissible: false,
       builder: (_) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+          const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -320,8 +321,10 @@ class _SupportScreenState extends State<SupportScreen> {
                   alignment: Alignment.bottomCenter,
                   child: _FloatingNavBar(
                     selectedIndexNotifier: _selectedIndexNotifier,
-                    onHomeTap: () =>
-                        _handleStandardNavigation(const HomeDashboardScreen(), 0),
+                    onHomeTap: () => _handleStandardNavigation(
+                      const HomeDashboardScreen(),
+                      0,
+                    ),
                     onBookingTap: _navigateToBooking,
                     onStatsTap: () =>
                         _handleStandardNavigation(const ProgressScreen(), 2),
@@ -350,11 +353,7 @@ class _SupportScreenState extends State<SupportScreen> {
           Row(
             children: [
               IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new,
-                  color: textMain,
-                  size: 20,
-                ),
+                icon: Icon(Icons.arrow_back_ios_new, color: textMain, size: 20),
                 onPressed: () {
                   HapticFeedback.selectionClick();
                   Navigator.pop(context);
@@ -375,7 +374,9 @@ class _SupportScreenState extends State<SupportScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -464,7 +465,9 @@ class _SupportScreenState extends State<SupportScreen> {
                           fontWeight: FontWeight.w700,
                           color: currentIndex == 0
                               ? (isDark ? const Color(0xFF3B82F6) : _navBgColor)
-                              : (isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600),
+                              : (isDark
+                                    ? const Color(0xFFA8A8A8)
+                                    : Colors.grey.shade600),
                         ),
                       ),
                     ),
@@ -502,7 +505,9 @@ class _SupportScreenState extends State<SupportScreen> {
                           fontWeight: FontWeight.w700,
                           color: currentIndex == 1
                               ? (isDark ? const Color(0xFF3B82F6) : _navBgColor)
-                              : (isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade600),
+                              : (isDark
+                                    ? const Color(0xFFA8A8A8)
+                                    : Colors.grey.shade600),
                         ),
                       ),
                     ),
@@ -559,7 +564,9 @@ class _SupportScreenState extends State<SupportScreen> {
                 Divider(
                   height: 1,
                   thickness: 1,
-                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
+                  color: isDark
+                      ? const Color(0xFF262626)
+                      : Colors.grey.shade100,
                 ),
                 _buildContactCard(
                   Icons.phone_outlined,
@@ -570,7 +577,9 @@ class _SupportScreenState extends State<SupportScreen> {
                 Divider(
                   height: 1,
                   thickness: 1,
-                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade100,
+                  color: isDark
+                      ? const Color(0xFF262626)
+                      : Colors.grey.shade100,
                 ),
                 _buildContactCard(
                   Icons.email_outlined,
@@ -611,14 +620,18 @@ class _SupportScreenState extends State<SupportScreen> {
                   color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                    color: isDark
+                        ? const Color(0xFF262626)
+                        : Colors.grey.shade300,
                   ),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: subject,
                     isExpanded: true,
-                    dropdownColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    dropdownColor: isDark
+                        ? const Color(0xFF1E1E1E)
+                        : Colors.white,
                     icon: Icon(
                       Icons.keyboard_arrow_down_rounded,
                       color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
@@ -630,7 +643,9 @@ class _SupportScreenState extends State<SupportScreen> {
                           val,
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: isDark ? const Color(0xFFF5F5F5) : Colors.black87,
+                            color: isDark
+                                ? const Color(0xFFF5F5F5)
+                                : Colors.black87,
                           ),
                         ),
                       );
@@ -711,10 +726,7 @@ class _SupportScreenState extends State<SupportScreen> {
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
+                          child: CustomLoadingIndicator(),
                         )
                       : const Text(
                           'Send Message',
@@ -761,7 +773,9 @@ class _SupportScreenState extends State<SupportScreen> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1E1E1E) : _iconBg,
                 borderRadius: BorderRadius.circular(10),
-                border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
+                border: isDark
+                    ? Border.all(color: const Color(0xFF262626))
+                    : null,
               ),
               child: Icon(
                 icon,
@@ -786,7 +800,9 @@ class _SupportScreenState extends State<SupportScreen> {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                      color: isDark
+                          ? const Color(0xFFA8A8A8)
+                          : Colors.grey.shade500,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -816,9 +832,7 @@ class _SupportScreenState extends State<SupportScreen> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
-            child: CircularProgressIndicator(
-              color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-            ),
+            child: const CustomLoadingIndicator(),
           );
         }
 
@@ -830,13 +844,17 @@ class _SupportScreenState extends State<SupportScreen> {
                 Icon(
                   Icons.inbox_rounded,
                   size: 60,
-                  color: isDark ? const Color(0xFF444444) : Colors.grey.shade300,
+                  color: isDark
+                      ? const Color(0xFF444444)
+                      : Colors.grey.shade300,
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'No support tickets yet.',
                   style: TextStyle(
-                    color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                    color: isDark
+                        ? const Color(0xFFA8A8A8)
+                        : Colors.grey.shade500,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -874,7 +892,9 @@ class _SupportScreenState extends State<SupportScreen> {
                 color: isDark ? const Color(0xFF121212) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF262626) : Colors.grey.shade200,
+                  color: isDark
+                      ? const Color(0xFF262626)
+                      : Colors.grey.shade200,
                 ),
                 boxShadow: [
                   BoxShadow(
@@ -931,7 +951,9 @@ class _SupportScreenState extends State<SupportScreen> {
                   if (attachmentUrl != null && attachmentUrl.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     ActionChip(
-                      backgroundColor: isDark ? const Color(0xFF1E1E1E) : _iconBg,
+                      backgroundColor: isDark
+                          ? const Color(0xFF1E1E1E)
+                          : _iconBg,
                       side: BorderSide.none,
                       avatar: Icon(
                         Icons.attachment_rounded,
@@ -954,7 +976,9 @@ class _SupportScreenState extends State<SupportScreen> {
                   Text(
                     dateStr,
                     style: TextStyle(
-                      color: isDark ? const Color(0xFFA8A8A8) : Colors.grey.shade500,
+                      color: isDark
+                          ? const Color(0xFFA8A8A8)
+                          : Colors.grey.shade500,
                       fontSize: 11,
                     ),
                   ),
@@ -978,7 +1002,9 @@ class _SupportScreenState extends State<SupportScreen> {
                         children: [
                           Icon(
                             Icons.support_agent_rounded,
-                            color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                            color: isDark
+                                ? const Color(0xFF3B82F6)
+                                : _navBgColor,
                             size: 20,
                           ),
                           const SizedBox(width: 10),
@@ -990,7 +1016,9 @@ class _SupportScreenState extends State<SupportScreen> {
                                   'Admin Reply',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                                    color: isDark
+                                        ? const Color(0xFF3B82F6)
+                                        : _navBgColor,
                                     fontSize: 13,
                                   ),
                                 ),
@@ -998,7 +1026,9 @@ class _SupportScreenState extends State<SupportScreen> {
                                 Text(
                                   adminReply,
                                   style: TextStyle(
-                                    color: isDark ? const Color(0xFFE0E0E0) : Colors.black87,
+                                    color: isDark
+                                        ? const Color(0xFFE0E0E0)
+                                        : Colors.black87,
                                     fontSize: 14,
                                   ),
                                 ),
@@ -1042,7 +1072,9 @@ class _FloatingNavBar extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: AppThemeController.isDarkMode,
       builder: (context, isDark, _) {
-        final Color navBg = isDark ? const Color(0xFF121212) : const Color(0xFF00215F);
+        final Color navBg = isDark
+            ? const Color(0xFF121212)
+            : const Color(0xFF00215F);
 
         return Container(
           margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
@@ -1050,7 +1082,9 @@ class _FloatingNavBar extends StatelessWidget {
           decoration: BoxDecoration(
             color: navBg,
             borderRadius: BorderRadius.circular(40),
-            border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+            border: isDark
+                ? Border.all(color: const Color(0xFF262626), width: 1.2)
+                : null,
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),

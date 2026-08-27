@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -77,7 +78,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   }
 
   void _populateData(Map<String, dynamic> data) {
-    _hasActiveSubscription = data['hasActiveSubscription'] == true ||
+    _hasActiveSubscription =
+        data['hasActiveSubscription'] == true ||
         (data['subscription'] is Map &&
             data['subscription']['status'] == 'Active');
 
@@ -201,14 +203,20 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: isDark ? const BorderSide(color: Color(0xFF262626)) : BorderSide.none,
+                    borderSide: isDark
+                        ? const BorderSide(color: Color(0xFF262626))
+                        : BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: isDark ? const BorderSide(color: Color(0xFF262626)) : BorderSide.none,
+                    borderSide: isDark
+                        ? const BorderSide(color: Color(0xFF262626))
+                        : BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: isDark ? const Color(0xFF121212) : Colors.grey.shade50,
+                  fillColor: isDark
+                      ? const Color(0xFF121212)
+                      : Colors.grey.shade50,
                 ),
               ),
               actions: [
@@ -221,7 +229,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF3B82F6) : _navBgColor,
+                    backgroundColor: isDark
+                        ? const Color(0xFF3B82F6)
+                        : _navBgColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -269,10 +279,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                       ? const SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
+                          child: CustomLoadingIndicator(),
                         )
                       : Text(
                           'btn_save'.tr(), // TRANSLATED
@@ -364,8 +371,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       context: context,
       barrierColor: Colors.transparent,
       barrierDismissible: false,
-      builder: (context) =>
-          const Center(child: CircularProgressIndicator(color: _navBgColor)),
+      builder: (context) => const Center(child: CustomLoadingIndicator()),
     );
 
     try {
@@ -544,7 +550,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           Container(
             margin: const EdgeInsets.only(right: 8),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E1E1E) : Colors.black.withValues(alpha: 0.05),
+              color: isDark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.black.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -598,7 +606,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isDark ? const Color(0xFF262626) : _navBgColor.withValues(alpha: 0.1),
+                  color: isDark
+                      ? const Color(0xFF262626)
+                      : _navBgColor.withValues(alpha: 0.1),
                   width: 3,
                 ),
               ),
@@ -607,12 +617,18 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 children: [
                   CircleAvatar(
                     radius: 50,
-                    backgroundColor: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                    backgroundColor: isDark
+                        ? const Color(0xFF262626)
+                        : Colors.grey.shade300,
                     backgroundImage: photoUrl.isNotEmpty
                         ? NetworkImage(photoUrl)
                         : null,
                     child: photoUrl.isEmpty
-                        ? Icon(Icons.person, size: 40, color: isDark ? Colors.grey.shade600 : Colors.grey)
+                        ? Icon(
+                            Icons.person,
+                            size: 40,
+                            color: isDark ? Colors.grey.shade600 : Colors.grey,
+                          )
                         : null,
                   ),
                   if (_isUploadingImage)
@@ -623,9 +639,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                         color: Colors.black.withValues(alpha: 0.4),
                         shape: BoxShape.circle,
                       ),
-                      child: const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      ),
+                      child: const Center(child: CustomLoadingIndicator()),
                     ),
                 ],
               ),
@@ -638,7 +652,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                   shape: BoxShape.circle,
-                  border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
+                  border: isDark
+                      ? Border.all(color: const Color(0xFF262626))
+                      : null,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
@@ -880,10 +896,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 2,
-                  ),
+                  child: CustomLoadingIndicator(),
                 )
               : const Icon(Icons.save_outlined, color: Colors.white, size: 22),
           label: Flexible(
@@ -916,7 +929,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       decoration: BoxDecoration(
         color: navBg,
         borderRadius: BorderRadius.circular(40),
-        border: isDark ? Border.all(color: const Color(0xFF262626), width: 1.2) : null,
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),

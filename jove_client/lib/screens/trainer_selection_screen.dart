@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Required for MethodChannel
@@ -45,11 +46,14 @@ class Trainer {
           "${data['yearsExperience']}+ ${'years_lowercase'.tr()}";
     }
 
-    String rawName = (data['name'] ?? data['fullName'] ?? 'expert_trainer'.tr()).toString().trim();
+    String rawName = (data['name'] ?? data['fullName'] ?? 'expert_trainer'.tr())
+        .toString()
+        .trim();
     if (rawName.isEmpty) rawName = 'Trainer';
 
     // Check all possible field variations for trainer images in Firestore
-    String? rawImg = data['imageUrl'] ??
+    String? rawImg =
+        data['imageUrl'] ??
         data['profileImageUrl'] ??
         data['profilePic'] ??
         data['profilePicture'] ??
@@ -73,15 +77,26 @@ class Trainer {
     return Trainer(
       id: data['trainerId'] ?? doc.id,
       name: rawName,
-      designation: (data['designation'] ?? data['title'] ?? data['role'] ?? 'personal_trainer'.tr()).toString(),
+      designation:
+          (data['designation'] ??
+                  data['title'] ??
+                  data['role'] ??
+                  'personal_trainer'.tr())
+              .toString(),
       imageUrl: finalImg,
       rating: ((data['rating'] ?? 5.0) as num).toDouble(),
       ratingCount: (data['ratingCount'] ?? data['reviewsCount'] ?? 0) is int
           ? (data['ratingCount'] ?? data['reviewsCount'] ?? 0)
-          : int.tryParse((data['ratingCount'] ?? data['reviewsCount'] ?? 0).toString()) ?? 0,
-      specializations: List<String>.from(data['specializations'] ?? data['specialties'] ?? []),
+          : int.tryParse(
+                  (data['ratingCount'] ?? data['reviewsCount'] ?? 0).toString(),
+                ) ??
+                0,
+      specializations: List<String>.from(
+        data['specializations'] ?? data['specialties'] ?? [],
+      ),
       yearsExperience: formattedExperience,
-      bio: (data['bio'] ?? data['description'] ?? data['about'] ?? '').toString(),
+      bio: (data['bio'] ?? data['description'] ?? data['about'] ?? '')
+          .toString(),
       certifications: List<String>.from(data['certifications'] ?? []),
     );
   }
@@ -290,10 +305,14 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0B192C) : const Color(0xFFF0F6FF),
+                        color: isDark
+                            ? const Color(0xFF0B192C)
+                            : const Color(0xFFF0F6FF),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFD0E3FF),
+                          color: isDark
+                              ? const Color(0xFF1E3A8A)
+                              : const Color(0xFFD0E3FF),
                         ),
                       ),
                       child: Row(
@@ -301,7 +320,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                         children: [
                           Icon(
                             Icons.info_outline,
-                            color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF00225D),
+                            color: isDark
+                                ? const Color(0xFF60A5FA)
+                                : const Color(0xFF00225D),
                             size: 20,
                           ),
                           const SizedBox(width: 12),
@@ -309,7 +330,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                             child: RichText(
                               text: TextSpan(
                                 style: TextStyle(
-                                  color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF00225D),
+                                  color: isDark
+                                      ? const Color(0xFFE2E8F0)
+                                      : const Color(0xFF00225D),
                                   height: 1.5,
                                 ),
                                 children: [
@@ -336,9 +359,7 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                   stream: _trainersStream,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: Color(0xFFBA0C19)),
-                      );
+                      return const Center(child: CustomLoadingIndicator());
                     }
 
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -346,7 +367,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                         child: Text(
                           "no_trainers_available".tr(),
                           style: TextStyle(
-                            color: isDark ? const Color(0xFFA8A8A8) : Colors.grey,
+                            color: isDark
+                                ? const Color(0xFFA8A8A8)
+                                : Colors.grey,
                           ),
                         ),
                       );
@@ -370,10 +393,14 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                           margin: const EdgeInsets.only(bottom: 16),
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF121212) : Colors.white,
+                            color: isDark
+                                ? const Color(0xFF121212)
+                                : Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isDark ? const Color(0xFF262626) : Colors.grey.shade300,
+                              color: isDark
+                                  ? const Color(0xFF262626)
+                                  : Colors.grey.shade300,
                               width: 1.2,
                             ),
                             boxShadow: [
@@ -407,65 +434,96 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                               color: isSelected
                                                   ? const Color(0xFFBA0C19)
                                                   : (isDark
-                                                      ? const Color(0xFF262626)
-                                                      : Colors.grey.shade300),
+                                                        ? const Color(
+                                                            0xFF262626,
+                                                          )
+                                                        : Colors.grey.shade300),
                                               width: 2,
                                             ),
                                           ),
                                           child: trainer.imageUrl.isNotEmpty
                                               ? Image.network(
                                                   trainer.imageUrl,
+                                                  cacheWidth: 200,
+                                                  cacheHeight: 200,
                                                   width: 70,
                                                   height: 70,
                                                   fit: BoxFit.cover,
                                                   errorBuilder:
-                                                      (context, error, stackTrace) {
-                                                    return Container(
-                                                      color: const Color(0xFFBA0C19),
-                                                      alignment: Alignment.center,
-                                                      child: Text(
-                                                        trainer.name.isNotEmpty
-                                                            ? trainer.name[0].toUpperCase()
-                                                            : 'T',
-                                                        style: const TextStyle(
-                                                          fontSize: 26,
-                                                          fontWeight: FontWeight.bold,
-                                                          color: Colors.white,
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
+                                                      (
+                                                        context,
+                                                        error,
+                                                        stackTrace,
+                                                      ) {
+                                                        return Container(
+                                                          color: const Color(
+                                                            0xFFBA0C19,
+                                                          ),
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: Text(
+                                                            trainer
+                                                                    .name
+                                                                    .isNotEmpty
+                                                                ? trainer
+                                                                      .name[0]
+                                                                      .toUpperCase()
+                                                                : 'T',
+                                                            style:
+                                                                const TextStyle(
+                                                                  fontSize: 26,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  color: Colors
+                                                                      .white,
+                                                                ),
+                                                          ),
+                                                        );
+                                                      },
                                                   loadingBuilder:
-                                                      (context, child, loadingProgress) {
-                                                    if (loadingProgress == null) {
-                                                      return child;
-                                                    }
-                                                    return Container(
-                                                      color: isDark
-                                                          ? const Color(0xFF1E293B)
-                                                          : const Color(0xFFF1F5F9),
-                                                      alignment: Alignment.center,
-                                                      child: const SizedBox(
-                                                        width: 20,
-                                                        height: 20,
-                                                        child: CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                          color: Color(0xFFBA0C19),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  },
+                                                      (
+                                                        context,
+                                                        child,
+                                                        loadingProgress,
+                                                      ) {
+                                                        if (loadingProgress ==
+                                                            null) {
+                                                          return child;
+                                                        }
+                                                        return Container(
+                                                          color: isDark
+                                                              ? const Color(
+                                                                  0xFF1E293B,
+                                                                )
+                                                              : const Color(
+                                                                  0xFFF1F5F9,
+                                                                ),
+                                                          alignment:
+                                                              Alignment.center,
+                                                          child: const SizedBox(
+                                                            width: 20,
+                                                            height: 20,
+                                                            child:
+                                                                CustomLoadingIndicator(),
+                                                          ),
+                                                        );
+                                                      },
                                                 )
                                               : Container(
-                                                  color: const Color(0xFFBA0C19),
+                                                  color: const Color(
+                                                    0xFFBA0C19,
+                                                  ),
                                                   alignment: Alignment.center,
                                                   child: Text(
                                                     trainer.name.isNotEmpty
-                                                        ? trainer.name[0].toUpperCase()
+                                                        ? trainer.name[0]
+                                                              .toUpperCase()
                                                         : 'T',
                                                     style: const TextStyle(
                                                       fontSize: 26,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       color: Colors.white,
                                                     ),
                                                   ),
@@ -487,7 +545,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                             style: TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 12,
-                                              color: isDark ? const Color(0xFFF5F5F5) : Colors.black,
+                                              color: isDark
+                                                  ? const Color(0xFFF5F5F5)
+                                                  : Colors.black,
                                             ),
                                           ),
                                           Text(
@@ -504,14 +564,17 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           trainer.name,
                                           style: TextStyle(
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
-                                            color: isDark ? const Color(0xFFF5F5F5) : Colors.black,
+                                            color: isDark
+                                                ? const Color(0xFFF5F5F5)
+                                                : Colors.black,
                                           ),
                                         ),
                                         Text(
@@ -537,19 +600,30 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                                                       ),
                                                   decoration: BoxDecoration(
                                                     color: isDark
-                                                        ? const Color(0xFF1E293B)
-                                                        : const Color(0xFFE5F1FF),
+                                                        ? const Color(
+                                                            0xFF1E293B,
+                                                          )
+                                                        : const Color(
+                                                            0xFFE5F1FF,
+                                                          ),
                                                     borderRadius:
-                                                        BorderRadius.circular(6),
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
                                                   ),
                                                   child: Text(
                                                     s,
                                                     style: TextStyle(
                                                       color: isDark
-                                                          ? const Color(0xFF60A5FA)
-                                                          : const Color(0xFF0044FF),
+                                                          ? const Color(
+                                                              0xFF60A5FA,
+                                                            )
+                                                          : const Color(
+                                                              0xFF0044FF,
+                                                            ),
                                                       fontSize: 12,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                     ),
                                                   ),
                                                 ),
@@ -563,142 +637,155 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
                               ),
                               const SizedBox(height: 16),
 
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _BouncingButton(
-                                  onTap: () async {
-                                    HapticFeedback.selectionClick();
-                                    final selected = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => TrainerProfileScreen(
-                                          trainer: trainer,
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _BouncingButton(
+                                      onTap: () async {
+                                        HapticFeedback.selectionClick();
+                                        final selected = await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                TrainerProfileScreen(
+                                                  trainer: trainer,
+                                                ),
+                                          ),
+                                        );
+                                        if (selected == true) {
+                                          setState(
+                                            () => _selectedTrainer = trainer,
+                                          );
+                                        }
+                                      },
+                                      child: Container(
+                                        height: 40,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                        ),
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: Colors.grey.shade300,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'view_details'.tr(),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF00225D),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
                                         ),
                                       ),
-                                    );
-                                    if (selected == true) {
-                                      setState(
-                                        () => _selectedTrainer = trainer,
-                                      );
-                                    }
-                                  },
-                                  child: Container(
-                                    height: 40,
-                                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      'view_details'.tr(),
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF00225D),
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
                                     ),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _BouncingButton(
-                                  onTap: () {
-                                    HapticFeedback.selectionClick();
-                                    setState(() => _selectedTrainer = trainer);
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    height: 40,
-                                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? const Color(0xFFFFD6D9)
-                                          : const Color(0xFFBA0C19),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      isSelected
-                                          ? 'selected'.tr()
-                                          : 'select_trainer_btn'.tr(),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        color: isSelected
-                                            ? const Color(0xFFBA0C19)
-                                            : Colors.white,
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _BouncingButton(
+                                      onTap: () {
+                                        HapticFeedback.selectionClick();
+                                        setState(
+                                          () => _selectedTrainer = trainer,
+                                        );
+                                      },
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 250,
+                                        ),
+                                        height: 40,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                        ),
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? const Color(0xFFFFD6D9)
+                                              : const Color(0xFFBA0C19),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          isSelected
+                                              ? 'selected'.tr()
+                                              : 'select_trainer_btn'.tr(),
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: isSelected
+                                                ? const Color(0xFFBA0C19)
+                                                : Colors.white,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          textAlign: TextAlign.center,
+                                        ),
                                       ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _selectedTrainer != null
-          ? SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: _BouncingButton(
-                  onTap: _isLoading ? null : _confirmSelection,
-                  child: SizedBox(
-                    height: 55,
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _confirmSelection,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFBA0C19),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: _isLoading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  '${'continue_btn'.tr()} ',
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const Icon(
-                                  Icons.arrow_forward,
-                                  color: Colors.white,
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
                 ),
               ),
-            )
-          : null,
-    );
+            ],
+          ),
+          bottomNavigationBar: _selectedTrainer != null
+              ? SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: _BouncingButton(
+                      onTap: _isLoading ? null : _confirmSelection,
+                      child: SizedBox(
+                        height: 55,
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _confirmSelection,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFBA0C19),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: _isLoading
+                              ? const CustomLoadingIndicator()
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '${'continue_btn'.tr()} ',
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.arrow_forward,
+                                      color: Colors.white,
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+        );
       },
     );
   }
@@ -737,6 +824,7 @@ class TrainerProfileScreen extends StatelessWidget {
                       height: 480, // Tall header like the design
                       child: Image.network(
                         trainer.imageUrl,
+                        cacheHeight: 800,
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return Container(
@@ -760,7 +848,9 @@ class TrainerProfileScreen extends StatelessWidget {
                                     height: 110,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: Colors.white.withValues(alpha: 0.15),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.15,
+                                      ),
                                       border: Border.all(
                                         color: Colors.white,
                                         width: 2.5,
@@ -789,9 +879,7 @@ class TrainerProfileScreen extends StatelessWidget {
                           return Container(
                             color: const Color(0xFF0F172A),
                             child: const Center(
-                              child: CircularProgressIndicator(
-                                color: Color(0xFFBA0C19),
-                              ),
+                              child: CustomLoadingIndicator(),
                             ),
                           );
                         },

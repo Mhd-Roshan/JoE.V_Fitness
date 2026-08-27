@@ -75,6 +75,7 @@ flutter:
     - assets/images/appicon.png
     - assets/images/male.png
     - assets/images/female.png
+    - assets/images/loading.gif
     - assets/translations/
 
 flutter_launcher_icons:

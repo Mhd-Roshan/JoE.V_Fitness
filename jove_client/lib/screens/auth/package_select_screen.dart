@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -46,10 +47,13 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
           final data = doc.data() ?? {};
           final bool hasSeenFirstPreview = data['hasSeenFirstPreview'] == true;
           final bool hasPaidEntryFee = data['hasPaidEntryFee'] == true;
-          final bool hasSeenSecondPreview = data['hasSeenSecondPreview'] == true;
+          final bool hasSeenSecondPreview =
+              data['hasSeenSecondPreview'] == true;
 
           setState(() {
-            _canExplore = !hasSeenFirstPreview || (hasPaidEntryFee && !hasSeenSecondPreview);
+            _canExplore =
+                !hasSeenFirstPreview ||
+                (hasPaidEntryFee && !hasSeenSecondPreview);
           });
         }
       } catch (_) {}
@@ -78,7 +82,10 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
         }
 
         if (updates.isNotEmpty) {
-          await _db.collection('users').doc(uid).set(updates, SetOptions(merge: true));
+          await _db
+              .collection('users')
+              .doc(uid)
+              .set(updates, SetOptions(merge: true));
         }
 
         if (!mounted) return;
@@ -232,9 +239,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                   stream: _packagesStream, // OPTIMIZED STREAM
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(color: cyan),
-                      );
+                      return const Center(child: CustomLoadingIndicator());
                     }
 
                     if (snapshot.hasError) {
@@ -556,10 +561,7 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                         ? const SizedBox(
                             width: 24,
                             height: 24,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.5,
-                            ),
+                            child: CustomLoadingIndicator(),
                           )
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -590,7 +592,11 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                 Center(
                   child: TextButton.icon(
                     onPressed: _isContinuing ? null : _onExploreAppTap,
-                    icon: const Icon(Icons.explore_outlined, color: navy, size: 18),
+                    icon: const Icon(
+                      Icons.explore_outlined,
+                      color: navy,
+                      size: 18,
+                    ),
                     label: Text(
                       'view_app_preview'.tr(),
                       style: GoogleFonts.poppins(

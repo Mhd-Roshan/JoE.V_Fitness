@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -350,10 +351,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
                                 ? const SizedBox(
                                     width: 24,
                                     height: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2.5,
-                                    ),
+                                    child: CustomLoadingIndicator(),
                                   )
                                 : FittedBox(
                                     fit: BoxFit.scaleDown,
@@ -422,7 +420,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF003DD0)),
+                    child: CustomLoadingIndicator(),
                   );
                 }
 

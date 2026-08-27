@@ -1,3 +1,4 @@
+import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -6,9 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'assessment_screen.dart';
-import '../trainer_selection_screen.dart';
-import '../home_dashboard_screen.dart';
+import '../auth_wrapper.dart';
 
 class OtpScreen extends StatefulWidget {
   final bool isSignUp;
@@ -30,11 +29,9 @@ class OtpScreen extends StatefulWidget {
 
 class _OtpScreenState extends State<OtpScreen>
     with SingleTickerProviderStateMixin {
-  final List<TextEditingController> _otpControllers = List.generate(
-    6,
-    (_) => TextEditingController(),
-  );
-  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
+  // Only 1 controller and 1 focus node needed for robust autofill
+  final TextEditingController _otpController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
 
   int _timerSeconds = 42;
   Timer? _timer;
@@ -75,13 +72,9 @@ class _OtpScreenState extends State<OtpScreen>
     });
 
     // Add focus listeners for smooth box highlights without setState
-    for (int i = 0; i < 6; i++) {
-      _focusNodes[i].addListener(() {
-        if (_focusNodes[i].hasFocus && mounted) {
-          _focusedIndexNotifier.value = i;
-        }
-      });
-    }
+    _focusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
 
     _startTimer();
     _sendOtp();
@@ -123,7 +116,9 @@ class _OtpScreenState extends State<OtpScreen>
           );
         },
         codeSent: (String verificationId, int? resendToken) {
-          debugPrint("✅ [OTP] SMS code dispatched. Verification ID: $verificationId");
+          debugPrint(
+            "✅ [OTP] SMS code dispatched. Verification ID: $verificationId",
+          );
           if (!mounted) return;
           setState(() {
             _verificationId = verificationId;
@@ -132,7 +127,9 @@ class _OtpScreenState extends State<OtpScreen>
           });
         },
         codeAutoRetrievalTimeout: (String verificationId) {
-          debugPrint("⏰ [OTP] Auto-retrieval timeout. Verification ID: $verificationId");
+          debugPrint(
+            "⏰ [OTP] Auto-retrieval timeout. Verification ID: $verificationId",
+          );
           _verificationId = verificationId;
         },
       );
@@ -146,7 +143,7 @@ class _OtpScreenState extends State<OtpScreen>
   Future<void> _verifyOtp() async {
     if (_isVerifying) return; // Block rapid double-taps
 
-    final otp = _otpControllers.map((c) => c.text).join();
+    final otp = _otpController.text.trim();
 
     if (otp.length < 6) {
       _showModernSnackBar("Please enter the complete 6-digit code.");
@@ -196,6 +193,25 @@ class _OtpScreenState extends State<OtpScreen>
       final userDoc = await userDocRef.get();
 
       if (!userDoc.exists) {
+        // Check if this phone number already exists under a Google UID
+        final existingUserByPhone = await FirebaseFirestore.instance
+            .collection('users')
+            .where('phone', isEqualTo: widget.phone)
+            .where('role', isEqualTo: 'client')
+            .limit(1)
+            .get();
+
+        if (existingUserByPhone.docs.isNotEmpty) {
+          // They already have an account with this phone under a different UID (Google)!
+          await FirebaseAuth.instance.signOut();
+          if (!mounted) return;
+          _showModernSnackBar('Phone registered via Google. Please use Google Login.', isError: true);
+          setState(() {
+            _isLoading = false;
+            _isVerifying = false;
+          });
+          return;
+        }
         final pendingDoc = await FirebaseFirestore.instance
             .collection('pending_users')
             .doc(widget.phone)
@@ -226,31 +242,15 @@ class _OtpScreenState extends State<OtpScreen>
         });
       }
 
-      final updatedUserDoc = await userDocRef.get();
-      final userData = updatedUserDoc.data() ?? {};
-
-      final bool hasCompletedAssessment =
-          userData['assessmentCompleted'] ?? false;
-      final String? assignedTrainerId = userData['assignedTrainerId'];
-
       // Give the UI thread 50ms to render the success state/ripple
       await Future.delayed(const Duration(milliseconds: 50));
 
       if (!mounted) return;
 
-      Widget nextScreen;
-      if (!hasCompletedAssessment) {
-        nextScreen = const AssessmentScreen();
-      } else if (assignedTrainerId == null || assignedTrainerId.isEmpty) {
-        nextScreen = const SelectTrainerScreen();
-      } else {
-        nextScreen = const HomeDashboardScreen();
-      }
-
       Navigator.pushAndRemoveUntil(
         context,
         PageRouteBuilder(
-          pageBuilder: (context, a, b) => nextScreen,
+          pageBuilder: (context, a, b) => const AuthWrapper(),
           transitionsBuilder: (context, a, b, child) =>
               FadeTransition(opacity: a, child: child),
           transitionDuration: const Duration(milliseconds: 300),
@@ -276,10 +276,8 @@ class _OtpScreenState extends State<OtpScreen>
   }
 
   void _clearOtpFields() {
-    for (final c in _otpControllers) {
-      c.clear();
-    }
-    _focusNodes[0].requestFocus();
+    _otpController.clear();
+    _focusNode.requestFocus();
   }
 
   void _showModernSnackBar(String message, {bool isError = true}) {
@@ -323,12 +321,8 @@ class _OtpScreenState extends State<OtpScreen>
     _animController.dispose();
     _focusedIndexNotifier.dispose();
     _timer?.cancel();
-    for (final c in _otpControllers) {
-      c.dispose();
-    }
-    for (final f in _focusNodes) {
-      f.dispose();
-    }
+    _otpController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -459,129 +453,90 @@ class _OtpScreenState extends State<OtpScreen>
                             const SizedBox(height: 40),
 
                             // --- OTP INPUT ROW (Glassmorphic) ---
-                            ValueListenableBuilder<int>(
-                              valueListenable: _focusedIndexNotifier,
-                              builder: (context, focusedIndex, child) {
-                                return AutofillGroup(
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: List.generate(6, (index) {
-                                      bool isFocused = focusedIndex == index;
+                            AnimatedBuilder(
+                              animation: Listenable.merge([_otpController, _focusNode]),
+                              builder: (context, child) {
+                                final text = _otpController.text;
+                                return Stack(
+                                  children: [
+                                    // Visual Boxes
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: List.generate(6, (index) {
+                                        bool isFocused = _focusNode.hasFocus &&
+                                            (text.length == index ||
+                                                (text.length == 6 && index == 5));
+                                        
+                                        String digit = '';
+                                        if (index < text.length) {
+                                          digit = text[index];
+                                        }
 
-                                      return AnimatedScale(
-                                        scale: isFocused ? 1.05 : 1.0,
-                                        duration: const Duration(
-                                          milliseconds: 150,
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          child: BackdropFilter(
-                                            filter: ImageFilter.blur(
-                                              sigmaX: 8,
-                                              sigmaY: 8,
-                                            ),
-                                            child: AnimatedContainer(
-                                              duration: const Duration(
-                                                milliseconds: 200,
-                                              ),
-                                              curve: Curves.easeOutCubic,
-                                              width: 48,
-                                              height: 56,
-                                              decoration: BoxDecoration(
-                                                color: isFocused
-                                                    ? Colors.black.withValues(
-                                                        alpha: 0.4,
-                                                      )
-                                                    : Colors.black.withValues(
-                                                        alpha: 0.25,
-                                                      ),
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                                border: Border.all(
-                                                  color: isFocused
-                                                      ? Colors.white.withValues(
-                                                          alpha: 0.6,
-                                                        )
-                                                      : Colors.white.withValues(
-                                                          alpha: 0.15,
-                                                        ),
-                                                  width: 1.5,
-                                                ),
-                                              ),
-                                              child: TextField(
-                                                controller:
-                                                    _otpControllers[index],
-                                                focusNode: _focusNodes[index],
-                                                keyboardType:
-                                                    TextInputType.number,
-                                                textAlign: TextAlign.center,
-                                                maxLength: 1,
-                                                cursorColor: Colors.white,
-                                                // PERFORMANCE/UX: Autofills code directly from SMS instantly!
-                                                autofillHints: const [
-                                                  AutofillHints.oneTimeCode,
-                                                ],
-                                                style: GoogleFonts.poppins(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: Colors.white,
-                                                ),
-                                                inputFormatters: [
-                                                  FilteringTextInputFormatter
-                                                      .digitsOnly,
-                                                ],
-                                                decoration:
-                                                    const InputDecoration(
-                                                      counterText: "",
-                                                      border: InputBorder.none,
+                                        return GestureDetector(
+                                          onTap: () => _focusNode.requestFocus(),
+                                          child: AnimatedScale(
+                                            scale: isFocused ? 1.05 : 1.0,
+                                            duration: const Duration(milliseconds: 150),
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(12),
+                                              child: BackdropFilter(
+                                                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                                child: AnimatedContainer(
+                                                  duration: const Duration(milliseconds: 200),
+                                                  curve: Curves.easeOutCubic,
+                                                  width: 48,
+                                                  height: 56,
+                                                  alignment: Alignment.center,
+                                                  decoration: BoxDecoration(
+                                                    color: isFocused
+                                                        ? Colors.black.withValues(alpha: 0.4)
+                                                        : Colors.black.withValues(alpha: 0.25),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                    border: Border.all(
+                                                      color: isFocused
+                                                          ? Colors.white.withValues(alpha: 0.6)
+                                                          : Colors.white.withValues(alpha: 0.15),
+                                                      width: 1.5,
                                                     ),
-                                                onChanged: (value) {
-                                                  // Handling full code paste from Autofill
-                                                  if (value.length == 6) {
-                                                    for (
-                                                      int i = 0;
-                                                      i < 6;
-                                                      i++
-                                                    ) {
-                                                      _otpControllers[i].text =
-                                                          value[i];
-                                                    }
-                                                    FocusScope.of(
-                                                      context,
-                                                    ).unfocus();
-                                                    _verifyOtp();
-                                                    return;
-                                                  }
-
-                                                  if (value.isNotEmpty &&
-                                                      index < 5) {
-                                                    _focusNodes[index + 1]
-                                                        .requestFocus();
-                                                  } else if (value.isEmpty &&
-                                                      index > 0) {
-                                                    _focusNodes[index - 1]
-                                                        .requestFocus();
-                                                  }
-
-                                                  // Auto-verify on last digit
-                                                  if (value.isNotEmpty &&
-                                                      index == 5) {
-                                                    FocusScope.of(
-                                                      context,
-                                                    ).unfocus();
-                                                    _verifyOtp();
-                                                  }
-                                                },
+                                                  ),
+                                                  child: Text(
+                                                    digit,
+                                                    style: GoogleFonts.poppins(
+                                                      fontSize: 20,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ),
+                                        );
+                                      }),
+                                    ),
+                                    // Hidden TextField for perfect native Autofill
+                                    Positioned.fill(
+                                      child: Opacity(
+                                        opacity: 0.0,
+                                        child: TextField(
+                                          controller: _otpController,
+                                          focusNode: _focusNode,
+                                          keyboardType: TextInputType.number,
+                                          autofillHints: const [AutofillHints.oneTimeCode],
+                                          maxLength: 6,
+                                          showCursor: false,
+                                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                                          decoration: const InputDecoration(counterText: ""),
+                                          onChanged: (val) {
+                                            if (val.length == 6) {
+                                              FocusScope.of(context).unfocus();
+                                              _verifyOtp();
+                                            }
+                                          },
                                         ),
-                                      );
-                                    }),
-                                  ),
+                                      ),
+                                    ),
+                                  ],
                                 );
                               },
                             ),
@@ -609,10 +564,7 @@ class _OtpScreenState extends State<OtpScreen>
                                             key: ValueKey('loader'),
                                             width: 24,
                                             height: 24,
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2.5,
-                                            ),
+                                            child: CustomLoadingIndicator(),
                                           )
                                         : Text(
                                             'Verify',
@@ -711,10 +663,7 @@ class _BouncingButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
 
-  const _BouncingButton({
-    required this.child,
-    required this.onTap,
-  });
+  const _BouncingButton({required this.child, required this.onTap});
 
   @override
   State<_BouncingButton> createState() => _BouncingButtonState();
