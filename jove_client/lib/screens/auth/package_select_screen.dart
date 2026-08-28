@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../order_summary_screen.dart';
-import '../home_dashboard_screen.dart';
+import '../auth_wrapper.dart';
 
 const navy = Color(0xFF00225D);
 const cyan = Color(0xFF01BCE3);
@@ -81,18 +81,16 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
           updates['secondPreviewSeenAt'] = FieldValue.serverTimestamp();
         }
 
+        // Set the session flag BEFORE writing to Firestore.
+        // This tells AuthWrapper to route them to the HomeDashboardScreen instead of the paywall!
+        AuthWrapper.isFirstSessionPreview = true;
+
         if (updates.isNotEmpty) {
           await _db
               .collection('users')
               .doc(uid)
               .set(updates, SetOptions(merge: true));
         }
-
-        if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeDashboardScreen()),
-        );
       } catch (e) {
         if (mounted) {
           _showModernSnackBar('Error opening preview: $e');

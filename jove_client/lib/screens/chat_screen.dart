@@ -6,13 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:easy_localization/easy_localization.dart';
 
+import '../theme/app_theme_controller.dart';
+import '../services/main_tab_controller.dart';
 import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
 import 'progress_screen.dart';
-import 'trainer_selection_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
-import '../theme/app_theme_controller.dart';
 import '../widgets/package_required_modal.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -36,8 +35,6 @@ class _ChatScreenState extends State<ChatScreen>
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(3);
   final TextEditingController _messageController = TextEditingController();
   final User? currentUser = FirebaseAuth.instance.currentUser;
-
-  bool _isNavigating = false;
   bool _hasActiveSubscription = false;
 
   Stream<QuerySnapshot>? _messagesStream50;
@@ -1806,93 +1803,26 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   void _navigate(Widget screen) {
-    if (_isNavigating) {
-      return;
-    }
-
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
-
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => screen,
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 150),
-      ),
-    ).then((_) {
-      if (mounted) {
-        setState(() => _isNavigating = false);
-      }
-    });
+    int index = 4; // default to profile
+    if (screen is HomeDashboardScreen) {
+      index = 0;
+    } else if (screen is ProgressScreen) {
+      index = 2;
+    } else if (screen is ChatScreen) {
+      index = 3;
+    } else if (screen is ProfileScreen) {
+      index = 4;
+    }
+    
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) {
-      return;
-    }
-
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CustomLoadingIndicator()),
-    );
-
-    try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
-      var userData = userDoc.data() as Map<String, dynamic>? ?? {};
-      String? trainerId = userData['assignedTrainerId'];
-
-      Widget nextScreen;
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const SelectTrainerScreen();
-      } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get();
-        nextScreen = trainerDoc.exists
-            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
-            : const SelectTrainerScreen();
-      }
-
-      if (!mounted) {
-        return;
-      }
-      Navigator.pop(context);
-
-      await Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('error_loading_data'.tr())));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isNavigating = false;
-          _selectedIndexNotifier.value = 3;
-        });
-      }
-    }
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
   }
 
   Widget _buildBottomNavBar() {

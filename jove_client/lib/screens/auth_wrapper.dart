@@ -12,6 +12,8 @@ import 'trainer_selection_screen.dart';
 import 'home_dashboard_screen.dart';
 
 class AuthWrapper extends StatefulWidget {
+  static bool isFirstSessionPreview = false;
+
   const AuthWrapper({super.key});
 
   @override
@@ -126,8 +128,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
             }
 
             // STAGE B: User hasn't previewed the app yet -> Show Package Selection with "Explore App" option
-            if (!hasSeenFirstPreview) {
+            if (!hasSeenFirstPreview && !AuthWrapper.isFirstSessionPreview) {
               return const PackageSelectScreen();
+            }
+
+            // If the user just clicked "Explore App", allow them into the app for this session without the paywall
+            if (AuthWrapper.isFirstSessionPreview) {
+              return const HomeDashboardScreen();
             }
 
             // STAGE C: User previewed once, but hasn't paid ₹99 Entry Pass yet -> Show ₹99 Paywall

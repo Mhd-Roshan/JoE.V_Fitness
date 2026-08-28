@@ -8,14 +8,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
-import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
-import 'trainer_selection_screen.dart';
-import 'chat_screen.dart';
-import 'profile_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION SCREEN IMPORT
 import '../theme/app_theme_controller.dart';
 import '../widgets/package_required_modal.dart';
+import '../services/main_tab_controller.dart';
 
 class ProgressScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -46,7 +42,6 @@ class _ProgressScreenState extends State<ProgressScreen>
 
   late final String _todayDate;
   final Set<String> _shownDialogs = {};
-  bool _isNavigating = false;
   bool _hasPromptedDailyGoals = false;
 
   // --- Pre-calculated Dates ---
@@ -1298,36 +1293,6 @@ class _ProgressScreenState extends State<ProgressScreen>
     }
   }
 
-  Future<void> _navigateToBooking() async {
-    if (_isNavigating || _cachedUserData == null) {
-      return;
-    }
-    setState(() => _isNavigating = true);
-
-    try {
-      String? trainerId = _cachedUserData!['assignedTrainerId'];
-      Widget nextScreen = (trainerId == null || trainerId.isEmpty)
-          ? const SelectTrainerScreen()
-          : BookingScreen(trainerId: trainerId);
-      if (!mounted) {
-        return;
-      }
-      await Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isNavigating = false);
-      }
-    }
-  }
-
   @override
   bool get wantKeepAlive => true;
 
@@ -2176,16 +2141,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (c, a, b) => const HomeDashboardScreen(),
-                        transitionsBuilder: (c, a, b, child) =>
-                            FadeTransition(opacity: a, child: child),
-                        transitionDuration: const Duration(milliseconds: 150),
-                      ),
-                      (route) => false,
-                    );
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                    MainTabController.switchTab(0);
                   },
                 ),
                 _NavItem(
@@ -2195,7 +2152,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    _navigateToBooking();
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                    MainTabController.switchTab(1);
                   },
                 ),
                 _NavItem(
@@ -2212,15 +2170,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    Navigator.pushReplacement(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (c, a, b) => const ChatScreen(),
-                        transitionsBuilder: (c, a, b, child) =>
-                            FadeTransition(opacity: a, child: child),
-                        transitionDuration: const Duration(milliseconds: 150),
-                      ),
-                    );
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                    MainTabController.switchTab(3);
                   },
                 ),
                 _NavItem(
@@ -2230,15 +2181,8 @@ class _ProgressScreenState extends State<ProgressScreen>
                   selectedIndex: selectedIndex,
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    Navigator.pushReplacement(
-                      context,
-                      PageRouteBuilder(
-                        pageBuilder: (c, a, b) => const ProfileScreen(),
-                        transitionsBuilder: (c, a, b, child) =>
-                            FadeTransition(opacity: a, child: child),
-                        transitionDuration: const Duration(milliseconds: 150),
-                      ),
-                    );
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                    MainTabController.switchTab(4);
                   },
                 ),
               ],

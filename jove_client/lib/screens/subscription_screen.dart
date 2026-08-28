@@ -7,14 +7,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
 import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
-import 'trainer_selection_screen.dart';
 import 'notification_screen.dart';
 import 'auth/package_select_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../services/main_tab_controller.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -49,7 +48,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   final User? currentUser = FirebaseAuth.instance.currentUser;
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
   bool _isLoading = true;
-  bool _isNavigating = false;
 
   Map<String, dynamic>? _subscriptionData;
   List<Map<String, dynamic>> _paymentHistory = [];
@@ -244,47 +242,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  Future<void> _updatePaymentMethod(String newMethod) async {
-    if (currentUser == null) {
-      return;
-    }
-
-    HapticFeedback.mediumImpact();
-
-    setState(() {
-      _subscriptionData ??= {};
-      _subscriptionData!['paymentMethod'] = newMethod;
-    });
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .set({
-            'subscription': {'paymentMethod': newMethod},
-            'paymentMethod': newMethod, // Sync to root just in case
-          }, SetOptions(merge: true));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('payment_method_updated'.tr()),
-            backgroundColor: const Color(0xFF34C759),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('fail_update_payment_method'.tr()),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 
   Future<void> _cancelSubscription() async {
     HapticFeedback.mediumImpact();
@@ -511,183 +468,29 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  void _showChangePaymentMethodDialog() {
-    HapticFeedback.lightImpact();
-    final bool isDark = _isDarkMode;
-
-    List<Map<String, dynamic>> availableMethods = [
-      {'name': 'Razorpay', 'icon': Icons.payment_rounded},
-      {'name': 'UPI • jon@okicici', 'icon': Icons.paypal_rounded},
-      {'name': 'Credit Card •••• 1234', 'icon': Icons.credit_card_rounded},
-      {'name': 'Apple Pay • jon@doe.com', 'icon': Icons.apple_rounded},
-    ];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF333333)
-                      : Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'select_payment_method'.tr(),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? const Color(0xFFF5F5F5) : _navBgColor,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              ...availableMethods.map((method) {
-                bool isSelected =
-                    (_subscriptionData?['paymentMethod'] == method['name']);
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    method['icon'],
-                    color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                  ),
-                  title: Text(
-                    method['name'],
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                    ),
-                  ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check_circle, color: Color(0xFF34C759))
-                      : null,
-                  onTap: () {
-                    Navigator.pop(context);
-                    if (!isSelected) {
-                      _updatePaymentMethod(method['name']);
-                    }
-                  },
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   // --- NAVIGATION LOGIC ---
   void _navigate(Widget screen) {
-    if (_isNavigating) {
-      return;
-    }
-
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
-
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => screen,
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 150),
-      ),
-    ).then((_) {
-      if (mounted) {
-        setState(() => _isNavigating = false);
-      }
-    });
+    int index = 4; // default to profile
+    if (screen is HomeDashboardScreen) {
+      index = 0;
+    } else if (screen is ProgressScreen) {
+      index = 2;
+    } else if (screen is ChatScreen) {
+      index = 3;
+    } else if (screen is ProfileScreen) {
+      index = 4;
+    }
+    
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) {
-      return;
-    }
-
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
-
-    final navigator = Navigator.of(context);
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.3),
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CustomLoadingIndicator()),
-    );
-
-    try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
-      String? trainerId =
-          (userDoc.data() as Map<String, dynamic>?)?['assignedTrainerId'];
-
-      Widget nextScreen;
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const SelectTrainerScreen();
-      } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache))
-            .catchError(
-              (_) => FirebaseFirestore.instance
-                  .collection('trainers')
-                  .doc(trainerId)
-                  .get(),
-            );
-
-        nextScreen = trainerDoc.exists
-            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
-            : const SelectTrainerScreen();
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      navigator.pop();
-      await navigator.pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        navigator.pop();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('error_loading_booking'.tr())));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isNavigating = false;
-          _selectedIndexNotifier.value = 4;
-        });
-      }
-    }
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
   }
 
   // ==========================================
@@ -812,23 +615,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     ),
                                   ),
 
-                                  const SizedBox(height: 28),
-
-                                  Text(
-                                    'payment_method'.tr(),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark
-                                          ? const Color(0xFFF5F5F5)
-                                          : _navBgColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-
-                                  RepaintBoundary(
-                                    child: _buildPaymentMethodCard(),
-                                  ),
                                   const SizedBox(height: 28),
 
                                   Text(
@@ -1161,92 +947,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  Widget _buildPaymentMethodCard() {
-    final bool isDark = _isDarkMode;
-    String methodInfo =
-        _subscriptionData?['paymentMethod']?.toString() ??
-        'no_payment_method_linked'.tr();
-
-    IconData getMethodIcon() {
-      String lower = methodInfo.toLowerCase();
-      if (lower.contains('razorpay')) {
-        return Icons.payment_rounded;
-      }
-      if (lower.contains('upi') || lower.contains('paypal')) {
-        return Icons.paypal_rounded;
-      }
-      if (lower.contains('apple')) {
-        return Icons.apple_rounded;
-      }
-      return Icons.credit_card_rounded;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF121212) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: isDark ? Border.all(color: const Color(0xFF262626)) : null,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E1E1E) : _iconBg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    getMethodIcon(),
-                    color: isDark ? const Color(0xFF3B82F6) : _navBgColor,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    methodInfo,
-                    style: TextStyle(
-                      color: isDark ? const Color(0xFFF5F5F5) : _textMain,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: _showChangePaymentMethodDialog,
-            child: Text(
-              'change_btn'.tr(),
-              style: const TextStyle(
-                color: _redButton,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-                decoration: TextDecoration.underline,
-                decorationColor: _redButton,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildPaymentHistoryList() {
     final bool isDark = _isDarkMode;

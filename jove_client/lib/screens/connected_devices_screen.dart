@@ -8,8 +8,15 @@ import 'package:easy_localization/easy_localization.dart';
 import 'watch_scanner_screen.dart';
 import '../theme/app_theme_controller.dart';
 
+import 'home_dashboard_screen.dart';
+import 'progress_screen.dart';
+import 'chat_screen.dart';
+import 'profile_screen.dart';
+import '../services/main_tab_controller.dart';
+
 class ConnectedDevicesScreen extends StatefulWidget {
-  const ConnectedDevicesScreen({super.key});
+  final bool showBottomNav;
+  const ConnectedDevicesScreen({super.key, this.showBottomNav = true});
 
   @override
   State<ConnectedDevicesScreen> createState() => _ConnectedDevicesScreenState();
@@ -19,6 +26,9 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
   static const Color _primaryRed = Color(0xFFBB0013);
+  static const Color _navBgColor = Color(0xFF00215F);
+
+  final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
 
   final User? currentUser = FirebaseAuth.instance.currentUser;
   StreamSubscription<DocumentSnapshot>? _userSub;
@@ -313,6 +323,8 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return ValueListenableBuilder<bool>(
       valueListenable: AppThemeController.isDarkMode,
       builder: (context, isDark, _) {
@@ -331,6 +343,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
         }
 
         return Scaffold(
+          extendBody: true,
           backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
           appBar: AppBar(
             backgroundColor: isDark ? const Color(0xFF000000) : Colors.white,
@@ -377,10 +390,12 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                 ),
             ],
           ),
-          body: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Column(
+          body: Stack(
+            children: [
+              SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. ACTIVE CONNECTED HERO CARD
@@ -409,6 +424,13 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                 // Removed available brands section per user request
               ],
             ),
+              ),
+              if (widget.showBottomNav && !isKeyboardOpen)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: _buildBottomNavBar(),
+                ),
+            ],
           ),
         );
       },
@@ -895,6 +917,168 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
           onChanged: onChanged,
         ),
       ],
+    );
+  }
+
+  void _navigate(Widget screen) {
+    HapticFeedback.selectionClick();
+    int index = 4; // default to profile
+    if (screen is HomeDashboardScreen) {
+      index = 0;
+    } else if (screen is ProgressScreen) {
+      index = 2;
+    } else if (screen is ChatScreen) {
+      index = 3;
+    } else if (screen is ProfileScreen) {
+      index = 4;
+    }
+    
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
+  }
+
+  Future<void> _navigateToBooking() async {
+    HapticFeedback.selectionClick();
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
+  }
+
+  Widget _buildBottomNavBar() {
+    final bool isDark = AppThemeController.isDark;
+    final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      decoration: BoxDecoration(
+        color: navBg,
+        borderRadius: BorderRadius.circular(40),
+        border: isDark
+            ? Border.all(color: const Color(0xFF262626), width: 1.2)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ValueListenableBuilder<int>(
+        valueListenable: _selectedIndexNotifier,
+        builder: (context, selectedIndex, child) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _NavItem(
+                index: 0,
+                icon: Icons.home_filled,
+                label: 'home_nav'.tr(),
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const HomeDashboardScreen()),
+              ),
+              _NavItem(
+                index: 1,
+                icon: Icons.calendar_today_rounded,
+                label: 'booking_nav'.tr(),
+                selectedIndex: selectedIndex,
+                onTap: _navigateToBooking,
+              ),
+              _NavItem(
+                index: 2,
+                icon: Icons.bar_chart_rounded,
+                label: 'stats_nav'.tr(),
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ProgressScreen()),
+              ),
+              _NavItem(
+                index: 3,
+                icon: Icons.chat_bubble_outline_rounded,
+                label: 'chats_nav'.tr(),
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ChatScreen()),
+              ),
+              _NavItem(
+                index: 4,
+                icon: Icons.person_outline_rounded,
+                label: 'profile_nav'.tr(),
+                selectedIndex: selectedIndex,
+                onTap: () => _navigate(const ProfileScreen()),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+// --- BULLETPROOF OVERFLOW FIX ---
+class _NavItem extends StatelessWidget {
+  final int index, selectedIndex;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.index,
+    required this.icon,
+    required this.label,
+    required this.selectedIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    bool isSelected = selectedIndex == index;
+    // Uses strict Expanded to guarantee items divide space perfectly
+    return Expanded(
+      flex: isSelected ? 4 : 2,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          color: Colors.transparent, // Expands touch area safely
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
+            padding: isSelected
+                ? const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0)
+                : const EdgeInsets.symmetric(vertical: 8.0),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected ? Colors.black : Colors.white70,
+                  size: 20,
+                ),
+                if (isSelected) ...[
+                  const SizedBox(width: 4),
+                  Flexible(
+                    // Allows text to shrink and apply '...' ellipsis
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

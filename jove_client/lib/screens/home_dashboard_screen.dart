@@ -766,21 +766,48 @@ class _UpcomingSessionSection extends StatelessWidget {
             isSessionReached = !closestSessionDate.isAfter(now);
           }
 
+          final List<LinearGradient> dailyGradients = [
+            // 1. Monday: Cyan to Deep Blue
+            const LinearGradient(
+              colors: [Color(0xFF06B6D4), Color(0xFF1E3A8A)],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            ),
+            // 2. Tuesday: Light Green to Deep Green
+            const LinearGradient(
+              colors: [Color(0xFF4ADE80), Color(0xFF065F46)],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            ),
+            // 3. Wednesday: Pink to Deep Red
+            const LinearGradient(
+              colors: [Color(0xFFF472B6), Color(0xFF991B1B)],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            ),
+            // 4. Thursday: Deep Blue to Purple
+            const LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF9333EA)],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            ),
+            // 5. Friday: Bright Orange to Deep Red
+            const LinearGradient(
+              colors: [Color(0xFFF97316), Color(0xFF7F1D1D)],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            ),
+            // 6. Saturday: Violet to Magenta
+            const LinearGradient(
+              colors: [Color(0xFF8B5CF6), Color(0xFFBE185D)],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            ),
+            // 7. Sunday: Charcoal to Deep Blue
+            const LinearGradient(
+              colors: [Color(0xFF334155), Color(0xFF0F172A)],
+              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            ),
+          ];
+
           return Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment(-0.8, -0.8),
-                end: Alignment(1.0, 1.0),
-                stops: [0.0, 0.45, 0.65, 0.85, 1.0],
-                colors: [
-                  Color(0xFFE2EBE5),
-                  Color(0xFFF1E6B9),
-                  Color(0xFFFF5B3E),
-                  Color(0xFF141F36),
-                  Color(0xFFB7C7F5),
-                ],
-              ),
+              gradient: dailyGradients[now.weekday - 1],
               borderRadius: BorderRadius.circular(32),
               border: Border.all(
                 color: Colors.white.withValues(alpha: 0.5),
@@ -805,7 +832,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                       child: Text(
                         cardHeaderTitle,
                         style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.7),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
                         ),
@@ -843,7 +870,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                   Text(
                     bookingData!['sessionType'] ?? 'training_session'.tr(),
                     style: const TextStyle(
-                      color: Colors.black87,
+                      color: Colors.white,
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.5,
@@ -857,13 +884,13 @@ class _UpcomingSessionSection extends StatelessWidget {
                       Icon(
                         Icons.person_outline,
                         size: 16,
-                        color: Colors.black.withValues(alpha: 0.7),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                       const SizedBox(width: 4),
                       Text(
                         bookingData['trainerName'] ?? 'trainer'.tr(),
                         style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.7),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
@@ -872,7 +899,7 @@ class _UpcomingSessionSection extends StatelessWidget {
                       Text(
                         '$displayDate • ${bookingData['time'] ?? 'tbd'.tr()}',
                         style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.7),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),

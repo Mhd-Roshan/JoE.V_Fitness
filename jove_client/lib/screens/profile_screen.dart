@@ -1,4 +1,3 @@
-import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,9 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
 import 'progress_screen.dart';
-import 'trainer_selection_screen.dart';
 import 'change_trainer_screen.dart';
 import 'chat_screen.dart';
 import 'personal_details_screen.dart';
@@ -23,6 +20,8 @@ import 'support_screen.dart';
 import 'welcome_screen.dart'; // <-- ADDED WELCOME SCREEN IMPORT
 import 'connected_devices_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../widgets/package_required_modal.dart';
+import '../services/main_tab_controller.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -48,7 +47,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   final User? currentUser = FirebaseAuth.instance.currentUser;
   StreamSubscription<DocumentSnapshot>? _userSubscription;
 
-  bool _isNavigating = false;
   bool _hasPromptedFeedback = false;
 
   bool get _isDarkMode => AppThemeController.isDark;
@@ -385,24 +383,20 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // --- NAVIGATION LOGIC ---
   void _navigate(Widget screen) {
-    if (_isNavigating) return;
-    _isNavigating = true;
     HapticFeedback.selectionClick();
-
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => screen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      ).then((_) {
-        if (mounted) _isNavigating = false;
-      });
-    });
+    int index = 4;
+    if (screen is HomeDashboardScreen) {
+      index = 0;
+    } else if (screen is ProgressScreen) {
+      index = 2;
+    } else if (screen is ChatScreen) {
+      index = 3;
+    } else if (screen is ProfileScreen) {
+      index = 4;
+    }
+    
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   void _pushScreen(Widget screen) {
@@ -415,64 +409,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) return;
-    _isNavigating = true;
     HapticFeedback.selectionClick();
-
-    final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black12,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CustomLoadingIndicator()),
-    );
-
-    try {
-      final String? trainerId = _userDataNotifier.value['assignedTrainerId'];
-      Widget nextScreen;
-
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const SelectTrainerScreen();
-      } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache))
-            .catchError(
-              (_) => FirebaseFirestore.instance
-                  .collection('trainers')
-                  .doc(trainerId)
-                  .get(),
-            );
-
-        nextScreen = trainerDoc.exists
-            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
-            : const SelectTrainerScreen();
-      }
-
-      navigator.pop();
-
-      await navigator.pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      navigator.pop();
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('error_loading_booking'.tr())),
-      );
-    } finally {
-      if (mounted) {
-        _isNavigating = false;
-        _selectedIndexNotifier.value = 4;
-      }
-    }
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
   }
 
   // --- UPDATED SIGN OUT LOGIC ---
@@ -620,6 +559,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       .first
                                 : 'Connect';
 
+                            bool isPackageExpired = false;
+                            final nextBillingDate = userData['subscription']?['nextBillingDate'];
+                            if (nextBillingDate != null) {
+                              isPackageExpired = DateTime.now().isAfter(
+                                (nextBillingDate as Timestamp).toDate(),
+                              );
+                            }
+
+                            final bool hasActiveSubscription = !isPackageExpired &&
+                                (userData['hasActiveSubscription'] == true ||
+                                    (userData['subscription'] is Map &&
+                                        userData['subscription']['status'] == 'Active'));
+
                             return Column(
                               children: [
                                 RepaintBoundary(
@@ -671,9 +623,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     icon: Icons.swap_horiz_rounded,
                                     title: 'change_trainer'.tr(),
                                     trailingText: trainerName,
-                                    onTap: () => _pushScreen(
-                                      const ChangeTrainerScreen(),
-                                    ),
+                                    onTap: () {
+                                      if (!hasActiveSubscription) {
+                                        showPackageRequiredSheet(context, featureName: 'Trainer Change');
+                                      } else {
+                                        _pushScreen(const ChangeTrainerScreen());
+                                      }
+                                    },
                                   ),
                                 ]),
 
