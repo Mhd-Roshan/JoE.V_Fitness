@@ -44,6 +44,8 @@ dependencies:
   # --- NEW: BLUETOOTH BLE PACKAGES ---
   flutter_blue_plus: ^1.34.4
   permission_handler: ^11.3.1
+  http: ^1.2.0
+  cloud_functions: ^6.4.0
 
 dev_dependencies:
   flutter_test:

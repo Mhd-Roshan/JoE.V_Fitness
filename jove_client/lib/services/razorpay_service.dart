@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class RazorpayService {
   static final RazorpayService instance = RazorpayService._internal();
@@ -11,9 +12,9 @@ class RazorpayService {
   late Razorpay _razorpay;
   bool _isInitialized = false;
 
-  // Default test API key
-  static const String defaultKeyId = 'rzp_test_TUIFsntsNuezHz';
-  // Note: The Razorpay secret key is: 37WG7evVDqNTBXrt06Nqugqn
+  // Default API key
+  static const String defaultKeyId = 'rzp_live_TW1gk81ITSEDXf';
+  // Note: The Razorpay secret key is: Em3E25wSoR7Cd2ffIgsmZQHa
   // Important: Secret keys should NEVER be exposed in the frontend app in production.
   // It is kept here as a reference for your backend/Firebase Functions signature verification.
 
@@ -59,7 +60,8 @@ class RazorpayService {
   }
 
   /// Opens the Razorpay native checkout modal
-  void openCheckout({
+  /// Opens the Razorpay native checkout modal
+  Future<void> openCheckout({
     required num amount, // in Rupees (will be multiplied by 100 for paise)
     required String packageName,
     required String userEmail,
@@ -67,33 +69,52 @@ class RazorpayService {
     required String userName,
     String? keyId,
     Map<String, dynamic>? notes,
-  }) {
+  }) async {
     final int amountInPaise = (amount * 100).toInt();
-
-    final options = {
-      'key': keyId ?? defaultKeyId,
-      'amount': amountInPaise,
-      'name': 'JoE.V Fitness',
-      'description': '$packageName Membership Plan',
-      'timeout': 300, // 5 minutes
-      'prefill': {
-        'contact': userPhone.isNotEmpty ? userPhone : '9876543210',
-        'email': userEmail.isNotEmpty ? userEmail : 'athlete@jovefitness.com',
-        'name': userName.isNotEmpty ? userName : 'Athlete',
-      },
-      'theme': {
-        'color': '#BB0013', // Jove Fitness Brand Red
-      },
-      'notes': {
-        'appName': 'JoE.V Fitness',
-        'packageName': packageName,
-        ...?notes,
-      },
-      'retry': {'enabled': true, 'max_count': 3},
-      'send_sms_hash': true,
-    };
+    final String currentKeyId = keyId ?? defaultKeyId;
 
     try {
+      final options = <String, dynamic>{
+        'key': currentKeyId,
+        'name': 'JoE.V Fitness',
+        'description': '$packageName Membership Plan',
+        'image': 'https://firebasestorage.googleapis.com/v0/b/joev-fintess.firebasestorage.app/o/Document%20from%20(1).png?alt=media',
+        'timeout': 300, // 5 minutes
+        'prefill': {
+          'contact': userPhone.isNotEmpty ? userPhone : '9876543210',
+          'email': userEmail.isNotEmpty ? userEmail : 'athlete@jovefitness.com',
+          'name': userName.isNotEmpty ? userName : 'Athlete',
+        },
+        'theme': {
+          'color': '#BB0013', // Jove Fitness Brand Red
+        },
+        'notes': {
+          'appName': 'JoE.V Fitness',
+          'packageName': packageName,
+          ...?notes,
+        },
+        'retry': {'enabled': true, 'max_count': 3},
+        'send_sms_hash': true,
+      };
+
+      // If Auto-Renew is requested and it's a package purchase, use Subscriptions API
+      if (notes != null && notes['autoRenew'] == true && notes.containsKey('packageId')) {
+        final planId = notes['packageId']; // We assume the packageId in Firestore matches the Razorpay plan_id
+        debugPrint("Calling Cloud Function to create subscription for plan: $planId");
+        
+        final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('createRazorpaySubscription');
+        final result = await callable.call(<String, dynamic>{
+          'planId': planId,
+          'totalCount': 12, // 12 months default
+        });
+
+        final subscriptionId = result.data['subscriptionId'];
+        options['subscription_id'] = subscriptionId;
+      } else {
+        // Standard One-Time Payment
+        options['amount'] = amountInPaise;
+      }
+
       _razorpay.open(options);
     } catch (e) {
       debugPrint("Error opening Razorpay checkout: $e");
