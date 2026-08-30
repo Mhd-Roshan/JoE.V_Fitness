@@ -16,7 +16,7 @@ import 'health_profile_screen.dart';
 import 'subscription_screen.dart';
 import 'notification_settings_screen.dart';
 import 'app_language_screen.dart';
-import 'support_screen.dart';
+import 'help_feedback_screen.dart';
 import 'welcome_screen.dart'; // <-- ADDED WELCOME SCREEN IMPORT
 import 'connected_devices_screen.dart';
 import '../theme/app_theme_controller.dart';
@@ -653,9 +653,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   ),
                                   _MenuItemData(
                                     icon: Icons.help_outline_rounded,
-                                    title: 'support'.tr(),
+                                    title: 'Help & Feedback',
                                     onTap: () =>
-                                        _pushScreen(const SupportScreen()),
+                                        _pushScreen(const HelpFeedbackScreen()),
                                   ),
                                 ]),
                               ],

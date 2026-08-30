@@ -17,6 +17,7 @@ import '../services/wearable_sync_manager.dart';
 import '../services/main_tab_controller.dart';
 import '../theme/app_theme_controller.dart';
 import '../widgets/package_required_modal.dart';
+import '../widgets/location_picker_sheet.dart';
 import 'auth/package_select_screen.dart';
 
 class _Formatters {
@@ -76,12 +77,33 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
     final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     WearableSyncManager.instance.initialize();
     _markSessionPreviewSeen(uid);
+    _checkLocationOnFirstOpen(uid);
 
     if (widget.initialTab != 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         MainTabController.switchTab(widget.initialTab);
       });
     }
+  }
+
+  /// Shows the location picker bottom sheet if user hasn't set a location yet.
+  void _checkLocationOnFirstOpen(String uid) {
+    if (uid.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        if (!mounted) return;
+        final data = doc.data() ?? {};
+        final bool hasSetLocation = data['hasSetLocation'] == true;
+        if (!hasSetLocation) {
+          LocationPickerSheet.show(context);
+        }
+      } catch (_) {}
+    });
   }
 
   void _markSessionPreviewSeen(String uid) {
