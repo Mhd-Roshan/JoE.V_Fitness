@@ -111,11 +111,10 @@ class _ChatScreenState extends State<ChatScreen>
 
     try {
       final String uid = currentUser!.uid;
-      final String clientName =
-          currentUser!.displayName != null &&
-              currentUser!.displayName!.isNotEmpty
-          ? currentUser!.displayName!
-          : 'athlete'.tr();
+      final String rawUserName = currentUser!.displayName ?? '';
+      final String clientName = rawUserName.trim().isNotEmpty
+          ? rawUserName
+          : '';
 
       final chatDocRef = FirebaseFirestore.instance
           .collection('chatThreads')

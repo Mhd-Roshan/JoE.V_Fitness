@@ -95,14 +95,17 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
         final doc = await FirebaseFirestore.instance
             .collection('users')
             .doc(uid)
-            .get();
+            .get(const GetOptions(source: Source.serverAndCache))
+            .timeout(const Duration(seconds: 5));
         if (!mounted) return;
         final data = doc.data() ?? {};
         final bool hasSetLocation = data['hasSetLocation'] == true;
         if (!hasSetLocation) {
           LocationPickerSheet.show(context);
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint("Location check timeout or error: $e");
+      }
     });
   }
 
@@ -599,7 +602,7 @@ class _HeaderSection extends StatelessWidget {
         '';
     final String userName = rawUserName.trim().isNotEmpty
         ? rawUserName
-        : 'athlete_fallback'.tr();
+        : 'User';
     final String profilePic =
         userData['photoURL'] ??
         userData['photoUrl'] ??

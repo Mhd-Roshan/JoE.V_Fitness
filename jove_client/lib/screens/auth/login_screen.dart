@@ -271,6 +271,11 @@ class _LoginScreenState extends State<LoginScreen>
           .doc(formattedPhone)
           .get();
 
+      String? pendingName;
+      if (pendingQuery.exists) {
+        pendingName = pendingQuery.data()?['name'];
+      }
+
       if (!mounted) return;
 
       if (userQuery.docs.isEmpty && !pendingQuery.exists) {
@@ -284,7 +289,11 @@ class _LoginScreenState extends State<LoginScreen>
         context,
         MaterialPageRoute(
           builder: (context) =>
-              OtpScreen(phone: formattedPhone, isSignUp: false),
+              OtpScreen(
+                phone: formattedPhone, 
+                isSignUp: false,
+                name: pendingName,
+              ),
         ),
       );
     } catch (e) {

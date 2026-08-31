@@ -99,6 +99,11 @@ class _OtpScreenState extends State<OtpScreen>
   Future<void> _sendOtp() async {
     debugPrint("📱 [OTP] Initiating phone verification for: ${widget.phone}");
     try {
+      // Force native Android verification (Play Integrity) — skip reCAPTCHA web fallback
+      await FirebaseAuth.instance.setSettings(
+        forceRecaptchaFlow: false,
+      );
+
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: widget.phone,
         forceResendingToken: _resendToken,
