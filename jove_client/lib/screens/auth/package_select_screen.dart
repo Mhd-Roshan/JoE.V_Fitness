@@ -510,35 +510,31 @@ class _PackageSelectScreenState extends State<PackageSelectScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.grey.shade300),
                 ),
-                child: Material(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  child: CheckboxListTile(
-                    value: _autoRenew,
-                    activeColor: navy,
-                    checkColor: Colors.white,
-                    title: Text(
-                      'auto_renew_monthly'.tr(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: Colors.black87,
-                        fontWeight: FontWeight.w600,
-                      ),
+                child: CheckboxListTile(
+                  value: _autoRenew,
+                  activeColor: navy,
+                  checkColor: Colors.white,
+                  title: Text(
+                    'auto_renew_monthly'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: Colors.black87,
+                      fontWeight: FontWeight.w600,
                     ),
-                    subtitle: Text(
-                      'cancel_anytime'.tr(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    onChanged: (v) {
-                      HapticFeedback.lightImpact();
-                      setState(() => _autoRenew = v ?? true);
-                    },
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
+                  subtitle: Text(
+                    'cancel_anytime'.tr(),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  onChanged: (v) {
+                    HapticFeedback.lightImpact();
+                    setState(() => _autoRenew = v ?? true);
+                  },
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
                 ),
               ),
 

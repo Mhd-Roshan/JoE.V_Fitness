@@ -99,16 +99,18 @@ class _OtpScreenState extends State<OtpScreen>
   Future<void> _sendOtp() async {
     debugPrint("📱 [OTP] Initiating phone verification for: ${widget.phone}");
     try {
-      // Force native Android verification (Play Integrity) — skip reCAPTCHA web fallback
-      await FirebaseAuth.instance.setSettings(
-        forceRecaptchaFlow: false,
-      );
-
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: widget.phone,
         forceResendingToken: _resendToken,
         verificationCompleted: (PhoneAuthCredential credential) async {
           debugPrint("📱 [OTP] Auto-verification completed by Android");
+          if (_isVerifying) return;
+          if (mounted) {
+            setState(() {
+              _isVerifying = true;
+              _isLoading = true;
+            });
+          }
           await _signIn(credential);
         },
         verificationFailed: (FirebaseAuthException e) {
@@ -236,11 +238,30 @@ class _OtpScreenState extends State<OtpScreen>
               .delete();
         }
 
+        // Fallback for developers testing by deleting Auth users without deleting Firestore docs
+        if (savedName.isEmpty) {
+          final orphanedDocQuery = await FirebaseFirestore.instance
+              .collection('users')
+              .where('phone', isEqualTo: widget.phone)
+              .where('role', isEqualTo: 'client')
+              .limit(1)
+              .get();
+              
+          if (orphanedDocQuery.docs.isNotEmpty) {
+            final oldData = orphanedDocQuery.docs.first.data();
+            savedName = oldData['fullName'] ?? oldData['name'] ?? '';
+            savedEmail = oldData['email'] ?? savedEmail;
+            
+            // Clean up the old dangling document
+            await FirebaseFirestore.instance.collection('users').doc(orphanedDocQuery.docs.first.id).delete();
+          }
+        }
+
         await userDocRef.set({
           'role': 'client',
           'authProvider': 'phone',
           'fullName': savedName,
-          'email': savedEmail,
+          'email': savedEmail.toLowerCase(),
           'phone': widget.phone,
           'assessmentCompleted': false,
           'createdAt': FieldValue.serverTimestamp(),

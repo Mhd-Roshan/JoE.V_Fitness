@@ -14,9 +14,6 @@ class RazorpayService {
 
   // Default API key
   static const String defaultKeyId = 'rzp_live_TW1gk81ITSEDXf';
-  // Note: The Razorpay secret key is: Em3E25wSoR7Cd2ffIgsmZQHa
-  // Important: Secret keys should NEVER be exposed in the frontend app in production.
-  // It is kept here as a reference for your backend/Firebase Functions signature verification.
 
   Function(PaymentSuccessResponse response)? _onSuccess;
   Function(PaymentFailureResponse response)? _onError;

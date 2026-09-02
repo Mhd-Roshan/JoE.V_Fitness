@@ -76,15 +76,13 @@ class AppNotificationService {
         >();
     if (androidPlugin != null) {
       await androidPlugin.createNotificationChannel(_androidChannel);
-      // DO NOT await permission request here to prevent blocking main()
-      androidPlugin.requestNotificationsPermission();
+      await androidPlugin.requestNotificationsPermission();
     }
 
     // 2. Firebase Cloud Messaging Setup
     try {
       FirebaseMessaging messaging = FirebaseMessaging.instance;
-      // DO NOT await this to prevent blocking main() before runApp
-      messaging.requestPermission(
+      NotificationSettings settings = await messaging.requestPermission(
         alert: true,
         announcement: false,
         badge: true,
@@ -92,11 +90,10 @@ class AppNotificationService {
         criticalAlert: false,
         provisional: false,
         sound: true,
-      ).then((settings) {
-        debugPrint(
-          'User notification permission status: ${settings.authorizationStatus}',
-        );
-      });
+      );
+      debugPrint(
+        'User notification permission status: ${settings.authorizationStatus}',
+      );
 
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 

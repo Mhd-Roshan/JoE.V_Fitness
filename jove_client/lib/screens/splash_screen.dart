@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // --- IMPORTANT: Import your AuthWrapper here instead of WelcomeScreen ---
 import 'auth_wrapper.dart';
@@ -39,6 +40,9 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateToNext() async {
+    // Request location permission on app open
+    await _requestLocationPermission();
+
     // Splash display time
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
@@ -61,6 +65,13 @@ class _SplashScreenState extends State<SplashScreen>
         },
       ),
     );
+  }
+
+  Future<void> _requestLocationPermission() async {
+    final status = await Permission.location.status;
+    if (status.isDenied) {
+      await Permission.location.request();
+    }
   }
 
   @override

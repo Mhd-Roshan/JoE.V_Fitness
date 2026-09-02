@@ -221,7 +221,7 @@ class _SignUpScreenState extends State<SignUpScreen>
 
   Future<void> _handleSignUp() async {
     final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     final phone = _phoneController.text.trim();
 
     setState(() {
@@ -250,7 +250,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           .get();
 
       // 2. Check if email exists in 'users'
-      final existingEmailQuery = await FirebaseFirestore.instance
+      var existingEmailQuery = await FirebaseFirestore.instance
           .collection('users')
           .where('email', isEqualTo: email)
           .where('role', isEqualTo: 'client')
@@ -264,7 +264,7 @@ class _SignUpScreenState extends State<SignUpScreen>
           .get();
 
       // 4. Check if email exists in 'pending_users'
-      final pendingEmailQuery = await FirebaseFirestore.instance
+      var pendingEmailQuery = await FirebaseFirestore.instance
           .collection('pending_users')
           .where('email', isEqualTo: email)
           .limit(1)
@@ -278,7 +278,29 @@ class _SignUpScreenState extends State<SignUpScreen>
         return;
       }
 
-      if (existingEmailQuery.docs.isNotEmpty || pendingEmailQuery.docs.isNotEmpty) {
+      bool emailExists = existingEmailQuery.docs.isNotEmpty || pendingEmailQuery.docs.isNotEmpty;
+      
+      // Fallback for old uppercase data during testing
+      if (!emailExists) {
+        final allUsers = await FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'client').get();
+        for (var doc in allUsers.docs) {
+          if ((doc.data()['email'] as String?)?.toLowerCase() == email) {
+            emailExists = true;
+            break;
+          }
+        }
+        if (!emailExists) {
+          final allPending = await FirebaseFirestore.instance.collection('pending_users').get();
+          for (var doc in allPending.docs) {
+            if ((doc.data()['email'] as String?)?.toLowerCase() == email) {
+              emailExists = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (emailExists) {
         setState(() => _isLoading = false);
         _showModernSnackBar('Email is already registered. Please sign in.', isError: false);
         return;

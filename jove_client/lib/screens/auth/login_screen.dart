@@ -323,25 +323,55 @@ class _LoginScreenState extends State<LoginScreen>
         final userDoc = await userDocRef.get();
 
         if (!userDoc.exists) {
+          final emailToCheck = user.email?.toLowerCase() ?? '';
+
           // Check if this email already exists under a Phone UID
-          final existingUserByEmail = await FirebaseFirestore.instance
+          var existingUserByEmail = await FirebaseFirestore.instance
               .collection('users')
-              .where('email', isEqualTo: user.email)
+              .where('email', isEqualTo: emailToCheck)
               .where('role', isEqualTo: 'client')
               .limit(1)
               .get();
 
+          DocumentSnapshot? conflictingDoc;
+          
           if (existingUserByEmail.docs.isNotEmpty) {
-            await FirebaseAuth.instance.signOut();
-            setState(() => _isLoading = false);
-            _showModernSnackBar('Email already registered via Phone. Please use Phone Login.', isError: true);
-            return;
+             conflictingDoc = existingUserByEmail.docs.first;
+          } else {
+             // Fallback for old uppercase data during testing
+             final allUsers = await FirebaseFirestore.instance
+                  .collection('users')
+                  .where('role', isEqualTo: 'client')
+                  .get();
+             for (var doc in allUsers.docs) {
+                final dbEmail = (doc.data()['email'] as String?)?.toLowerCase() ?? '';
+                if (dbEmail == emailToCheck) {
+                   conflictingDoc = doc;
+                   break;
+                }
+             }
+          }
+
+          if (conflictingDoc != null) {
+            final data = conflictingDoc.data() as Map<String, dynamic>;
+            final provider = data['authProvider'] ?? 'phone';
+            
+            if (provider == 'phone') {
+              await FirebaseAuth.instance.signOut();
+              if (!mounted) return;
+              setState(() => _isLoading = false);
+              _showModernSnackBar('Email already registered via Phone. Please use Phone Login.', isError: true);
+              return;
+            } else {
+              // It's an orphaned Google Auth doc from testing. We should delete it so we can recreate it under the new UID.
+              await FirebaseFirestore.instance.collection('users').doc(conflictingDoc.id).delete();
+            }
           }
 
           // Check if there is a pending user with this email
-          final pendingUserQuery = await FirebaseFirestore.instance
+          var pendingUserQuery = await FirebaseFirestore.instance
               .collection('pending_users')
-              .where('email', isEqualTo: user.email)
+              .where('email', isEqualTo: emailToCheck)
               .limit(1)
               .get();
 
@@ -354,13 +384,26 @@ class _LoginScreenState extends State<LoginScreen>
              phone = pendingData['phone'] ?? phone;
              // delete pending doc
              await FirebaseFirestore.instance.collection('pending_users').doc(pendingUserQuery.docs.first.id).delete();
+          } else {
+             // Fallback for old uppercase pending data
+             final allPending = await FirebaseFirestore.instance.collection('pending_users').get();
+             for (var doc in allPending.docs) {
+                final dbEmail = (doc.data()['email'] as String?)?.toLowerCase() ?? '';
+                if (dbEmail == emailToCheck) {
+                   final pendingData = doc.data();
+                   name = pendingData['name'] ?? name;
+                   phone = pendingData['phone'] ?? phone;
+                   await FirebaseFirestore.instance.collection('pending_users').doc(doc.id).delete();
+                   break;
+                }
+             }
           }
 
           await userDocRef.set({
             'role': 'client',
             'authProvider': 'google',
             'fullName': name,
-            'email': user.email ?? '',
+            'email': emailToCheck,
             'phone': phone,
             'assessmentCompleted': false,
             'createdAt': FieldValue.serverTimestamp(),
