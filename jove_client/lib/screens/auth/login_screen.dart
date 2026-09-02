@@ -322,51 +322,72 @@ class _LoginScreenState extends State<LoginScreen>
             .doc(user.uid);
         final userDoc = await userDocRef.get();
 
-        if (!userDoc.exists) {
-          final emailToCheck = user.email?.toLowerCase() ?? '';
+        final emailToCheck = user.email?.toLowerCase() ?? '';
 
-          // Check if this email already exists under a Phone UID
-          var existingUserByEmail = await FirebaseFirestore.instance
-              .collection('users')
-              .where('email', isEqualTo: emailToCheck)
-              .where('role', isEqualTo: 'client')
-              .limit(1)
-              .get();
+        // Check if this email already exists under a Phone UID
+        var existingUserByEmail = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: emailToCheck)
+            .where('role', isEqualTo: 'client')
+            .limit(1)
+            .get();
 
-          DocumentSnapshot? conflictingDoc;
+        DocumentSnapshot? conflictingDoc;
+        
+        if (existingUserByEmail.docs.isNotEmpty) {
+           final firstDoc = existingUserByEmail.docs.first;
+           if (firstDoc.id != user.uid) {
+             conflictingDoc = firstDoc;
+           }
+        } else {
+           // Fallback for old uppercase data during testing
+           final allUsers = await FirebaseFirestore.instance
+                .collection('users')
+                .where('role', isEqualTo: 'client')
+                .get();
+           for (var doc in allUsers.docs) {
+              final dbEmail = (doc.data()['email'] as String?)?.toLowerCase() ?? '';
+              if (dbEmail == emailToCheck && doc.id != user.uid) {
+                 conflictingDoc = doc;
+                 break;
+              }
+           }
+        }
+
+        if (conflictingDoc != null) {
+          final data = conflictingDoc.data() as Map<String, dynamic>;
+          final provider = data['authProvider'] ?? 'phone';
           
-          if (existingUserByEmail.docs.isNotEmpty) {
-             conflictingDoc = existingUserByEmail.docs.first;
-          } else {
-             // Fallback for old uppercase data during testing
-             final allUsers = await FirebaseFirestore.instance
-                  .collection('users')
-                  .where('role', isEqualTo: 'client')
-                  .get();
-             for (var doc in allUsers.docs) {
-                final dbEmail = (doc.data()['email'] as String?)?.toLowerCase() ?? '';
-                if (dbEmail == emailToCheck) {
-                   conflictingDoc = doc;
-                   break;
-                }
-             }
-          }
-
-          if (conflictingDoc != null) {
-            final data = conflictingDoc.data() as Map<String, dynamic>;
-            final provider = data['authProvider'] ?? 'phone';
+          if (provider == 'phone') {
+            await user.delete();
+            await FirebaseAuth.instance.signOut();
             
-            if (provider == 'phone') {
-              await FirebaseAuth.instance.signOut();
-              if (!mounted) return;
-              setState(() => _isLoading = false);
-              _showModernSnackBar('Email already registered via Phone. Please use Phone Login.', isError: true);
-              return;
-            } else {
-              // It's an orphaned Google Auth doc from testing. We should delete it so we can recreate it under the new UID.
-              await FirebaseFirestore.instance.collection('users').doc(conflictingDoc.id).delete();
+            // Clean up the empty Google doc if it exists
+            if (userDoc.exists) {
+               await userDocRef.delete();
             }
+
+            if (!mounted) return;
+            setState(() => _isLoading = false);
+            _showModernSnackBar('Link Google Account by verifying your Phone', isError: false);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OtpScreen(
+                  phone: data['phone'] ?? '',
+                  isSignUp: false,
+                  credentialToLink: credential,
+                ),
+              ),
+            );
+            return;
+          } else {
+            // It's an orphaned Google Auth doc from testing. We should delete it so we can recreate it under the new UID.
+            await FirebaseFirestore.instance.collection('users').doc(conflictingDoc.id).delete();
           }
+        }
+
+        if (!userDoc.exists) {
 
           // Check if there is a pending user with this email
           var pendingUserQuery = await FirebaseFirestore.instance

@@ -14,6 +14,7 @@ class OtpScreen extends StatefulWidget {
   final String phone; // E.164 format, e.g. +919876543210
   final String? name;
   final String? email;
+  final OAuthCredential? credentialToLink;
 
   const OtpScreen({
     super.key,
@@ -21,6 +22,7 @@ class OtpScreen extends StatefulWidget {
     this.isSignUp = false,
     this.name,
     this.email,
+    this.credentialToLink,
   });
 
   @override
@@ -192,6 +194,15 @@ class _OtpScreenState extends State<OtpScreen>
       final userCredential = await FirebaseAuth.instance.signInWithCredential(
         credential,
       );
+
+      if (widget.credentialToLink != null) {
+        try {
+          await userCredential.user!.linkWithCredential(widget.credentialToLink!);
+        } catch (e) {
+          debugPrint('Failed to link credential: $e');
+        }
+      }
+
       final uid = userCredential.user!.uid;
 
       final userDocRef = FirebaseFirestore.instance
