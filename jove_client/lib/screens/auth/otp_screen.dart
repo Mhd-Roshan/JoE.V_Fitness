@@ -277,6 +277,14 @@ class _OtpScreenState extends State<OtpScreen>
           'assessmentCompleted': false,
           'createdAt': FieldValue.serverTimestamp(),
         });
+        
+        if (savedName.isNotEmpty) {
+          try {
+            await FirebaseAuth.instance.currentUser?.updateDisplayName(savedName);
+          } catch (e) {
+            debugPrint('Failed to update auth display name: $e');
+          }
+        }
       }
 
       // Give the UI thread 50ms to render the success state/ripple

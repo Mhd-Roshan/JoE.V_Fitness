@@ -48,6 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   StreamSubscription<DocumentSnapshot>? _userSubscription;
 
   bool _hasPromptedFeedback = false;
+  bool _isGoogleLinked = false;
 
   bool get _isDarkMode => AppThemeController.isDark;
 
@@ -57,7 +58,17 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
+    _checkGoogleLinkedStatus();
     _initUserDataListener();
+  }
+
+  void _checkGoogleLinkedStatus() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      setState(() {
+        _isGoogleLinked = user.providerData.any((info) => info.providerId == 'google.com');
+      });
+    }
   }
 
   void _initUserDataListener() {
@@ -203,6 +214,51 @@ class _ProfileScreenState extends State<ProfileScreen>
       case 'en':
       default:
         return 'English (US)';
+    }
+  }
+
+  // --- ACCOUNT LINKING LOGIC ---
+  Future<void> _linkGoogleAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) return; 
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await user.linkWithCredential(credential);
+
+      setState(() {
+        _isGoogleLinked = true;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google account linked successfully!')),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) {
+        String msg = 'Failed to link Google account';
+        if (e.code == 'credential-already-in-use') {
+          msg = 'This Google account is already linked to another user.';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An error occurred. Please try again.')),
+        );
+      }
     }
   }
 
@@ -612,6 +668,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     onTap: () => _pushScreen(
                                       const ConnectedDevicesScreen(),
                                     ),
+                                  ),
+                                  _MenuItemData(
+                                    icon: Icons.link_rounded,
+                                    title: 'Link Google Account',
+                                    trailingText: _isGoogleLinked ? 'Linked' : 'Not Linked',
+                                    onTap: _isGoogleLinked ? () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Google account is already linked')),
+                                      );
+                                    } : _linkGoogleAccount,
                                   ),
                                   _MenuItemData(
                                     icon: Icons.credit_card_outlined,
