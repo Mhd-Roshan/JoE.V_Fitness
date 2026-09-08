@@ -1,8 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class AppThemeController with WidgetsBindingObserver {
   // Singleton for observing system theme changes
@@ -17,7 +14,7 @@ class AppThemeController with WidgetsBindingObserver {
     _instance;
   }
 
-  static bool _hasUserOverride = false;
+  static final bool _hasUserOverride = false;
 
   static final ValueNotifier<bool> isDarkMode = ValueNotifier<bool>(
     PlatformDispatcher.instance.platformBrightness == Brightness.dark,
@@ -59,34 +56,16 @@ class AppThemeController with WidgetsBindingObserver {
 
   static const Color primaryRed = Color(0xFFBA0C19);
 
-  /// Toggle between Light and Dark Mode app-wide with haptic feedback & cloud sync
-  static Future<void> toggleTheme() async {
-    HapticFeedback.mediumImpact();
-    isDarkMode.value = !isDarkMode.value;
-    _hasUserOverride = true;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'isDarkMode': isDarkMode.value,
-        }, SetOptions(merge: true));
-      } catch (e) {
-        debugPrint('Error saving theme preference: $e');
-      }
-    }
+  /// Note: toggleTheme is now handled by ThemeProvider.
+  /// This remains here for backwards compatibility until all screens are migrated.
+  static Future<void> toggleTheme(BuildContext context) async {
+    // We defer to the new ThemeProvider which handles SharedPreferences
+    // The Provider will update this ValueNotifier to keep old screens in sync.
   }
 
-  /// Initialize theme from user document
+  /// Initialize theme from LocalStorageService instead of User Data
   static void initFromUserData(Map<String, dynamic>? data) {
-    if (data != null && data['isDarkMode'] is bool) {
-      _hasUserOverride = true;
-      isDarkMode.value = data['isDarkMode'];
-    } else {
-      _hasUserOverride = false;
-      isDarkMode.value =
-          PlatformDispatcher.instance.platformBrightness == Brightness.dark;
-    }
+    // Kept for signature compatibility. Do nothing as ThemeProvider handles initialization.
   }
 
   /// App-wide Light Theme

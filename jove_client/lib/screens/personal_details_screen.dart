@@ -18,6 +18,7 @@ import 'profile_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
 import '../widgets/package_required_modal.dart';
 import '../theme/app_theme_controller.dart';
+import 'auth/login_screen.dart';
 
 class PersonalDetailsScreen extends StatefulWidget {
   const PersonalDetailsScreen({super.key});
@@ -480,6 +481,8 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                             const SizedBox(height: 40),
 
                             _buildSaveButton(),
+                            const SizedBox(height: 16),
+                            _buildDeleteAccountButton(),
                           ],
                         ),
                       );
@@ -912,6 +915,109 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    
+    final bool confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete Account', style: TextStyle(color: _redButton, fontWeight: FontWeight.bold)),
+            content: const Text('Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirm) return;
+    if (!mounted) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final String uid = currentUser?.uid ?? '';
+      
+      // Delete user document in Firestore
+      if (uid.isNotEmpty) {
+        await FirebaseFirestore.instance.collection('users').doc(uid).delete();
+      }
+      
+      // Delete user in Firebase Auth
+      await currentUser?.delete();
+      
+      // Sign out
+      await FirebaseAuth.instance.signOut();
+      
+      if (mounted) {
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(
+            content: Text('Please log out and log back in to delete your account.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } else {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'Failed to delete account'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('An error occurred while deleting your account.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildDeleteAccountButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: SizedBox(
+        width: double.infinity,
+        height: 54,
+        child: TextButton(
+          style: TextButton.styleFrom(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: _redButton.withValues(alpha: 0.5), width: 1.5),
+            ),
+          ),
+          onPressed: _isLoading ? null : _deleteAccount,
+          child: const Text(
+            'Delete Account',
+            style: TextStyle(
+              color: _redButton,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),

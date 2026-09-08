@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:provider/provider.dart'; // <-- ADDED PROVIDER
 
 import 'home_dashboard_screen.dart';
 import 'progress_screen.dart';
@@ -17,9 +18,10 @@ import 'subscription_screen.dart';
 import 'notification_settings_screen.dart';
 import 'app_language_screen.dart';
 import 'help_feedback_screen.dart';
-import 'welcome_screen.dart'; // <-- ADDED WELCOME SCREEN IMPORT
+import 'welcome_screen.dart'; 
 import 'connected_devices_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../providers/theme_provider.dart'; // <-- ADDED THEME PROVIDER
 import '../widgets/package_required_modal.dart';
 import '../services/main_tab_controller.dart';
 
@@ -99,8 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _toggleTheme() {
-    AppThemeController.toggleTheme();
-    setState(() {});
+    context.read<ThemeProvider>().toggleTheme();
   }
 
   Widget _buildThemeToggle() {

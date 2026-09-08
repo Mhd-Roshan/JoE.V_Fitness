@@ -1,4 +1,4 @@
-package com.example.jove_client
+package com.joev.fitness
 
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
@@ -7,7 +7,7 @@ import io.flutter.plugin.common.MethodChannel
 import android.view.WindowManager
 
 class MainActivity: FlutterActivity() {
-    private val CHANNEL = "com.example.jove_client/screenshot"
+    private val CHANNEL = "com.joev.fitness/screenshot"
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

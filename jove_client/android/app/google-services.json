@@ -84,6 +84,58 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945455108126:android:708db36e7d3890435c9e0f",
+        "android_client_info": {
+          "package_name": "com.joev.fitness"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "945455108126-3stkd2ca7jknu29s8lglmphi1v41jei6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.fitness",
+            "certificate_hash": "88fa6774ea7fc955cccfacd2614a40d627fa463e"
+          }
+        },
+        {
+          "client_id": "945455108126-9e213ljui3jkmnlljrc3lb1gmnu1onll.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.fitness",
+            "certificate_hash": "f46fbe7df4c007795630304a1c1a3e5add4912ee"
+          }
+        },
+        {
+          "client_id": "945455108126-bsktlbkk7snpg4k74tdtj63sj0tcflfb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "945455108126-bsktlbkk7snpg4k74tdtj63sj0tcflfb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "945455108126-c0hmv9eadbalv2vjpv8fr4a9r54j3b6b.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.joveTrainer"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

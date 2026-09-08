@@ -1,39 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:easy_localization/easy_localization.dart'; // <-- 1. IMPORT LOCALIZATION
+import 'package:easy_localization/easy_localization.dart';
+import 'package:provider/provider.dart';
 
-import 'screens/splash_screen.dart'; // <-- IMPORTANT: Point to your splash screen
-import 'theme/app_theme_controller.dart';
+import 'screens/splash_screen.dart';
 import 'services/app_notification_service.dart';
+import 'services/local_storage_service.dart';
+import 'providers/theme_provider.dart';
+import 'providers/user_provider.dart';
 
 void main() async {
   // 1. Ensure Flutter bindings are ready before launching Firebase
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize theme observer for automatic system dark mode switching
-  AppThemeController.initialize();
+  // 2. Initialize SharedPreferences via LocalStorageService
+  await LocalStorageService.init();
 
-  // 2. Initialize Firebase
+  // 3. Initialize Firebase
   await Firebase.initializeApp();
 
-  // 3. Initialize Easy Localization
-  await EasyLocalization.ensureInitialized(); // <-- 2. INIT LOCALIZATION
+  // 4. Initialize Easy Localization
+  await EasyLocalization.ensureInitialized();
 
-  // 4. Initialize Notification Service (FCM & Real-time Local Push)
+  // 5. Initialize Notification Service
   await AppNotificationService.instance.initialize();
 
-  // 5. Run UI Wrapped in Localization Config
+  // 6. Run UI Wrapped in Providers and Localization Config
   runApp(
-    EasyLocalization(
-      supportedLocales: const [
-        Locale('en'), // English
-        Locale('ml'), // Malayalam
-        Locale('hi'), // Hindi
-        Locale('ta'), // Tamil
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
-      path: 'assets/translations', // <-- Folder where your JSON files will live
-      fallbackLocale: const Locale('en'),
-      child: const MyApp(),
+      child: EasyLocalization(
+        supportedLocales: const [
+          Locale('en'),
+          Locale('ml'),
+          Locale('hi'),
+          Locale('ta'),
+        ],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        child: const MyApp(),
+      ),
     ),
   );
 }
@@ -43,28 +52,24 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: AppThemeController.isDarkMode,
-      builder: (context, isDark, _) {
-        return MaterialApp(
-          navigatorKey: AppNotificationService.navigatorKey,
-          title: 'JoE.V FITNESS',
-          debugShowCheckedModeBanner: false,
+    // Watch ThemeProvider for changes
+    final themeProvider = context.watch<ThemeProvider>();
 
-          // --- LOCALIZATION ---
-          localizationsDelegates: context.localizationDelegates,
-          supportedLocales: context.supportedLocales,
-          locale: context.locale,
+    return MaterialApp(
+      navigatorKey: AppNotificationService.navigatorKey,
+      title: 'JoE.V FITNESS',
+      debugShowCheckedModeBanner: false,
 
-          // --- THEME MANAGEMENT ---
-          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-          theme: AppThemeController.lightTheme,
-          darkTheme: AppThemeController.darkTheme,
+      // --- LOCALIZATION ---
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
 
-          // 4. Set the Splash Screen as the VERY FIRST thing the app sees
-          home: const SplashScreen(),
-        );
-      },
+      // --- THEME MANAGEMENT ---
+      themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      theme: themeProvider.currentTheme, // Note: You might need to update this depending on how you expose light/dark in ThemeProvider
+      
+      home: const SplashScreen(),
     );
   }
 }

@@ -24,7 +24,7 @@ class ChangeTrainerScreen extends StatefulWidget {
 
 class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
   // --- NATIVE SCREENSHOT CHANNEL ---
-  static const platform = MethodChannel('com.example.jove_client/screenshot');
+  static const platform = MethodChannel('com.joev.fitness/screenshot');
 
   // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);

@@ -114,7 +114,7 @@ class SelectTrainerScreen extends StatefulWidget {
 
 class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
   // --- NATIVE SCREENSHOT CHANNEL ---
-  static const platform = MethodChannel('com.example.jove_client/screenshot');
+  static const platform = MethodChannel('com.joev.fitness/screenshot');
 
   Trainer? _selectedTrainer;
   bool _isLoading = false;
