@@ -7,12 +7,57 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:945455108126:android:17124a8b9b8a567e5c9e0f",
+        "mobilesdk_app_id": "1:945455108126:android:708db36e7d3890435c9e0f",
         "android_client_info": {
-          "package_name": "com.example.jove_trainer"
+          "package_name": "com.joev.fitness"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "945455108126-3stkd2ca7jknu29s8lglmphi1v41jei6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.fitness",
+            "certificate_hash": "88fa6774ea7fc955cccfacd2614a40d627fa463e"
+          }
+        },
+        {
+          "client_id": "945455108126-58ggqsj36ju67k66h838p7qitq8iblih.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.fitness",
+            "certificate_hash": "1a6fe251ccc27770bc4f49f4b78f106c69b14162"
+          }
+        },
+        {
+          "client_id": "945455108126-9e213ljui3jkmnlljrc3lb1gmnu1onll.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.fitness",
+            "certificate_hash": "f46fbe7df4c007795630304a1c1a3e5add4912ee"
+          }
+        },
+        {
+          "client_id": "945455108126-bt4dof08nv4thr6uv2uqn1llr5qj14sa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.fitness",
+            "certificate_hash": "821aab64422f46003d8d89c2a3586c398cbb0e35"
+          }
+        },
+        {
+          "client_id": "945455108126-s9bjnoe6q2phvhnch15buspfschdos00.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.fitness",
+            "certificate_hash": "7a7b0109ee6fde97464c1f331613368d96fab65c"
+          }
+        },
+        {
+          "client_id": "945455108126-bsktlbkk7snpg4k74tdtj63sj0tcflfb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA"
@@ -20,7 +65,71 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "945455108126-bsktlbkk7snpg4k74tdtj63sj0tcflfb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "945455108126-29vs4mlp95a4tlklf5hssjedbthpgv30.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.joev.trainer"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945455108126:android:99fb55fe867eb6465c9e0f",
+        "android_client_info": {
+          "package_name": "com.joev.trainer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "945455108126-f73i61efa4i7vspddb8i9glhd81aup8k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.trainer",
+            "certificate_hash": "821aab64422f46003d8d89c2a3586c398cbb0e35"
+          }
+        },
+        {
+          "client_id": "945455108126-q34dc0cdv3ulf0rjk40turm4ehmsks4s.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.joev.trainer",
+            "certificate_hash": "88fa6774ea7fc955cccfacd2614a40d627fa463e"
+          }
+        },
+        {
+          "client_id": "945455108126-bsktlbkk7snpg4k74tdtj63sj0tcflfb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "945455108126-bsktlbkk7snpg4k74tdtj63sj0tcflfb.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "945455108126-29vs4mlp95a4tlklf5hssjedbthpgv30.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.joev.trainer"
+              }
+            }
+          ]
         }
       }
     }

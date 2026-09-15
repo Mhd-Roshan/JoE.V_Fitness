@@ -51,17 +51,19 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA',
-    appId: '1:945455108126:android:da0354a7fb8e12a75c9e0f',
+    appId: '1:945455108126:android:708db36e7d3890435c9e0f',
     messagingSenderId: '945455108126',
     projectId: 'joev-fintess',
     storageBucket: 'joev-fintess.firebasestorage.app',
   );
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCJjkt7IMd9T3fAWvxSvWPES5LMWKKspuw',
-    appId: '1:945455108126:ios:c95d55be8ab559c85c9e0f',
+    appId: '1:945455108126:ios:8f331def7b86844b5c9e0f',
     messagingSenderId: '945455108126',
     projectId: 'joev-fintess',
     storageBucket: 'joev-fintess.firebasestorage.app',
-    iosBundleId: 'com.example.joveClient',
+    androidClientId: '945455108126-0c7usgli0bscicsqorptv73heo29sgn6.apps.googleusercontent.com',
+    iosClientId: '945455108126-m5tr7h6q9fj4s3dm60425q07idufuntp.apps.googleusercontent.com',
+    iosBundleId: 'com.joev.fitness',
   );
 }

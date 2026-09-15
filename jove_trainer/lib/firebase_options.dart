@@ -52,21 +52,21 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBLYE2YyC-8ba229aNxHC1BjkIRHkaZVnA',
-    appId: '1:945455108126:android:17124a8b9b8a567e5c9e0f',
+    appId: '1:945455108126:android:99fb55fe867eb6465c9e0f',
     messagingSenderId: '945455108126',
     projectId: 'joev-fintess',
     storageBucket: 'joev-fintess.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyCJjkt7IMd9T3fAWvxSvWPES5LMWKKspuw',
-    appId: '1:945455108126:ios:80cd4c69adc66f225c9e0f',
+    appId: '1:945455108126:ios:9945c7699826980f5c9e0f',
     messagingSenderId: '945455108126',
     projectId: 'joev-fintess',
     storageBucket: 'joev-fintess.firebasestorage.app',
-    iosBundleId: 'com.example.joveTrainer',
+    androidClientId: '945455108126-0c7usgli0bscicsqorptv73heo29sgn6.apps.googleusercontent.com',
+    iosClientId: '945455108126-29vs4mlp95a4tlklf5hssjedbthpgv30.apps.googleusercontent.com',
+    iosBundleId: 'com.joev.trainer',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyCJjkt7IMd9T3fAWvxSvWPES5LMWKKspuw',
     appId: '1:945455108126:ios:80cd4c69adc66f225c9e0f',

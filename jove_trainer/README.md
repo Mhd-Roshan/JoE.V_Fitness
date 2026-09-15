@@ -1,17 +1,79 @@
-# jove_trainer
+# JoE.V Trainer App
 
-A new Flutter project.
+**Flutter mobile application for JoE.V fitness platform trainers.**
 
-## Getting Started
+Package: `com.example.jove_trainer` | Version: `1.0.0+1`
 
-This project is a starting point for a Flutter application.
+---
 
-A few resources to get you started if this is your first Flutter project:
+## 📱 About
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+The JoE.V Trainer app allows certified personal trainers to:
+- View their assigned clients
+- Check daily schedule & appointments
+- Log client visit notes
+- Monitor client health progress
+- Support diet consultations
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+---
+
+## 🛠️ Setup
+
+### Requirements
+- Flutter SDK `^3.12.2`
+- Android SDK / iOS 14+
+- Firebase project: `joev-fintess`
+
+### Install dependencies
+```bash
+flutter pub get
+```
+
+### Run (debug)
+```bash
+flutter run
+```
+
+### Build release APK
+```bash
+flutter build apk --release
+```
+
+---
+
+## 🔐 Firebase
+
+The trainer app uses Firebase:
+- **Firestore** – Client & session data
+- **Firebase Auth** – Trainer authentication
+- **FCM** – Push notifications
+
+Firebase config: `android/app/google-services.json`
+
+---
+
+## 📂 Structure
+
+```
+jove_trainer/
+├── android/
+│   └── app/
+│       ├── google-services.json   # Firebase config
+│       └── build.gradle.kts
+├── ios/
+├── lib/
+│   ├── main.dart
+│   └── screens/
+└── pubspec.yaml
+```
+
+---
+
+## 📦 Key Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `firebase_auth` | Authentication |
+| `cloud_firestore` | Database |
+| `firebase_messaging` | Push notifications |
+| `firebase_storage` | File uploads |

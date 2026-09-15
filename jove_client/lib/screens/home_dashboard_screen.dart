@@ -577,7 +577,7 @@ class _HeaderSection extends StatelessWidget {
         '';
     final String userName = rawUserName.trim().isNotEmpty
         ? rawUserName
-        : 'athlete_fallback'.tr();
+        : 'Athlete';
     final String profilePic =
         userData['photoURL'] ??
         userData['photoUrl'] ??
