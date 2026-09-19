@@ -356,7 +356,8 @@ export default function UserProfile() {
                 }
 
                 if (!extractedLocation && parsedCoords) {
-                    extractedLocation = `${parsedCoords.lat.toFixed(4)}, ${parsedCoords.lng.toFixed(4)}`;
+                    const pc = parsedCoords as { lat: number; lng: number };
+                    extractedLocation = `${pc.lat.toFixed(4)}, ${pc.lng.toFixed(4)}`;
                 }
 
                 if (isMounted) {

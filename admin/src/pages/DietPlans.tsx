@@ -54,7 +54,6 @@ export default function DietPlans() {
     const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
     const [totalAssignedCount, setTotalAssignedCount] = useState(0);
     const [newThisMonth, setNewThisMonth] = useState(0);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let cancelled = false;
@@ -173,8 +172,6 @@ export default function DietPlans() {
 
             } catch (err) {
                 console.error("Diet plans load error:", err);
-            } finally {
-                if (!cancelled) setLoading(false);
             }
         }
 
