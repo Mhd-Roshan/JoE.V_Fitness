@@ -319,59 +319,26 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-
     return Scaffold(
       body: Stack(
         children: [
-          // 1. ETHEREAL PASTEL MESH BACKGROUND
+          // 1. BACKGROUND IMAGE
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/99_bg.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+          // Optional: A slight overlay to ensure text readability if needed
           Positioned.fill(
             child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFFFAFBFC),
-                gradient: RadialGradient(
-                  center: Alignment(0.0, -0.2),
-                  radius: 1.1,
-                  colors: [
-                    Color(0xFFFFF7ED), // Warm amber glow in center
-                    Color(0xFFEFF6FF), // Soft sky-blue wash
-                    Color(0xFFFAF5FF), // Soft pastel lavender
-                    Color(0xFFFFFFFF), // Pure bottom white
-                  ],
-                  stops: [0.0, 0.4, 0.7, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // Top Soft Aurora Blobs
-          Positioned(
-            top: -60,
-            left: -40,
-            child: Container(
-              width: 240,
-              height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFBAE6FD).withValues(alpha: 0.45),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 20,
-            right: -60,
-            child: Container(
-              width: 260,
-              height: 260,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFFECDD3).withValues(alpha: 0.4),
-              ),
+              color: Colors.white.withValues(alpha: 0.3),
             ),
           ),
 
           // 2. MAIN CONTENT
           SafeArea(
+            bottom: false, // Let the bottom sheet handle its own safe area
             child: Column(
               children: [
                 // Top Bar with Minimal Logout
@@ -404,7 +371,7 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                             padding: const EdgeInsets.only(
                               left: 3.0,
                               right: 4.0,
-                              bottom: 1.5,
+                              bottom: 0.0,
                             ),
                             child: SvgPicture.asset(
                               'assets/images/kettlebell-icon.svg',
@@ -464,148 +431,23 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                   ),
                 ),
 
-                // Orbital Graphic Section (Flexible center)
-                Expanded(
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: size.height * 0.44,
-                        maxWidth: size.width * 0.92,
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Concentric Orbital Rings
-                          CustomPaint(
-                            size: const Size(340, 340),
-                            painter: _OrbitalRingsPainter(),
-                          ),
-
-                          // Glowing Center Star
-                          Container(
-                            width: 68,
-                            height: 68,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFFF59E0B,
-                                  ).withValues(alpha: 0.25),
-                                  blurRadius: 24,
-                                  spreadRadius: 4,
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: ShaderMask(
-                                shaderCallback: (bounds) =>
-                                    const LinearGradient(
-                                      colors: [
-                                        Color(0xFFF59E0B),
-                                        Color(0xFFFB7185),
-                                        Color(0xFF818CF8),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ).createShader(bounds),
-                                child: const Icon(
-                                  Icons.auto_awesome,
-                                  size: 34,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // Floating Badges on Orbit
-                          // 1. Calendar / Workouts (Top Left)
-                          _buildFloatingItem(
-                            top: 40,
-                            left: 50,
-                            widget: _buildBadge(
-                              icon: Icons.calendar_today_rounded,
-                              bgColor: const Color(0xFF6366F1),
-                              label: '21',
-                            ),
-                          ),
-
-                          // 2. Map Pin / Gyms (Top Right)
-                          _buildFloatingItem(
-                            top: 30,
-                            right: 90,
-                            widget: _buildPinBadge(),
-                          ),
-
-                          // 3. User Avatar (Far Right)
-                          _buildFloatingItem(
-                            top: 85,
-                            right: 20,
-                            widget: _buildAvatarBadge(
-                              bgColor: const Color(0xFFFDE047),
-                              emoji: '😎',
-                            ),
-                          ),
-
-                          // 4. Trainer / Coach (Middle Right)
-                          _buildFloatingItem(
-                            bottom: 95,
-                            right: 40,
-                            widget: _buildAvatarBadge(
-                              bgColor: const Color(0xFFF472B6),
-                              emoji: '🏋️',
-                            ),
-                          ),
-
-                          // 5. Activity Globe / Tracking (Bottom Center)
-                          _buildFloatingItem(
-                            bottom: 30,
-                            left: 110,
-                            widget: _buildGlobeBadge(),
-                          ),
-
-                          // 6. Member Avatar (Middle Left)
-                          _buildFloatingItem(
-                            bottom: 110,
-                            left: 28,
-                            widget: _buildAvatarBadge(
-                              bgColor: const Color(0xFFFDBA74),
-                              emoji: '⚡',
-                            ),
-                          ),
-
-                          // 7. Watch / Health (Top Far Left)
-                          _buildFloatingItem(
-                            top: 95,
-                            left: 15,
-                            widget: _buildIconPill(
-                              icon: Icons.watch_rounded,
-                              color: const Color(0xFF0284C7),
-                            ),
-                          ),
-
-                          // 8. Trophy / Target (Near Center Top)
-                          _buildFloatingItem(
-                            top: 75,
-                            right: 125,
-                            widget: _buildAvatarBadge(
-                              bgColor: const Color(0xFF86EFAC),
-                              emoji: '🎯',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                const Spacer(),
 
                 // Bottom Content Sheet
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // New JoE.V Logo Image
+                      Image.asset(
+                        'assets/images/landing_photo.png',
+                        height: 100, // Adjust the height as needed
+                      ),
+                      const SizedBox(height: 12),
+                      
                       // JoE.V FITNESS Logo Row (Like Welcome Screen)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -627,7 +469,7 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                             padding: const EdgeInsets.only(
                               left: 4.0,
                               right: 5.0,
-                              bottom: 2.0,
+                              bottom: 0.0,
                             ),
                             child: SvgPicture.asset(
                               'assets/images/kettlebell-icon.svg',
@@ -654,29 +496,6 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                       ),
 
                       const SizedBox(height: 2),
-
-                      // Gradient Sub-headline
-                      ShaderMask(
-                        shaderCallback: (bounds) => const LinearGradient(
-                          colors: [
-                            Color(0xFF2563EB),
-                            Color(0xFFD946EF),
-                            Color(0xFFF97316),
-                          ],
-                        ).createShader(bounds),
-                        child: Text(
-                          'Starts Here',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: -0.6,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 8),
 
                       // Description
                       Text(
@@ -823,6 +642,7 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
                     ],
                   ),
                 ),
+                ),
               ],
             ),
           ),
@@ -831,161 +651,5 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
     );
   }
 
-  // --- FLOATING ELEMENT HELPERS ---
-  Widget _buildFloatingItem({
-    double? top,
-    double? bottom,
-    double? left,
-    double? right,
-    required Widget widget,
-  }) {
-    return Positioned(
-      top: top,
-      bottom: bottom,
-      left: left,
-      right: right,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: widget,
-      ),
-    );
-  }
-
-  Widget _buildBadge({
-    required IconData icon,
-    required Color bgColor,
-    required String label,
-  }) {
-    return Container(
-      width: 44,
-      height: 48,
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 24,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatarBadge({required Color bgColor, required String emoji}) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: bgColor,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-      child: Center(child: Text(emoji, style: const TextStyle(fontSize: 18))),
-    );
-  }
-
-  Widget _buildPinBadge() {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [Color(0xFFE879F9), Color(0xFFC084FC)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Center(
-        child: Icon(Icons.location_on_rounded, color: Colors.white, size: 22),
-      ),
-    );
-  }
-
-  Widget _buildGlobeBadge() {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [Color(0xFFC084FC), Color(0xFFA855F7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Center(
-        child: Icon(Icons.public_rounded, color: Colors.white, size: 22),
-      ),
-    );
-  }
-
-  Widget _buildIconPill({required IconData icon, required Color color}) {
-    return Container(
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Icon(icon, color: Colors.white, size: 18),
-    );
-  }
 }
 
-// Custom Painter for Orbital Concentric Circles
-class _OrbitalRingsPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final paint = Paint()
-      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-
-    // Outer Orbit
-    canvas.drawCircle(center, 140, paint);
-
-    // Middle Orbit
-    final dashedPaint = Paint()
-      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.45)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawCircle(center, 95, dashedPaint);
-
-    // Inner Orbit
-    final innerPaint = Paint()
-      ..color = const Color(0xFFCBD5E1).withValues(alpha: 0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawCircle(center, 54, innerPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

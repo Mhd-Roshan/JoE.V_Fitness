@@ -141,6 +141,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
           // 3. Premium Fade-In Animation
           SafeArea(
+            bottom: false,
             child: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: 0.0, end: 1.0),
               duration: const Duration(milliseconds: 1200),
@@ -289,7 +290,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         padding: const EdgeInsets.only(
                           left: 4.0,
                           right: 6.0,
-                          bottom: 3.0,
+                          bottom: 0.0,
                         ),
                         child: SvgPicture.asset(
                           'assets/images/kettlebell-icon.svg',
@@ -422,51 +423,54 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   const SizedBox(height: 35),
 
                   // --- LOGIN LINK ---
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        'already_have_account'.tr(),
-                        style: const TextStyle(
-                          fontFamily: 'WorkSans',
-                          color: Color(0xFF888888),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          Navigator.push(
-                            context,
-                            PageRouteBuilder(
-                              transitionDuration: const Duration(
-                                milliseconds: 400,
-                              ),
-                              pageBuilder:
-                                  (context, animation, secondaryAnimation) =>
-                                      FadeTransition(
-                                        opacity: animation,
-                                        child: const LoginScreen(),
-                                      ),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          'sign_in_link'.tr(),
+                  SafeArea(
+                    top: false,
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'already_have_account'.tr(),
                           style: const TextStyle(
                             fontFamily: 'WorkSans',
-                            color: Color.fromARGB(255, 216, 217, 218),
-                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF888888),
+                            fontWeight: FontWeight.w500,
                             fontSize: 14,
-                            decoration: TextDecoration.underline,
-                            decorationColor: Color.fromARGB(255, 217, 226, 243),
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            Navigator.push(
+                              context,
+                              PageRouteBuilder(
+                                transitionDuration: const Duration(
+                                  milliseconds: 400,
+                                ),
+                                pageBuilder:
+                                    (context, animation, secondaryAnimation) =>
+                                        FadeTransition(
+                                          opacity: animation,
+                                          child: const LoginScreen(),
+                                        ),
+                              ),
+                            );
+                          },
+                          child: Text(
+                            'sign_in_link'.tr(),
+                            style: const TextStyle(
+                              fontFamily: 'WorkSans',
+                              color: Color.fromARGB(255, 216, 217, 218),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Color.fromARGB(255, 217, 226, 243),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 40),
                 ],

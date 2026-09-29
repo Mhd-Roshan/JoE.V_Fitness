@@ -1342,6 +1342,7 @@ class _ProgressScreenState extends State<ProgressScreen>
           body: Stack(
             children: [
               SafeArea(
+                bottom: false,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 120),
                   physics: const BouncingScrollPhysics(

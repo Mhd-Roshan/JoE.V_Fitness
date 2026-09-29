@@ -83,6 +83,7 @@ flutter:
     - assets/images/female.png
     - assets/images/loading.gif
     - assets/images/upcoming_session_bg.jpg
+    - assets/images/99_bg.jpg
     - assets/translations/
 
 flutter_launcher_icons:

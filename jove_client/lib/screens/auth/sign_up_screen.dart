@@ -365,6 +365,7 @@ class _SignUpScreenState extends State<SignUpScreen>
               child: SlideTransition(
                 position: _slideAnim,
                 child: SafeArea(
+                  bottom: false,
                   // OPTIMIZATION: Replaced IntrinsicHeight + LayoutBuilder with CustomScrollView + SliverFillRemaining
                   // This is vastly faster and smoother for rendering screen-filling forms.
                   child: CustomScrollView(
@@ -590,50 +591,53 @@ class _SignUpScreenState extends State<SignUpScreen>
 
                               // --- Footer ---
                               // CHANGED: Dark colors because bottom background is very light
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: 40.0,
-                                  top: 20.0,
-                                ),
-                                child: Wrap(
-                                  alignment: WrapAlignment.center,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  children: [
-                                    Text(
-                                      'already_have_account'.tr(),
-                                      style: GoogleFonts.workSans(
-                                        color: const Color(
-                                          0xFF333333,
-                                        ), // Dark grey
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    GestureDetector(
-                                      onTap: () => Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const LoginScreen(),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'sign_in_link_dot'.tr(),
+                              SafeArea(
+                                top: false,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: 40.0,
+                                    top: 20.0,
+                                  ),
+                                  child: Wrap(
+                                    alignment: WrapAlignment.center,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      Text(
+                                        'already_have_account'.tr(),
                                         style: GoogleFonts.workSans(
                                           color: const Color(
-                                            0xFF003DD0,
-                                          ), // Deep blue
-                                          fontWeight: FontWeight.w800,
-                                          decoration: TextDecoration.underline,
-                                          decorationColor: const Color(
-                                            0xFF003DD0,
-                                          ),
+                                            0xFF333333,
+                                          ), // Dark grey
                                           fontSize: 14,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      GestureDetector(
+                                        onTap: () => Navigator.pushReplacement(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const LoginScreen(),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'sign_in_link_dot'.tr(),
+                                          style: GoogleFonts.workSans(
+                                            color: const Color(
+                                              0xFF003DD0,
+                                            ), // Deep blue
+                                            fontWeight: FontWeight.w800,
+                                            decoration: TextDecoration.underline,
+                                            decorationColor: const Color(
+                                              0xFF003DD0,
+                                            ),
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],

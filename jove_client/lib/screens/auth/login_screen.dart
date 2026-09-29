@@ -478,6 +478,7 @@ class _LoginScreenState extends State<LoginScreen>
             child: SlideTransition(
               position: _slideAnim,
               child: SafeArea(
+                bottom: false,
                 // OPTIMIZATION: Replaced IntrinsicHeight + LayoutBuilder with CustomScrollView + SliverFillRemaining
                 // This is vastly faster and smoother for rendering screen-filling forms.
                 child: CustomScrollView(
@@ -732,46 +733,49 @@ class _LoginScreenState extends State<LoginScreen>
                             const Spacer(),
 
                             // Footer
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: 40.0,
-                                top: 20,
-                              ),
-                              child: Wrap(
-                                alignment: WrapAlignment.center,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  Text(
-                                    "dont_have_account".tr(),
-                                    style: GoogleFonts.workSans(
-                                      color: const Color(0xFF333333),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  GestureDetector(
-                                    onTap: () => Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const SignUpScreen(),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      "register_link".tr(),
+                            SafeArea(
+                              top: false,
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 40.0,
+                                  top: 20,
+                                ),
+                                child: Wrap(
+                                  alignment: WrapAlignment.center,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Text(
+                                      "dont_have_account".tr(),
                                       style: GoogleFonts.workSans(
-                                        color: const Color(0xFF003DD0),
-                                        decoration: TextDecoration.underline,
-                                        decorationColor: const Color(
-                                          0xFF003DD0,
-                                        ),
-                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF333333),
                                         fontSize: 14,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 4),
+                                    GestureDetector(
+                                      onTap: () => Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const SignUpScreen(),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        "register_link".tr(),
+                                        style: GoogleFonts.workSans(
+                                          color: const Color(0xFF003DD0),
+                                          decoration: TextDecoration.underline,
+                                          decorationColor: const Color(
+                                            0xFF003DD0,
+                                          ),
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],

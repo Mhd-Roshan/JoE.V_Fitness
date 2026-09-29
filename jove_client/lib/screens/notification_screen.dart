@@ -208,6 +208,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
           body: SafeArea(
+            bottom: false,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

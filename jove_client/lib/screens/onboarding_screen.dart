@@ -133,6 +133,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
           // 3. UI Content (Text + Navigation)
           SafeArea(
+            bottom: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 20.0),
               child: Column(

@@ -976,6 +976,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF000000) : _bgColor,
           body: SafeArea(
+            bottom: false,
             child: SingleChildScrollView(
               padding: const EdgeInsets.only(bottom: 40),
               physics: const BouncingScrollPhysics(),

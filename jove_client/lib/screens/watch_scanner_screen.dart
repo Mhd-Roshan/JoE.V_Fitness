@@ -341,6 +341,7 @@ class _WatchScannerScreenState extends State<WatchScannerScreen>
 
           // 3. MAIN FOREGROUND CONTENT
           SafeArea(
+            bottom: false,
             child: Column(
               children: [
                 _buildTopHeader(),
