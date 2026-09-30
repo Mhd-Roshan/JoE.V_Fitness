@@ -217,6 +217,7 @@ class _AssessmentScreenState extends State<AssessmentScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             // Segmented Progress Bar Header

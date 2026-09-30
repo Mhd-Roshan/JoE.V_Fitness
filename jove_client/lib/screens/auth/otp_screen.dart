@@ -400,6 +400,7 @@ class _OtpScreenState extends State<OtpScreen>
             child: SlideTransition(
               position: _slideAnim,
               child: SafeArea(
+                bottom: false,
                 // OPTIMIZATION: CustomScrollView + SliverFillRemaining
                 child: CustomScrollView(
                   physics: const BouncingScrollPhysics(

@@ -87,6 +87,14 @@ export default function Sidebar() {
                     </div>
                 ))}
             </nav>
+
+            {/* Logout Button */}
+            <div style={{ padding: "0 12px 24px 12px" }}>
+                <button className="sidebar-logout-btn" onClick={() => {/* TODO: Implement actual logout */}}>
+                    <i className="bx bx-log-out" />
+                    Logout
+                </button>
+            </div>
         </aside>
     );
 }

@@ -46,7 +46,11 @@ type FlexField = string | string[] | { name?: string; title?: string; planName?:
 
 interface UserDocData {
     fullName?: string;
+    name?: string;
+    role?: string;
     trainerId?: string;
+    assignedTrainerId?: string;
+    assignedTrainer?: string;
     reassignRequest?: boolean;
     createdAt?: { toDate?: () => Date } | string | number;
     primaryGoal?: FlexField;
@@ -186,7 +190,7 @@ async function fetchAssignData() {
     const trainersMap: Record<string, string> = {};
     const tempTrainers: Record<string, Trainer> = {};
 
-    const processTrainer = (id: string, data: any) => {
+    const processTrainer = (id: string, data: Partial<UserDocData> & { email?: string, id?: string, userId?: string }) => {
         const name = (data.fullName || data.name || "").trim();
         const email = (data.email || "").trim();
         if (!name && !email) return;
@@ -244,15 +248,15 @@ async function fetchAssignData() {
     allUsersSnap.docs.forEach(docSnap => {
         const data = docSnap.data() as UserDocData;
         const uid = docSnap.id;
-        const role = ((data as any).role || "").toString().toLowerCase();
+        const role = (data.role || "").toString().toLowerCase();
         if (role === "trainer" || role === "admin") return;
 
         const subData = subsMap[uid];
         const assessData = assessMap[uid];
         const goalData = goalsMap[uid];
 
-        const name = data.fullName || (data as any).name || "Unknown Client";
-        const trainerId = (data as any).assignedTrainerId || data.trainerId || (data as any).assignedTrainer || subData?.trainerId || null;
+        const name = data.fullName || data.name || "Unknown Client";
+        const trainerId = data.assignedTrainerId || data.trainerId || data.assignedTrainer || subData?.trainerId || null;
 
         if (trainerId && tempTrainers[trainerId]) {
             tempTrainers[trainerId].clientCount += 1;
@@ -284,6 +288,11 @@ async function fetchAssignData() {
 
         const actualGoal = extractGoal(data, subData, assessData, goalData);
         const actualPackage = extractPackage(data, subData);
+
+        // Filter out empty/dummy accounts that haven't purchased a package
+        if (actualPackage === "No Package" && status === "unassigned") {
+            return;
+        }
 
         loadedClients.push({
             id: uid,
@@ -501,7 +510,7 @@ export default function AssignDuties() {
 
                 const schedDocs = [...s1.docs, ...s2.docs, ...b1.docs, ...b2.docs];
                 for (const d of schedDocs) {
-                    const status = ((d.data() as any).status || "").toLowerCase();
+                    const status = ((d.data() as { status?: string }).status || "").toLowerCase();
                     if (status !== "completed" && status !== "done" && status !== "cancelled" && status !== "canceled") {
                         await setDoc(doc(db, d.ref.parent.id, d.id), {
                             trainerId: trainerId || null,

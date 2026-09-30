@@ -56,26 +56,41 @@ export default function Dashboard() {
                 // ==========================================
                 // 4. REAL CHART DATA (From 'bookings' collection)
                 // ==========================================
-                const daysToFetch = timeRange === "1W" ? 7 : 30;
                 const today = new Date();
+                today.setHours(0, 0, 0, 0);
 
-                // Create an empty array for the last X days
-                const dateRange: ChartDay[] = Array.from({ length: daysToFetch }, (_, i) => {
-                    const d = new Date(today);
-                    d.setDate(d.getDate() - ((daysToFetch - 1) - i));
+                let dateRange: ChartDay[] = [];
 
-                    // Format as YYYY-MM-DD to match standard db formats
-                    const localDateStr = d.toLocaleDateString('en-CA'); // 'en-CA' outputs YYYY-MM-DD
+                if (timeRange === "1W") {
+                    // Generate current week (Monday to Sunday)
+                    const startOfWeek = new Date(today);
+                    const dayOfWeek = startOfWeek.getDay();
+                    const diff = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+                    startOfWeek.setDate(diff);
 
-                    return {
-                        dateStr: localDateStr,
-                        label: timeRange === "1W"
-                            ? d.toLocaleDateString("en-US", { weekday: 'short' }).substring(0, 2).toUpperCase()
-                            : d.getDate().toString(),
-                        total: 0,
-                        completed: 0
-                    };
-                });
+                    dateRange = Array.from({ length: 7 }, (_, i) => {
+                        const d = new Date(startOfWeek);
+                        d.setDate(d.getDate() + i);
+                        return {
+                            dateStr: d.toLocaleDateString('en-CA'),
+                            label: d.toLocaleDateString("en-US", { weekday: 'short' }).substring(0, 2).toUpperCase(),
+                            total: 0,
+                            completed: 0
+                        };
+                    });
+                } else {
+                    // Generate last 30 days
+                    dateRange = Array.from({ length: 30 }, (_, i) => {
+                        const d = new Date(today);
+                        d.setDate(d.getDate() - (29 - i));
+                        return {
+                            dateStr: d.toLocaleDateString('en-CA'),
+                            label: d.getDate().toString(),
+                            total: 0,
+                            completed: 0
+                        };
+                    });
+                }
 
                 // Fetch all bookings (you can add a where clause if you have indexes)
                 const allBookingsSnap = await getDocs(collection(db, "bookings"));

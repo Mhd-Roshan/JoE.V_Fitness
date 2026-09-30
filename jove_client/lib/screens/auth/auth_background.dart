@@ -19,7 +19,7 @@ class AuthBackground extends StatelessWidget {
             painter: WavePainter(),
           ),
           // The actual screen content
-          SafeArea(child: child),
+          SafeArea(bottom: false, child: child),
         ],
       ),
     );

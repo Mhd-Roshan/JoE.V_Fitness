@@ -2604,6 +2604,7 @@ class _BookingScreenState extends State<BookingScreen>
           body: Stack(
             children: [
               SafeArea(
+                bottom: false,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.only(bottom: 120),
                   physics: const BouncingScrollPhysics(),

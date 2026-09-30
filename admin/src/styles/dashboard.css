@@ -66,12 +66,13 @@
 }
 
 .sidebar-logo-kb-inline {
-    width: 22px;
-    height: 28px;
+    width: 12px;
+    height: 16px;
     flex-shrink: 0;
     object-fit: contain;
-    align-self: flex-end;
-    transform: translateY(3px);
+    margin-left: 2px;
+    margin-right: -2px;
+    transform: translateY(4px);
 }
 
 .sidebar-logo-fitness {

@@ -34,10 +34,13 @@ export default function Layout({
                 <header className="topbar">
                     <h1 className="topbar-title">{title}</h1>
                     <div className="topbar-right">
-                        <input
-                            className="topbar-search"
-                            placeholder={t("searchPlaceholder")}
-                        />
+                        <div className="topbar-search-wrapper">
+                            <i className="bx bx-search" />
+                            <input
+                                className="topbar-search"
+                                placeholder={t("searchPlaceholder")}
+                            />
+                        </div>
                         <button
                             className="topbar-bell"
                             onClick={() => navigate("/notifications")}
