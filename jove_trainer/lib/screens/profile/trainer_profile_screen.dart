@@ -184,13 +184,7 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen>
                 myTrainerEmails.contains(tEmail)) ||
             (myTrainerPhones.isNotEmpty &&
                 tPhone.isNotEmpty &&
-                myTrainerPhones.contains(tPhone)) ||
-            (myTrainerNames.isNotEmpty &&
-                tName.isNotEmpty &&
-                myTrainerNames.any((n) =>
-                    n.isNotEmpty &&
-                    (tName == n || tName.contains(n) || n.contains(tName)))) ||
-            (allTrainersDocs.length == 1);
+                myTrainerPhones.contains(tPhone));
 
         if (isMe) {
           if (trainerData.isEmpty) {
@@ -229,22 +223,9 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen>
                   '')
               .toString()
               .trim();
-          final assignedTName = (uData['assignedTrainerName'] ??
-                  uData['trainerName'] ??
-                  uData['trainer'] ??
-                  '')
-              .toString()
-              .toLowerCase()
-              .trim();
 
           bool isAssigned = (assignedTId.isNotEmpty &&
-                  myTrainerIds.contains(assignedTId)) ||
-              (assignedTName.isNotEmpty &&
-                  myTrainerNames.any((n) =>
-                      n.isNotEmpty &&
-                      (assignedTName == n ||
-                          assignedTName.contains(n) ||
-                          n.contains(assignedTName))));
+                  myTrainerIds.contains(assignedTId));
 
           if (isAssigned) {
             assignedClientIds.add(uDoc.id);
@@ -268,20 +249,8 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen>
                 '')
             .toString()
             .trim();
-        final tName = (data['trainerName'] ??
-                data['trainer'] ??
-                data['assignedTrainerName'] ??
-                '')
-            .toString()
-            .toLowerCase()
-            .trim();
 
-        bool isMySession = (tId.isNotEmpty && myTrainerIds.contains(tId)) ||
-            (tName.isNotEmpty &&
-                myTrainerNames.any((n) =>
-                    n.isNotEmpty &&
-                    (tName == n || tName.contains(n) || n.contains(tName)))) ||
-            (tId.isEmpty && tName.isEmpty);
+        bool isMySession = (tId.isNotEmpty && myTrainerIds.contains(tId));
 
         if (isMySession) {
           final key = data['bookingId'] ?? data['sessionId'] ?? doc.id;
@@ -312,16 +281,8 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen>
         final tId = (data['trainerId'] ?? data['createdBy'] ?? data['userId'] ?? '')
             .toString()
             .trim();
-        final tName = (data['trainerName'] ?? data['trainer'] ?? '')
-            .toString()
-            .toLowerCase()
-            .trim();
 
-        if (tId.isNotEmpty && myTrainerIds.contains(tId) ||
-            (tName.isNotEmpty &&
-                myTrainerNames.any((n) =>
-                    n.isNotEmpty &&
-                    (tName == n || tName.contains(n) || n.contains(tName))))) {
+        if (tId.isNotEmpty && myTrainerIds.contains(tId)) {
           workoutsCount++;
         }
       }
@@ -331,16 +292,8 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen>
         final tId = (data['trainerId'] ?? data['createdBy'] ?? data['userId'] ?? '')
             .toString()
             .trim();
-        final tName = (data['trainerName'] ?? data['trainer'] ?? '')
-            .toString()
-            .toLowerCase()
-            .trim();
 
-        if (tId.isNotEmpty && myTrainerIds.contains(tId) ||
-            (tName.isNotEmpty &&
-                myTrainerNames.any((n) =>
-                    n.isNotEmpty &&
-                    (tName == n || tName.contains(n) || n.contains(tName))))) {
+        if (tId.isNotEmpty && myTrainerIds.contains(tId)) {
           workoutsCount++;
         }
       }
@@ -364,16 +317,8 @@ class _TrainerProfileScreenState extends State<TrainerProfileScreen>
         final tId = (data['trainerId'] ?? data['targetId'] ?? data['trainer_id'] ?? '')
             .toString()
             .trim();
-        final tName = (data['trainerName'] ?? data['trainer'] ?? '')
-            .toString()
-            .toLowerCase()
-            .trim();
 
-        bool isMyFeedback = (tId.isNotEmpty && myTrainerIds.contains(tId)) ||
-            (tName.isNotEmpty &&
-                myTrainerNames.any((n) =>
-                    n.isNotEmpty &&
-                    (tName == n || tName.contains(n) || n.contains(tName))));
+        bool isMyFeedback = (tId.isNotEmpty && myTrainerIds.contains(tId));
 
         if (isMyFeedback) {
           feedbackList.add(data);

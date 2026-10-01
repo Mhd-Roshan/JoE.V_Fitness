@@ -164,9 +164,7 @@ class TrainerDataService extends ChangeNotifier {
               (user.email != null && tEmail.isNotEmpty && tEmail == user.email!.toLowerCase().trim()) ||
               (user.phoneNumber != null && tPhone.isNotEmpty && tPhone == user.phoneNumber!.trim()) ||
               (myTrainerEmails.isNotEmpty && tEmail.isNotEmpty && myTrainerEmails.contains(tEmail)) ||
-              (myTrainerPhones.isNotEmpty && tPhone.isNotEmpty && myTrainerPhones.contains(tPhone)) ||
-              (myTrainerNames.isNotEmpty && tName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (tName == n || tName.contains(n) || n.contains(tName)))) ||
-              (allTrainersDocs.length == 1);
+              (myTrainerPhones.isNotEmpty && tPhone.isNotEmpty && myTrainerPhones.contains(tPhone));
 
           if (isMe) {
             myTrainerIds.add(tDoc.id);

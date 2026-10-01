@@ -224,7 +224,6 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen>
     for (var doc in sessionResults) {
       final d = doc.data();
       final docTrainerId = (d['trainerId'] ?? d['assignedTrainerId'] ?? d['trainer_id'] ?? '').toString().trim();
-      final docTrainerName = (d['trainerName'] ?? d['trainer'] ?? '').toString().toLowerCase().trim();
       final docTrainerEmail = (d['trainerEmail'] ?? d['email'] ?? '').toString().toLowerCase().trim();
       final cId = (d['clientId'] ?? d['userId'] ?? d['client_id'] ?? d['user_id'] ?? '').toString().trim();
 
@@ -232,10 +231,6 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen>
       if (docTrainerId.isNotEmpty && myTrainerIds.contains(docTrainerId)) {
         isMatch = true;
       } else if (docTrainerEmail.isNotEmpty && myTrainerEmails.contains(docTrainerEmail)) {
-        isMatch = true;
-      } else if (docTrainerName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (docTrainerName == n || docTrainerName.contains(n) || n.contains(docTrainerName)))) {
-        isMatch = true;
-      } else if (allTrainersDocs.length == 1) {
         isMatch = true;
       }
 
@@ -259,16 +254,11 @@ class _TrainerUsersScreenState extends State<TrainerUsersScreen>
       if (data['role'] == 'trainer' || data['role'] == 'admin') continue;
 
       final assignedId = (data['assignedTrainerId'] ?? data['trainerId'] ?? data['assignedTrainer'] ?? '').toString().trim();
-      final assignedName = (data['assignedTrainerName'] ?? data['assignedTrainer'] ?? '').toString().toLowerCase().trim();
 
       bool isMyClient = false;
       if (assignedId.isNotEmpty && myTrainerIds.contains(assignedId)) {
         isMyClient = true;
-      } else if (assignedName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (assignedName == n || assignedName.contains(n) || n.contains(assignedName)))) {
-        isMyClient = true;
       } else if (bookedClientIds.contains(doc.id)) {
-        isMyClient = true;
-      } else if (allTrainersDocs.length == 1) {
         isMyClient = true;
       }
 

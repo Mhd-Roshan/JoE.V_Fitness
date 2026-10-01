@@ -352,8 +352,6 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen>
     List<QueryDocumentSnapshot<Map<String, dynamic>>> sessionsDocs,
     List<QueryDocumentSnapshot<Map<String, dynamic>>> bookingsDocs,
   ) {
-    final user = FirebaseAuth.instance.currentUser;
-    final uid = user?.uid ?? '';
 
     final Map<String, String> clientToTrainerMap = {};
     final Map<String, String> clientNamesMap = {};
@@ -412,14 +410,6 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen>
               '')
           .toString()
           .trim();
-      final docTrainerName = (data['trainerName'] ??
-              data['trainer'] ??
-              data['assignedTrainerName'] ??
-              data['trainer_name'] ??
-              '')
-          .toString()
-          .toLowerCase()
-          .trim();
       final docTrainerEmail = (data['trainerEmail'] ??
               data['trainer_email'] ??
               data['email'] ??
@@ -442,25 +432,12 @@ class _TrainerSchedulesScreenState extends State<TrainerSchedulesScreen>
       } else if (docTrainerEmail.isNotEmpty &&
           myTrainerEmails.contains(docTrainerEmail)) {
         isTrainerMatch = true;
-      } else if (docTrainerName.isNotEmpty &&
-          myTrainerNames.any((n) =>
-              n.isNotEmpty &&
-              (docTrainerName == n ||
-                  docTrainerName.contains(n) ||
-                  n.contains(docTrainerName)))) {
-        isTrainerMatch = true;
       } else if (clientId.isNotEmpty) {
         final clientAssignedTrainer = clientToTrainerMap[clientId] ?? '';
         if (clientAssignedTrainer.isNotEmpty &&
             myTrainerIds.contains(clientAssignedTrainer)) {
           isTrainerMatch = true;
-        } else if (docTrainerId.isEmpty && docTrainerName.isEmpty && clientId != uid) {
-          isTrainerMatch = true;
         }
-      } else if (docTrainerId.isEmpty && docTrainerName.isEmpty) {
-        isTrainerMatch = true;
-      } else if (allTrainersDocs.length == 1) {
-        isTrainerMatch = true;
       }
 
       if (!isTrainerMatch) {

@@ -95,7 +95,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen>
   }
 
   Set<String> _myTrainerIds = {};
-  Set<String> _myTrainerNames = {};
 
 
 
@@ -147,13 +146,10 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen>
     for (var bDoc in bookingsDocs) {
       final bData = bDoc.data();
       final bTrainerId = (bData['trainerId'] ?? bData['assignedTrainerId'] ?? '').toString().trim();
-      final bTrainerName = (bData['trainerName'] ?? bData['trainer'] ?? '').toString().toLowerCase().trim();
       final bClientId = (bData['clientId'] ?? bData['userId'] ?? '').toString().trim();
       if (bClientId.isEmpty) continue;
 
-      bool isMyBooking = (bTrainerId.isNotEmpty && myTrainerIds.contains(bTrainerId)) ||
-          (bTrainerName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (bTrainerName == n || bTrainerName.contains(n) || n.contains(bTrainerName)))) ||
-          (allTrainersDocs.length == 1);
+      bool isMyBooking = (bTrainerId.isNotEmpty && myTrainerIds.contains(bTrainerId));
 
       if (isMyBooking) {
         relatedClientIds.add(bClientId);
@@ -163,13 +159,10 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen>
     for (var sDoc in sessionsDocs) {
       final sData = sDoc.data();
       final sTrainerId = (sData['trainerId'] ?? sData['assignedTrainerId'] ?? '').toString().trim();
-      final sTrainerName = (sData['trainerName'] ?? sData['trainer'] ?? '').toString().toLowerCase().trim();
       final sClientId = (sData['clientId'] ?? sData['userId'] ?? '').toString().trim();
       if (sClientId.isEmpty) continue;
 
-      bool isMySession = (sTrainerId.isNotEmpty && myTrainerIds.contains(sTrainerId)) ||
-          (sTrainerName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (sTrainerName == n || sTrainerName.contains(n) || n.contains(sTrainerName)))) ||
-          (allTrainersDocs.length == 1);
+      bool isMySession = (sTrainerId.isNotEmpty && myTrainerIds.contains(sTrainerId));
 
       if (isMySession) {
         relatedClientIds.add(sClientId);
@@ -188,16 +181,11 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen>
       if (role == 'trainer' || role == 'admin') continue;
 
       final assignedId = (data['assignedTrainerId'] ?? data['trainerId'] ?? data['assignedTrainer'] ?? '').toString().trim();
-      final assignedName = (data['assignedTrainerName'] ?? data['assignedTrainer'] ?? '').toString().toLowerCase().trim();
 
       bool isMyClient = false;
       if (assignedId.isNotEmpty && myTrainerIds.contains(assignedId)) {
         isMyClient = true;
-      } else if (assignedName.isNotEmpty && myTrainerNames.any((n) => n.isNotEmpty && (assignedName == n || assignedName.contains(n) || n.contains(assignedName)))) {
-        isMyClient = true;
       } else if (relatedClientIds.contains(doc.id)) {
-        isMyClient = true;
-      } else if (allTrainersDocs.length == 1) {
         isMyClient = true;
       }
 
@@ -239,7 +227,6 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen>
     if (mounted) {
       setState(() {
         _myTrainerIds = myTrainerIds;
-        _myTrainerNames = myTrainerNames;
         _clients = fetchedClients;
         _isLoadingClients = false;
       });
@@ -668,12 +655,9 @@ class _TrainerNotesScreenState extends State<TrainerNotesScreen>
               final docs = snapshot.data!.docs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final noteTrainerId = (data['trainerId'] ?? '').toString().trim();
-                final noteTrainerName = (data['trainerName'] ?? '').toString().toLowerCase().trim();
 
                 bool isMyNote = noteTrainerId == uid ||
-                    _myTrainerIds.contains(noteTrainerId) ||
-                    (_myTrainerNames.isNotEmpty && noteTrainerName.isNotEmpty && _myTrainerNames.any((n) => n.isNotEmpty && (noteTrainerName == n || noteTrainerName.contains(n)))) ||
-                    (_myTrainerIds.length == 1);
+                    _myTrainerIds.contains(noteTrainerId);
 
                 if (!isMyNote) return false;
 
