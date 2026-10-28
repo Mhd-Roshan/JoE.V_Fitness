@@ -18,12 +18,13 @@ import 'subscription_screen.dart';
 import 'notification_settings_screen.dart';
 import 'app_language_screen.dart';
 import 'help_feedback_screen.dart';
-import 'welcome_screen.dart'; 
+import 'welcome_screen.dart';
 import 'connected_devices_screen.dart';
 import '../theme/app_theme_controller.dart';
 import '../providers/theme_provider.dart'; // <-- ADDED THEME PROVIDER
 import '../widgets/package_required_modal.dart';
 import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class ProfileScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -68,7 +69,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       setState(() {
-        _isGoogleLinked = user.providerData.any((info) => info.providerId == 'google.com');
+        _isGoogleLinked = user.providerData.any(
+          (info) => info.providerId == 'google.com',
+        );
       });
     }
   }
@@ -225,9 +228,10 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) return; 
+      if (googleUser == null) return;
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
@@ -250,9 +254,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (e.code == 'credential-already-in-use') {
           msg = 'This Google account is already linked to another user.';
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
     } catch (e) {
       if (mounted) {
@@ -451,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     } else if (screen is ProfileScreen) {
       index = 4;
     }
-    
+
     Navigator.popUntil(context, (route) => route.isFirst);
     MainTabController.switchTab(index);
   }
@@ -617,17 +621,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 : 'Connect';
 
                             bool isPackageExpired = false;
-                            final nextBillingDate = userData['subscription']?['nextBillingDate'];
+                            final nextBillingDate =
+                                userData['subscription']?['nextBillingDate'];
                             if (nextBillingDate != null) {
                               isPackageExpired = DateTime.now().isAfter(
                                 (nextBillingDate as Timestamp).toDate(),
                               );
                             }
 
-                            final bool hasActiveSubscription = !isPackageExpired &&
+                            final bool hasActiveSubscription =
+                                !isPackageExpired &&
                                 (userData['hasActiveSubscription'] == true ||
                                     (userData['subscription'] is Map &&
-                                        userData['subscription']['status'] == 'Active'));
+                                        userData['subscription']['status'] ==
+                                            'Active'));
 
                             return Column(
                               children: [
@@ -673,12 +680,22 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   _MenuItemData(
                                     icon: Icons.link_rounded,
                                     title: 'Link Google Account',
-                                    trailingText: _isGoogleLinked ? 'Linked' : 'Not Linked',
-                                    onTap: _isGoogleLinked ? () {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('Google account is already linked')),
-                                      );
-                                    } : _linkGoogleAccount,
+                                    trailingText: _isGoogleLinked
+                                        ? 'Linked'
+                                        : 'Not Linked',
+                                    onTap: _isGoogleLinked
+                                        ? () {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Google account is already linked',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        : _linkGoogleAccount,
                                   ),
                                   _MenuItemData(
                                     icon: Icons.credit_card_outlined,
@@ -692,9 +709,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     trailingText: trainerName,
                                     onTap: () {
                                       if (!hasActiveSubscription) {
-                                        showPackageRequiredSheet(context, featureName: 'Trainer Change');
+                                        showPackageRequiredSheet(
+                                          context,
+                                          featureName: 'Trainer Change',
+                                        );
                                       } else {
-                                        _pushScreen(const ChangeTrainerScreen());
+                                        _pushScreen(
+                                          const ChangeTrainerScreen(),
+                                        );
                                       }
                                     },
                                   ),
@@ -803,7 +825,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 : Colors.grey.shade300,
             onBackgroundImageError: photoUrl.isNotEmpty ? (_, _) {} : null,
             backgroundImage: photoUrl.isNotEmpty
-                ? NetworkImage(photoUrl)
+                ? ResizeImage(NetworkImage(photoUrl), width: 300)
                 : null,
             child: photoUrl.isEmpty
                 ? Text(
@@ -1044,7 +1066,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     final Color navBg = _isDarkMode ? const Color(0xFF121212) : _navBgColor;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+      margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: navBg,

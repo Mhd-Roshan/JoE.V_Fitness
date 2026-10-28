@@ -22,6 +22,8 @@ import 'profile_screen.dart';
 import 'notification_screen.dart';
 import 'auth/package_select_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class _Formatters {
   static final Map<String, DateFormat> _time = {};
@@ -78,7 +80,6 @@ class _BookingScreenState extends State<BookingScreen>
   final ScrollController _dateScrollController = ScrollController();
 
   bool _isChecking = false;
-  bool _isNavigating = false;
   bool _hasCheckedAvailability = false;
   String _availabilityStatus = 'none';
 
@@ -377,35 +378,12 @@ class _BookingScreenState extends State<BookingScreen>
   }
 
   Future<void> _handleStandardNavigation(Widget screen, int index) async {
-    if (_isNavigating) {
-      return;
-    }
-
     HapticFeedback.selectionClick();
-    setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = index;
-
-    if (!mounted) {
-      return;
-    }
-
-    await Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, a, b) => screen,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: child,
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 150),
-      ),
-    );
-
-    if (mounted) {
-      setState(() => _isNavigating = false);
-    }
+    // The tabs already live inside HomeDashboardScreen's PageView, so pop back
+    // to it and switch tab instead of rebuilding a whole new dashboard.
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   String _formatTimeStrict(TimeOfDay time, String locale) {
@@ -2902,7 +2880,7 @@ class _BookingScreenState extends State<BookingScreen>
                   child: Align(
                     alignment: Alignment.bottomCenter,
                     child: Container(
-                      margin: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                      margin: EdgeInsets.fromLTRB(24, 0, 24, navBarBottomMargin(context)),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 6,

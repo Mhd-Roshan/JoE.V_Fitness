@@ -6,14 +6,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
 import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
-import 'change_trainer_screen.dart';
-import 'trainer_selection_screen.dart';
 import 'notification_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class AppLanguageScreen extends StatefulWidget {
   const AppLanguageScreen({super.key});
@@ -37,7 +36,6 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
   final ValueNotifier<String> _selectedLanguage = ValueNotifier<String>('en');
 
   bool _isLoading = true;
-  bool _isNavigating = false;
 
   final List<Map<String, dynamic>> _languages = [
     {'title': 'English (US)', 'code': 'en', 'icon': Icons.translate_rounded},
@@ -133,91 +131,29 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
   }
 
   void _navigate(Widget screen) {
-    if (_isNavigating) return;
-    _isNavigating = true;
     HapticFeedback.selectionClick();
+    int index = 4; // default to profile
+    if (screen is HomeDashboardScreen) {
+      index = 0;
+    } else if (screen is ProgressScreen) {
+      index = 2;
+    } else if (screen is ChatScreen) {
+      index = 3;
+    } else if (screen is ProfileScreen) {
+      index = 4;
+    }
 
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => screen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      ).then((_) {
-        if (mounted) _isNavigating = false;
-      });
-    });
+    // The tabs already live inside HomeDashboardScreen's PageView, so pop back
+    // to it and switch tab instead of rebuilding a whole new dashboard.
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) return;
-
-    _isNavigating = true;
     HapticFeedback.selectionClick();
-
-    final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black12,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CustomLoadingIndicator()),
-    );
-
-    try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
-      var userData = userDoc.data() as Map<String, dynamic>? ?? {};
-      String? trainerId = userData['assignedTrainerId'];
-
-      Widget nextScreen;
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const ChangeTrainerScreen();
-      } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache))
-            .catchError(
-              (_) => FirebaseFirestore.instance
-                  .collection('trainers')
-                  .doc(trainerId)
-                  .get(),
-            );
-
-        nextScreen = trainerDoc.exists
-            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
-            : const ChangeTrainerScreen();
-      }
-
-      navigator.pop();
-
-      await navigator.pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      navigator.pop();
-      scaffoldMessenger.showSnackBar(
-        SnackBar(content: Text('error_loading_data'.tr())),
-      );
-    } finally {
-      if (mounted) {
-        _isNavigating = false;
-        _selectedIndexNotifier.value = 4;
-      }
-    }
+    // Booking is a tab of HomeDashboardScreen (it resolves the trainer itself).
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
   }
 
   @override
@@ -535,7 +471,7 @@ class _AppLanguageScreenState extends State<AppLanguageScreen> {
     final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+      margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: navBg,

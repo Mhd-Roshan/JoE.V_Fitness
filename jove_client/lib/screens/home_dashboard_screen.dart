@@ -2,6 +2,7 @@ import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -18,6 +19,7 @@ import '../services/main_tab_controller.dart';
 import '../theme/app_theme_controller.dart';
 import '../widgets/package_required_modal.dart';
 import 'auth/package_select_screen.dart';
+import '../widgets/nav_safe.dart';
 
 class _Formatters {
   static final DateFormat date = DateFormat('yyyy-MM-dd');
@@ -70,18 +72,45 @@ class HomeDashboardScreen extends StatefulWidget {
 }
 
 class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
+  // How many pages (on each side of the visible one) the PageView keeps
+  // pre-built. Starts at 0 and is raised one step at a time while the user is
+  // idle on Home, so every tab is already built (and kept alive) by the time
+  // it is tapped, instead of being built from scratch on the first tap.
+  int _warmPages = 0;
+  Timer? _warmTimer;
+
   @override
   void initState() {
     super.initState();
     final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     WearableSyncManager.instance.initialize();
     _markSessionPreviewSeen(uid);
+    _scheduleTabWarmUp();
 
     if (widget.initialTab != 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         MainTabController.switchTab(widget.initialTab);
       });
     }
+  }
+
+  void _scheduleTabWarmUp() {
+    // Let the Home tab finish its first load before warming the other tabs,
+    // then build one extra tab per step to avoid a single large frame hitch.
+    void step() {
+      if (!mounted) return;
+      if (_warmPages >= 4) return;
+      setState(() => _warmPages++);
+      _warmTimer = Timer(const Duration(milliseconds: 600), step);
+    }
+
+    _warmTimer = Timer(const Duration(milliseconds: 1500), step);
+  }
+
+  @override
+  void dispose() {
+    _warmTimer?.cancel();
+    super.dispose();
   }
 
   void _markSessionPreviewSeen(String uid) {
@@ -116,7 +145,7 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+    final isKeyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return ValueListenableBuilder<bool>(
       valueListenable: AppThemeController.isDarkMode,
@@ -131,6 +160,10 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
               // --- SWIPABLE PAGES (ZERO JANK, 120HZ SMOOTH) ---
               PageView(
                 controller: MainTabController.pageController,
+                allowImplicitScrolling: _warmPages > 0,
+                scrollCacheExtent: ScrollCacheExtent.viewport(
+                  _warmPages.toDouble(),
+                ),
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
@@ -322,12 +355,13 @@ class _HomeTabViewState extends State<_HomeTabView>
   void _ensureUserName(Map<String, dynamic> userData) {
     if (_askedForName || currentUser == null) return;
 
-    final String existing = (userData['fullName'] ??
-            userData['name'] ??
-            userData['firstName'] ??
-            '')
-        .toString()
-        .trim();
+    final String existing =
+        (userData['fullName'] ??
+                userData['name'] ??
+                userData['firstName'] ??
+                '')
+            .toString()
+            .trim();
     if (existing.isNotEmpty) return;
     _askedForName = true;
 
@@ -370,10 +404,9 @@ class _HomeTabViewState extends State<_HomeTabView>
       );
       if (entered == null || entered.isEmpty) return;
       try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(uid)
-            .set({'fullName': entered}, SetOptions(merge: true));
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'fullName': entered,
+        }, SetOptions(merge: true));
         await FirebaseAuth.instance.currentUser?.updateDisplayName(entered);
       } catch (e) {
         debugPrint('Failed to save name: $e');
@@ -384,7 +417,6 @@ class _HomeTabViewState extends State<_HomeTabView>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-
 
     return StreamBuilder<DocumentSnapshot>(
       stream: _userStream,
@@ -723,7 +755,7 @@ class _HeaderSection extends StatelessWidget {
                     ? (_, _) {}
                     : null,
                 backgroundImage: profilePic.isNotEmpty
-                    ? NetworkImage(profilePic)
+                    ? ResizeImage(NetworkImage(profilePic), width: 160)
                     : null,
                 child: profilePic.isEmpty
                     ? Text(
@@ -838,37 +870,44 @@ class _UpcomingSessionSection extends StatelessWidget {
             // 1. Monday: Cyan to Deep Blue
             const LinearGradient(
               colors: [Color(0xFF06B6D4), Color(0xFF1E3A8A)],
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
             // 2. Tuesday: Light Green to Deep Green
             const LinearGradient(
               colors: [Color(0xFF4ADE80), Color(0xFF065F46)],
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
             // 3. Wednesday: Pink to Deep Red
             const LinearGradient(
               colors: [Color(0xFFF472B6), Color(0xFF991B1B)],
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
             // 4. Thursday: Deep Blue to Purple
             const LinearGradient(
               colors: [Color(0xFF1E3A8A), Color(0xFF9333EA)],
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
             // 5. Friday: Bright Orange to Deep Red
             const LinearGradient(
               colors: [Color(0xFFF97316), Color(0xFF7F1D1D)],
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
             // 6. Saturday: Violet to Magenta
             const LinearGradient(
               colors: [Color(0xFF8B5CF6), Color(0xFFBE185D)],
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
             // 7. Sunday: Charcoal to Deep Blue
             const LinearGradient(
               colors: [Color(0xFF334155), Color(0xFF0F172A)],
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
           ];
 
@@ -2453,7 +2492,7 @@ class _FloatingNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: AppThemeController.isDark

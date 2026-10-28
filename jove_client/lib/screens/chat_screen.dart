@@ -13,6 +13,7 @@ import 'progress_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart';
 import '../widgets/package_required_modal.dart';
+import '../widgets/nav_safe.dart';
 
 class ChatScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -1830,7 +1831,7 @@ class _ChatScreenState extends State<ChatScreen>
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+        margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 24, right: 24),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF121212) : _navBgColor,

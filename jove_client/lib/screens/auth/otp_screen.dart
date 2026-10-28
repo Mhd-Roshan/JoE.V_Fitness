@@ -71,7 +71,13 @@ class _OtpScreenState extends State<OtpScreen>
         );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _animController.forward();
+      if (!mounted) return;
+      _animController.forward();
+      // Open the keyboard (after the entrance animation has started) so the
+      // OTP suggestion from the incoming SMS can be autofilled in one tap.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted && !_isVerifying) _focusNode.requestFocus();
+      });
     });
 
     // Add focus listeners for smooth box highlights without setState
@@ -108,12 +114,26 @@ class _OtpScreenState extends State<OtpScreen>
         verificationCompleted: (PhoneAuthCredential credential) async {
           debugPrint("📱 [OTP] Auto-verification completed by Android");
           if (_isVerifying) return;
+          final String? autoCode = credential.smsCode;
+          final bool hasCode = autoCode != null && autoCode.length == 6;
           if (mounted) {
+            // Fill the boxes with the received code (like Zomato) instead of
+            // signing in silently with empty boxes.
+            if (hasCode) {
+              _otpController.value = TextEditingValue(
+                text: autoCode,
+                selection: TextSelection.collapsed(offset: autoCode.length),
+              );
+              _focusNode.unfocus();
+              HapticFeedback.lightImpact();
+            }
             setState(() {
               _isVerifying = true;
               _isLoading = true;
             });
           }
+          // Brief pause so the user sees the code land in the boxes.
+          if (hasCode) await Future.delayed(const Duration(milliseconds: 400));
           await _signIn(credential);
         },
         verificationFailed: (FirebaseAuthException e) {

@@ -123,7 +123,14 @@ class AppNotificationService {
       // Check if opened from terminated state
       RemoteMessage? initialMessage = await messaging.getInitialMessage();
       if (initialMessage != null) {
-        _routeToScreen(initialMessage.data['type'] ?? 'system');
+        final type = initialMessage.data['type'] ?? 'system';
+        // Wait for the splash -> AuthWrapper transition to finish, otherwise
+        // the splash's pushReplacement would replace the screen we push.
+        Future.delayed(const Duration(milliseconds: 2500), () {
+          if (FirebaseAuth.instance.currentUser != null) {
+            _routeToScreen(type);
+          }
+        });
       }
 
       // 3. Listen to Auth State to update FCM Token and Firestore listener

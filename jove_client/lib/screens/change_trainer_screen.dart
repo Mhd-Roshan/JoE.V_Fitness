@@ -6,15 +6,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:easy_localization/easy_localization.dart';
 
 import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
 import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
-import 'trainer_selection_screen.dart';
 import 'notification_screen.dart'; // ADDED IMPORT
 import '../widgets/package_required_modal.dart';
 import '../theme/app_theme_controller.dart';
 import '../services/screenshot_security_service.dart';
+import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class ChangeTrainerScreen extends StatefulWidget {
   const ChangeTrainerScreen({super.key});
@@ -37,7 +37,6 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
   final ValueNotifier<int> _selectedIndexNotifier = ValueNotifier<int>(4);
 
   bool _isLoading = true;
-  bool _isNavigating = false;
   bool _hasActiveSubscription = false;
 
   Map<String, dynamic>? _userData;
@@ -232,7 +231,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                 color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade200,
                 image: imageUrl.isNotEmpty
                     ? DecorationImage(
-                        image: NetworkImage(imageUrl),
+                        image: ResizeImage(NetworkImage(imageUrl), width: 800),
                         fit: BoxFit.cover,
                       )
                     : null,
@@ -481,91 +480,29 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
   // NAVIGATION LOGIC
   // ==========================================
   void _navigate(Widget screen) {
-    if (_isNavigating) return;
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
+    int index = 4; // default to profile
+    if (screen is HomeDashboardScreen) {
+      index = 0;
+    } else if (screen is ProgressScreen) {
+      index = 2;
+    } else if (screen is ChatScreen) {
+      index = 3;
+    } else if (screen is ProfileScreen) {
+      index = 4;
+    }
 
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => screen,
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 150),
-      ),
-    ).then((_) {
-      if (mounted) setState(() => _isNavigating = false);
-    });
+    // The tabs already live inside HomeDashboardScreen's PageView, so pop back
+    // to it and switch tab instead of rebuilding a whole new dashboard.
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) return;
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
-
-    final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CustomLoadingIndicator()),
-    );
-
-    try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
-      var userData = userDoc.data() as Map<String, dynamic>? ?? {};
-      String? trainerId = userData['assignedTrainerId'];
-
-      Widget nextScreen;
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const ChangeTrainerScreen();
-      } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache))
-            .catchError(
-              (_) => FirebaseFirestore.instance
-                  .collection('trainers')
-                  .doc(trainerId)
-                  .get(),
-            );
-        nextScreen = trainerDoc.exists
-            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
-            : const ChangeTrainerScreen();
-      }
-
-      if (!mounted) return;
-      navigator.pop();
-
-      await navigator.pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        navigator.pop();
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('error_loading_data'.tr())),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isNavigating = false;
-          _selectedIndexNotifier.value = 4;
-        });
-      }
-    }
+    // Booking is a tab of HomeDashboardScreen (it resolves the trainer itself).
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
   }
 
   // ==========================================
@@ -774,7 +711,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
           color: Colors.grey.shade200,
           image: imageUrl.isNotEmpty
               ? DecorationImage(
-                  image: NetworkImage(imageUrl),
+                  image: ResizeImage(NetworkImage(imageUrl), width: 800),
                   fit: BoxFit.cover,
                 )
               : null,
@@ -1030,7 +967,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
                               ? const Color(0xFF1E1E1E)
                               : Colors.blue.shade50,
                           backgroundImage: imageUrl.isNotEmpty
-                              ? NetworkImage(imageUrl)
+                              ? ResizeImage(NetworkImage(imageUrl), width: 210)
                               : null,
                           child: imageUrl.isEmpty
                               ? Icon(
@@ -1211,7 +1148,7 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
     final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: navBg,

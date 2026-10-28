@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../services/app_notification_service.dart';
 
 // --- IMPORTANT: Import your AuthWrapper here instead of WelcomeScreen ---
 import 'auth_wrapper.dart';
@@ -40,11 +44,17 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigateToNext() async {
+    // Splash display time runs in parallel with the permission prompt, so
+    // returning users are not charged the delay twice.
+    final minSplashTime = Future.delayed(const Duration(milliseconds: 1200));
+
     // Request location permission on app open
     await _requestLocationPermission();
 
-    // Splash display time
-    await Future.delayed(const Duration(milliseconds: 1500));
+    // Start notification/FCM setup now (not awaited, so it never blocks UI).
+    unawaited(AppNotificationService.instance.initialize());
+
+    await minSplashTime;
     if (!mounted) return;
 
     Navigator.of(context).pushReplacement(

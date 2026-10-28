@@ -13,6 +13,7 @@ import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class ConnectedDevicesScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -948,7 +949,7 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
     final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+      margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       decoration: BoxDecoration(
         color: navBg,

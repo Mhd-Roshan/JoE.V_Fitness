@@ -9,13 +9,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 // Import your existing screens for navigation
 import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
 import 'progress_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
-import 'trainer_selection_screen.dart';
 import 'notification_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
@@ -55,7 +55,6 @@ class _SupportScreenState extends State<SupportScreen> {
   ];
 
   late Stream<QuerySnapshot> _ticketsStream;
-  bool _isNavigating = false;
 
   @override
   void initState() {
@@ -187,92 +186,19 @@ class _SupportScreenState extends State<SupportScreen> {
 
   // --- NAVIGATION LOGIC ---
   Future<void> _handleStandardNavigation(Widget screen, int index) async {
-    if (_isNavigating) return;
     HapticFeedback.selectionClick();
-    setState(() => _isNavigating = true);
     _selectedIndexNotifier.value = index;
-
-    await Future.delayed(const Duration(milliseconds: 50));
-    if (!mounted) return;
-
-    await Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (context, a, b) => screen,
-        transitionsBuilder: (context, a, b, child) => FadeTransition(
-          opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 200),
-      ),
-    );
+    // The tabs already live inside HomeDashboardScreen's PageView, so pop back
+    // to it and switch tab instead of rebuilding a whole new dashboard.
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) return;
-    _isNavigating = true;
     HapticFeedback.selectionClick();
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.black12,
-      barrierDismissible: false,
-      builder: (_) =>
-          const Center(child: CustomLoadingIndicator()),
-    );
-
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
-      final userData = userDoc.data() ?? {};
-      final String? trainerId = userData['assignedTrainerId'];
-      Widget nextScreen;
-
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const SelectTrainerScreen();
-      } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache))
-            .catchError(
-              (_) => FirebaseFirestore.instance
-                  .collection('trainers')
-                  .doc(trainerId)
-                  .get(),
-            );
-
-        nextScreen = trainerDoc.exists
-            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
-            : const SelectTrainerScreen();
-      }
-
-      if (!mounted) return;
-      Navigator.pop(context);
-
-      await Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Error loading booking.')));
-    } finally {
-      if (mounted) {
-        _isNavigating = false;
-        _selectedIndexNotifier.value = 4;
-      }
-    }
+    // Booking is a tab of HomeDashboardScreen (it resolves the trainer itself).
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
   }
 
   @override
@@ -1077,7 +1003,7 @@ class _FloatingNavBar extends StatelessWidget {
             : const Color(0xFF00215F);
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+          margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 24, right: 24),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           decoration: BoxDecoration(
             color: navBg,

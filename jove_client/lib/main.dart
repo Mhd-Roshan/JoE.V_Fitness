@@ -13,19 +13,18 @@ void main() async {
   // 1. Ensure Flutter bindings are ready before launching Firebase
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. Initialize SharedPreferences via LocalStorageService
-  await LocalStorageService.init();
+  // 2-4. SharedPreferences, Firebase and Easy Localization are independent,
+  // so initialise them in parallel to get the first frame on screen sooner.
+  // NOTE: AppNotificationService.initialize() (permission prompts, FCM setup)
+  // is intentionally NOT awaited here; it is started from the splash screen
+  // so it never blocks the first frame.
+  await Future.wait([
+    LocalStorageService.init(),
+    Firebase.initializeApp(),
+    EasyLocalization.ensureInitialized(),
+  ]);
 
-  // 3. Initialize Firebase
-  await Firebase.initializeApp();
-
-  // 4. Initialize Easy Localization
-  await EasyLocalization.ensureInitialized();
-
-  // 5. Initialize Notification Service
-  await AppNotificationService.instance.initialize();
-
-  // 6. Run UI Wrapped in Providers and Localization Config
+  // 5. Run UI Wrapped in Providers and Localization Config
   runApp(
     MultiProvider(
       providers: [

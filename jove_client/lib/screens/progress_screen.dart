@@ -12,6 +12,7 @@ import 'notification_screen.dart'; // <-- ADDED NOTIFICATION SCREEN IMPORT
 import '../theme/app_theme_controller.dart';
 import '../widgets/package_required_modal.dart';
 import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class ProgressScreen extends StatefulWidget {
   final bool showBottomNav;
@@ -2109,7 +2110,7 @@ class _ProgressScreenState extends State<ProgressScreen>
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+        margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 24, right: 24),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(
           color: AppThemeController.isDark

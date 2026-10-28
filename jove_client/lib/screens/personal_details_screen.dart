@@ -10,15 +10,15 @@ import 'package:easy_localization/easy_localization.dart'; // <-- IMPORTED TRANS
 
 // Import your other screens for the bottom nav bar
 import 'home_dashboard_screen.dart';
-import 'booking_screen.dart';
 import 'progress_screen.dart';
-import 'trainer_selection_screen.dart';
 import 'chat_screen.dart';
 import 'profile_screen.dart';
 import 'notification_screen.dart'; // <-- ADDED NOTIFICATION IMPORT
 import '../widgets/package_required_modal.dart';
 import '../theme/app_theme_controller.dart';
 import 'auth/login_screen.dart';
+import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class PersonalDetailsScreen extends StatefulWidget {
   const PersonalDetailsScreen({super.key});
@@ -50,7 +50,6 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   bool _isLoading = false;
   bool _isUploadingImage = false;
   bool _isInitialDataLoaded = false;
-  bool _isNavigating = false;
   bool _hasActiveSubscription = false;
 
   @override
@@ -342,93 +341,29 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
   // --- NAVIGATION LOGIC ---
   void _navigate(Widget screen) {
-    if (_isNavigating) return;
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
+    int index = 4; // default to profile
+    if (screen is HomeDashboardScreen) {
+      index = 0;
+    } else if (screen is ProgressScreen) {
+      index = 2;
+    } else if (screen is ChatScreen) {
+      index = 3;
+    } else if (screen is ProfileScreen) {
+      index = 4;
+    }
 
-    Navigator.pushReplacement(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => screen,
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 150),
-      ),
-    ).then((_) {
-      if (mounted) setState(() => _isNavigating = false);
-    });
+    // The tabs already live inside HomeDashboardScreen's PageView, so pop back
+    // to it and switch tab instead of rebuilding a whole new dashboard.
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(index);
   }
 
   Future<void> _navigateToBooking() async {
-    if (_isNavigating || currentUser == null) return;
-    setState(() => _isNavigating = true);
     HapticFeedback.selectionClick();
-
-    // Cache the navigator
-    final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    showDialog(
-      context: context,
-      barrierColor: Colors.transparent,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CustomLoadingIndicator()),
-    );
-
-    try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(currentUser!.uid)
-          .get();
-      var userData = userDoc.data() as Map<String, dynamic>? ?? {};
-      String? trainerId = userData['assignedTrainerId'];
-
-      Widget nextScreen;
-      if (trainerId == null || trainerId.isEmpty) {
-        nextScreen = const SelectTrainerScreen();
-      } else {
-        DocumentSnapshot trainerDoc = await FirebaseFirestore.instance
-            .collection('trainers')
-            .doc(trainerId)
-            .get(const GetOptions(source: Source.cache))
-            .catchError(
-              (_) => FirebaseFirestore.instance
-                  .collection('trainers')
-                  .doc(trainerId)
-                  .get(),
-            );
-
-        nextScreen = trainerDoc.exists
-            ? BookingScreen(trainer: Trainer.fromFirestore(trainerDoc))
-            : const SelectTrainerScreen();
-      }
-
-      if (!mounted) return;
-      navigator.pop();
-
-      await navigator.pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (c, a, b) => nextScreen,
-          transitionsBuilder: (c, a, b, child) =>
-              FadeTransition(opacity: a, child: child),
-          transitionDuration: const Duration(milliseconds: 150),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        navigator.pop();
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('error_loading_booking'.tr())), // TRANSLATED
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isNavigating = false;
-          _selectedIndexNotifier.value = 4;
-        });
-      }
-    }
+    // Booking is a tab of HomeDashboardScreen (it resolves the trainer itself).
+    Navigator.popUntil(context, (route) => route.isFirst);
+    MainTabController.switchTab(1);
   }
 
   @override
@@ -624,7 +559,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
                         ? const Color(0xFF262626)
                         : Colors.grey.shade300,
                     backgroundImage: photoUrl.isNotEmpty
-                        ? NetworkImage(photoUrl)
+                        ? ResizeImage(NetworkImage(photoUrl), width: 300)
                         : null,
                     child: photoUrl.isEmpty
                         ? Icon(
@@ -925,20 +860,35 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
   Future<void> _deleteAccount() async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
-    
-    final bool confirm = await showDialog<bool>(
+
+    final bool confirm =
+        await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Delete Account', style: TextStyle(color: _redButton, fontWeight: FontWeight.bold)),
-            content: const Text('Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.'),
+            title: const Text(
+              'Delete Account',
+              style: TextStyle(color: _redButton, fontWeight: FontWeight.bold),
+            ),
+            content: const Text(
+              'Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
@@ -952,18 +902,18 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
     try {
       final String uid = currentUser?.uid ?? '';
-      
+
       // Delete user document in Firestore
       if (uid.isNotEmpty) {
         await FirebaseFirestore.instance.collection('users').doc(uid).delete();
       }
-      
+
       // Delete user in Firebase Auth
       await currentUser?.delete();
-      
+
       // Sign out
       await FirebaseAuth.instance.signOut();
-      
+
       if (mounted) {
         navigator.pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -974,7 +924,9 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       if (e.code == 'requires-recent-login') {
         scaffoldMessenger.showSnackBar(
           const SnackBar(
-            content: Text('Please log out and log back in to delete your account.'),
+            content: Text(
+              'Please log out and log back in to delete your account.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -1008,7 +960,10 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
           style: TextButton.styleFrom(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: _redButton.withValues(alpha: 0.5), width: 1.5),
+              side: BorderSide(
+                color: _redButton.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
             ),
           ),
           onPressed: _isLoading ? null : _deleteAccount,
@@ -1030,7 +985,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
     final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: navBg,

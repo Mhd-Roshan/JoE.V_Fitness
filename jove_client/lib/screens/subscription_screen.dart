@@ -14,6 +14,7 @@ import 'notification_screen.dart';
 import 'auth/package_select_screen.dart';
 import '../theme/app_theme_controller.dart';
 import '../services/main_tab_controller.dart';
+import '../widgets/nav_safe.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
@@ -1142,7 +1143,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final Color navBg = isDark ? const Color(0xFF121212) : _navBgColor;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 24, left: 24, right: 24),
+      margin: EdgeInsets.only(bottom: navBarBottomMargin(context), left: 24, right: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
         color: navBg,
