@@ -2,6 +2,7 @@ import 'package:jove_client/widgets/custom_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/screenshot_security_service.dart';
 
 // --- YOUR IMPORTS ---
 import 'welcome_screen.dart';
@@ -60,6 +61,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
         // If NO user is logged in, go to WelcomeScreen
         if (!authSnapshot.hasData || authSnapshot.data == null) {
+          ScreenshotSecurityService.instance.setExploreLock(false);
           return const WelcomeScreen();
         }
 
@@ -112,6 +114,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
             final bool hasSeenFirstPreview =
                 userData['hasSeenFirstPreview'] == true;
             final bool hasPaidEntryFee = userData['hasPaidEntryFee'] == true;
+
+            // SCREENSHOT LOCK: Block screenshots while the user is exploring the
+            // app for free. Once they pay the ₹99 Entry Pass (or have an active
+            // package), screenshots are allowed again.
+            ScreenshotSecurityService.instance.setExploreLock(
+              AuthWrapper.isFirstSessionPreview &&
+                  !hasPaidEntryFee &&
+                  !hasActiveSubscription,
+            );
 
             // If a previous paid package has expired AND they haven't paid the ₹99 entry fee, block them
             // (If they HAVE paid ₹99, they simply downgrade to basic app access)

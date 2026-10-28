@@ -315,6 +315,72 @@ class _HomeTabViewState extends State<_HomeTabView>
     }
   }
 
+  bool _askedForName = false;
+
+  /// Makes sure the account always has a name. If `fullName` is missing it is
+  /// filled from the login name, otherwise the user is asked once.
+  void _ensureUserName(Map<String, dynamic> userData) {
+    if (_askedForName || currentUser == null) return;
+
+    final String existing = (userData['fullName'] ??
+            userData['name'] ??
+            userData['firstName'] ??
+            '')
+        .toString()
+        .trim();
+    if (existing.isNotEmpty) return;
+    _askedForName = true;
+
+    final String authName = (currentUser?.displayName ?? '').trim();
+    final String uid = currentUser!.uid;
+
+    if (authName.isNotEmpty) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set({'fullName': authName}, SetOptions(merge: true))
+          .catchError((_) {});
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final controller = TextEditingController();
+      final String? entered = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('What should we call you?'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(hintText: 'Your full name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                final v = controller.text.trim();
+                if (v.isNotEmpty) Navigator.pop(dialogContext, v);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      if (entered == null || entered.isEmpty) return;
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .set({'fullName': entered}, SetOptions(merge: true));
+        await FirebaseAuth.instance.currentUser?.updateDisplayName(entered);
+      } catch (e) {
+        debugPrint('Failed to save name: $e');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -329,6 +395,8 @@ class _HomeTabViewState extends State<_HomeTabView>
 
         final userData =
             userSnapshot.data?.data() as Map<String, dynamic>? ?? {};
+
+        _ensureUserName(userData);
 
         Timestamp? nextBillingDate = userData['subscription'] is Map
             ? userData['subscription']['nextBillingDate'] as Timestamp?

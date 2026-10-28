@@ -14,6 +14,7 @@ import 'trainer_selection_screen.dart';
 import 'notification_screen.dart'; // ADDED IMPORT
 import '../widgets/package_required_modal.dart';
 import '../theme/app_theme_controller.dart';
+import '../services/screenshot_security_service.dart';
 
 class ChangeTrainerScreen extends StatefulWidget {
   const ChangeTrainerScreen({super.key});
@@ -23,9 +24,6 @@ class ChangeTrainerScreen extends StatefulWidget {
 }
 
 class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
-  // --- NATIVE SCREENSHOT CHANNEL ---
-  static const platform = MethodChannel('com.joev.fitness/screenshot');
-
   // Theme Colors
   static const Color _bgColor = Color(0xFFF7F8FA);
   static const Color _textMain = Color(0xFF1A1A1A);
@@ -50,34 +48,16 @@ class _ChangeTrainerScreenState extends State<ChangeTrainerScreen> {
   @override
   void initState() {
     super.initState();
-    _disableScreenshots(); // Calls Native Kotlin code
+    ScreenshotSecurityService.instance.acquire(); // Block screenshots
     _fetchData();
   }
 
   @override
   void dispose() {
-    _enableScreenshots(); // Calls Native Kotlin code
+    // Release this screen's lock (stays blocked if explore mode is active)
+    ScreenshotSecurityService.instance.release();
     _selectedIndexNotifier.dispose();
     super.dispose();
-  }
-
-  // ==========================================
-  // NATIVE SCREENSHOT CONTROLS
-  // ==========================================
-  Future<void> _disableScreenshots() async {
-    try {
-      await platform.invokeMethod('disableScreenshots');
-    } catch (e) {
-      debugPrint("Error disabling screenshots: $e");
-    }
-  }
-
-  Future<void> _enableScreenshots() async {
-    try {
-      await platform.invokeMethod('enableScreenshots');
-    } catch (e) {
-      debugPrint("Error enabling screenshots: $e");
-    }
   }
 
   // ==========================================

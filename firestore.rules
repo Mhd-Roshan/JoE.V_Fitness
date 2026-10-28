@@ -3,17 +3,184 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2026, 9, 1);
+    // ------------------------------------------------------------------
+    // Helpers
+    // Roles live in users/{uid}.role  ->  'client' | 'trainer' | 'admin'
+    // ------------------------------------------------------------------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myUserPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function myRole() {
+      return signedIn() && exists(myUserPath())
+        ? get(myUserPath()).data.get('role', '')
+        : '';
+    }
+
+    function isAdmin() {
+      return myRole() == 'admin';
+    }
+
+    function isTrainer() {
+      return myRole() == 'trainer';
+    }
+
+    function isStaff() {
+      return isAdmin() || isTrainer();
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Fields that ONLY the server (Cloud Functions / admin) may change.
+    // They decide whether someone has paid, so a user must never edit them.
+    function touchesProtectedFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'hasPaidEntryFee',
+        'entryFeePaidAt',
+        'entryFeePaymentId',
+        'hasActiveSubscription',
+        'packageName',
+        'packageBillingCycle'
+      ]);
+    }
+
+    // The role can't be changed. The only exception: a document that has no
+    // role yet (created by the notification service) may get role 'client'.
+    function roleStaysSafe() {
+      return request.resource.data.get('role', '') == resource.data.get('role', '')
+        || (!('role' in resource.data) && request.resource.data.get('role', '') == 'client');
+    }
+
+    // A user may never turn their own subscription "Active" or move its dates.
+    function subscriptionStaysSafe() {
+      let oldSub = resource.data.get('subscription', {});
+      let newSub = request.resource.data.get('subscription', {});
+      return newSub.get('status', '') != 'Active'
+        || (oldSub.get('status', '') == 'Active'
+            && oldSub.get('expiryDate', null) == newSub.get('expiryDate', null)
+            && oldSub.get('nextBillingDate', null) == newSub.get('nextBillingDate', null)
+            && oldSub.get('planName', '') == newSub.get('planName', '')
+            && oldSub.get('packageId', '') == newSub.get('packageId', ''));
+    }
+
+    // ------------------------------------------------------------------
+    // users
+    // ------------------------------------------------------------------
+    match /users/{uid} {
+      // Owner, trainers and admins can read a profile.
+      // Anyone signed in can read TRAINER profiles (needed to pick a trainer).
+      allow get: if isOwner(uid)
+                 || isStaff()
+                 || (signedIn() && resource.data.get('role', '') == 'trainer');
+
+      allow list: if isStaff()
+                  || (signedIn() && resource.data.get('role', '') == 'trainer');
+
+      allow create: if isAdmin()
+                    || (isOwner(uid)
+                        && request.resource.data.get('role', 'client') == 'client'
+                        && !request.resource.data.keys().hasAny([
+                             'hasPaidEntryFee',
+                             'entryFeePaidAt',
+                             'entryFeePaymentId',
+                             'hasActiveSubscription',
+                             'packageName',
+                             'packageBillingCycle'
+                           ])
+                        && request.resource.data.get('subscription', {}).get('status', '') != 'Active');
+
+      allow update: if isAdmin()
+                    || ((isOwner(uid)
+                         || (isTrainer() && resource.data.get('role', 'client') == 'client'))
+                        && !touchesProtectedFields()
+                        && roleStaysSafe()
+                        && subscriptionStaysSafe());
+
+      // A user can delete their own account data; admins can delete any.
+      allow delete: if isAdmin() || isOwner(uid);
+
+      // Payment history is written by the server only.
+      match /payment_history/{paymentId} {
+        allow read: if isOwner(uid) || isStaff();
+        allow write: if isAdmin();
+      }
+
+      // Every other sub-collection (progress, profile, health info, ...)
+      match /{sub}/{document=**} {
+        allow read, write: if sub != 'payment_history'
+                           && (isOwner(uid) || isStaff());
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // pending_users: created while signing up (before the person is logged
+    // in). Nobody can read or list them from the app. Cloud Functions (admin
+    // SDK) read them, so the app never exposes other people's details.
+    // ------------------------------------------------------------------
+    match /pending_users/{phone} {
+      allow create: if request.resource.data.keys().hasOnly(['name', 'email', 'phone', 'createdAt'])
+                    && request.resource.data.phone == phone
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 100
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() <= 200;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------
+    // orders: created and updated by Cloud Functions only (payments).
+    // ------------------------------------------------------------------
+    match /orders/{orderId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ------------------------------------------------------------------
+    // packages & business settings: everyone signed in can read, only the
+    // admin can change them.
+    // ------------------------------------------------------------------
+    match /packages/{packageId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /businessSettings/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ------------------------------------------------------------------
+    // trainers: readable by signed-in users, editable by that trainer or admin.
+    // ------------------------------------------------------------------
+    match /trainers/{trainerId} {
+      allow read: if signedIn();
+      allow write: if isAdmin() || isOwner(trainerId);
+
+      match /{sub}/{document=**} {
+        allow read, write: if signedIn();
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // Everything else (bookings, sessions, chats, notifications, goals,
+    // diet plans, ...): signed-in users only. Anonymous visitors get nothing.
+    // (The collections above are excluded so they keep their own rules.)
+    // ------------------------------------------------------------------
+    match /{col}/{docId} {
+      allow read, write: if signedIn()
+        && !(col in ['users', 'pending_users', 'orders', 'packages', 'businessSettings', 'trainers']);
+    }
+
+    match /{col}/{docId}/{rest=**} {
+      allow read, write: if signedIn()
+        && !(col in ['users', 'pending_users', 'orders', 'packages', 'businessSettings', 'trainers']);
     }
   }
 }

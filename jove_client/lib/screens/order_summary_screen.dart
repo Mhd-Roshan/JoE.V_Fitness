@@ -100,7 +100,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
   }
 
   // --- START RAZORPAY PAYMENT ---
-  void _startRazorpayPayment() {
+  Future<void> _startRazorpayPayment() async {
     HapticFeedback.mediumImpact();
     final num price = widget.packageData['price'] ?? 0;
     final String planName = widget.packageData['name'] ?? 'Fitness Package';
@@ -118,7 +118,7 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
 
     setState(() => _isProcessingPayment = true);
 
-    RazorpayService.instance.openCheckout(
+    final bool opened = await RazorpayService.instance.openCheckout(
       amount: price,
       packageName: planName,
       userEmail: _emailController.text.trim(),
@@ -130,6 +130,17 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
         'autoRenew': _autoRenew,
       },
     );
+
+    if (!opened && mounted) {
+      setState(() => _isProcessingPayment = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Could not start the payment. Please try again.'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // --- PAYMENT SUCCESS HANDLER ---
@@ -138,15 +149,30 @@ class _OrderSummaryScreenState extends State<OrderSummaryScreen> {
 
     if (_currentUser?.uid != null) {
       try {
-        await RazorpayService.recordSuccessfulSubscription(
-          uid: _currentUser!.uid,
-          packageData: widget.packageData,
-          packageId: widget.packageId,
-          response: response,
-          autoRenew: _autoRenew,
-        );
+        // The server checks the Razorpay signature and activates the plan.
+        await RazorpayService.instance.verifyPayment(response);
       } catch (e) {
-        debugPrint("Error saving subscription to Firestore: $e");
+        debugPrint("Error verifying payment: $e");
+        if (!mounted) return;
+        setState(() => _isProcessingPayment = false);
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Payment received'),
+            content: Text(
+              'We could not confirm your payment yet. If money was deducted, '
+              'your plan will be activated shortly. Payment ID: '
+              '${response.paymentId ?? ''}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
       }
     }
 

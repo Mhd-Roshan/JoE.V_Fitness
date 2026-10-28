@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../auth_wrapper.dart';
@@ -210,16 +211,23 @@ class _OtpScreenState extends State<OtpScreen>
           .doc(uid);
       final userDoc = await userDocRef.get();
 
-      if (!userDoc.exists) {
-        // Check if this phone number already exists under a Google UID
-        final existingUserByPhone = await FirebaseFirestore.instance
-            .collection('users')
-            .where('phone', isEqualTo: widget.phone)
-            .where('role', isEqualTo: 'client')
-            .limit(1)
-            .get();
+      // The notification service may already have created users/{uid} with just
+      // an FCM token, so a missing role also means the profile isn't set up yet.
+      final bool needsSetup =
+          !userDoc.exists || (userDoc.data()?['role'] == null);
 
-        if (existingUserByPhone.docs.isNotEmpty) {
+      if (needsSetup) {
+        // Check if this phone number already exists under another login (e.g. Google)
+        final lookup = await FirebaseFunctions.instance
+            .httpsCallable('lookupAccount')
+            .call(<String, dynamic>{'phone': widget.phone});
+        final Map<String, dynamic> found =
+            Map<String, dynamic>.from(lookup.data as Map);
+        final dynamic existingInfo = found['userByPhoneInfo'];
+
+        if (found['userByPhone'] == true &&
+            existingInfo is Map &&
+            existingInfo['uid'] != uid) {
           // They already have an account with this phone under a different UID (Google)!
           await FirebaseAuth.instance.signOut();
           if (!mounted) return;
@@ -230,43 +238,32 @@ class _OtpScreenState extends State<OtpScreen>
           });
           return;
         }
-        final pendingDoc = await FirebaseFirestore.instance
-            .collection('pending_users')
-            .doc(widget.phone)
-            .get();
 
         String savedName = widget.name ?? '';
         String savedEmail = widget.email ?? '';
 
-        if (pendingDoc.exists) {
-          savedName = pendingDoc.data()?['name'] ?? savedName;
-          savedEmail = pendingDoc.data()?['email'] ?? savedEmail;
-
-          // Process deletion in background so it doesn't block UI thread
-          FirebaseFirestore.instance
-              .collection('pending_users')
-              .doc(widget.phone)
-              .delete();
-        }
-
-        // Fallback for developers testing by deleting Auth users without deleting Firestore docs
-        if (savedName.isEmpty) {
-          final orphanedDocQuery = await FirebaseFirestore.instance
-              .collection('users')
-              .where('phone', isEqualTo: widget.phone)
-              .where('role', isEqualTo: 'client')
-              .limit(1)
-              .get();
-              
-          if (orphanedDocQuery.docs.isNotEmpty) {
-            final oldData = orphanedDocQuery.docs.first.data();
-            savedName = oldData['fullName'] ?? oldData['name'] ?? '';
-            savedEmail = oldData['email'] ?? savedEmail;
-            
-            // Clean up the old dangling document
-            await FirebaseFirestore.instance.collection('users').doc(orphanedDocQuery.docs.first.id).delete();
+        // The server returns (and removes) the details saved at sign up.
+        try {
+          final pending = await FirebaseFunctions.instance
+              .httpsCallable('consumePending')
+              .call();
+          final Map<String, dynamic> p =
+              Map<String, dynamic>.from(pending.data as Map);
+          if ((p['name'] ?? '').toString().isNotEmpty) {
+            savedName = p['name'];
           }
+          if ((p['email'] ?? '').toString().isNotEmpty) {
+            savedEmail = p['email'];
+          }
+        } catch (e) {
+          debugPrint('consumePending failed: $e');
         }
+
+        // Last fallback so the dashboard never has to show "Athlete"
+        if (savedName.isEmpty) {
+          savedName = userCredential.user?.displayName ?? '';
+        }
+
 
         await userDocRef.set({
           'role': 'client',
@@ -276,7 +273,7 @@ class _OtpScreenState extends State<OtpScreen>
           'phone': widget.phone,
           'assessmentCompleted': false,
           'createdAt': FieldValue.serverTimestamp(),
-        });
+        }, SetOptions(merge: true));
         
         if (savedName.isNotEmpty) {
           try {

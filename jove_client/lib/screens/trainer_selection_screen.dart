@@ -8,6 +8,7 @@ import 'package:easy_localization/easy_localization.dart';
 
 import 'booking_screen.dart';
 import '../theme/app_theme_controller.dart';
+import '../services/screenshot_security_service.dart';
 
 // ==========================================
 // DATA MODEL
@@ -113,9 +114,6 @@ class SelectTrainerScreen extends StatefulWidget {
 }
 
 class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
-  // --- NATIVE SCREENSHOT CHANNEL ---
-  static const platform = MethodChannel('com.joev.fitness/screenshot');
-
   Trainer? _selectedTrainer;
   bool _isLoading = false;
 
@@ -124,7 +122,8 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
   @override
   void initState() {
     super.initState();
-    _disableScreenshots(); // Block screenshots natively when screen opens
+    ScreenshotSecurityService.instance
+        .acquire(); // Block screenshots natively when screen opens
 
     _trainersStream = FirebaseFirestore.instance
         .collection('trainers')
@@ -134,27 +133,9 @@ class _SelectTrainerScreenState extends State<SelectTrainerScreen> {
 
   @override
   void dispose() {
-    _enableScreenshots(); // Allow screenshots again when leaving this screen
+    // Release this screen's lock (stays blocked if explore mode is active)
+    ScreenshotSecurityService.instance.release();
     super.dispose();
-  }
-
-  // ==========================================
-  // NATIVE SCREENSHOT CONTROLS
-  // ==========================================
-  Future<void> _disableScreenshots() async {
-    try {
-      await platform.invokeMethod('disableScreenshots');
-    } catch (e) {
-      debugPrint("Error disabling screenshots: $e");
-    }
-  }
-
-  Future<void> _enableScreenshots() async {
-    try {
-      await platform.invokeMethod('enableScreenshots');
-    } catch (e) {
-      debugPrint("Error enabling screenshots: $e");
-    }
   }
 
   Future<void> _confirmSelection() async {

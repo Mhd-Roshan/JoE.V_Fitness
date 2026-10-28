@@ -6,8 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
-import 'package:intl/intl.dart';
-
 import '../services/razorpay_service.dart';
 import 'welcome_screen.dart';
 import 'home_dashboard_screen.dart';
@@ -83,12 +81,12 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
   }
 
   // --- START RAZORPAY ₹99 PAYMENT ---
-  void _startRazorpayPayment() {
+  Future<void> _startRazorpayPayment() async {
     HapticFeedback.mediumImpact();
     setState(() => _isProcessingPayment = true);
 
-    RazorpayService.instance.openCheckout(
-      amount: 99, // ₹99
+    final bool opened = await RazorpayService.instance.openCheckout(
+      amount: 99, // ₹99 (the server decides the real amount)
       packageName: 'App Access Pass',
       userEmail: _emailController.text.trim(),
       userPhone: _phoneController.text.trim(),
@@ -99,6 +97,17 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
         'amount': '99',
       },
     );
+
+    if (!opened && mounted) {
+      setState(() => _isProcessingPayment = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not start the payment. Please try again.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // --- PAYMENT SUCCESS HANDLER ---
@@ -107,42 +116,30 @@ class _EntryPassPaywallScreenState extends State<EntryPassPaywallScreen> {
 
     if (_currentUser?.uid != null) {
       try {
-        final now = DateTime.now();
-        final String todayDate = DateFormat('yyyy-MM-dd').format(now);
-
-        WriteBatch batch = FirebaseFirestore.instance.batch();
-        DocumentReference userRef = FirebaseFirestore.instance
-            .collection('users')
-            .doc(_currentUser!.uid);
-        DocumentReference historyRef = userRef
-            .collection('payment_history')
-            .doc(
-              response.paymentId ??
-                  DateTime.now().millisecondsSinceEpoch.toString(),
-            );
-
-        batch.set(userRef, {
-          'hasPaidEntryFee': true,
-          'entryFeePaidAt': FieldValue.serverTimestamp(),
-          'entryFeePaymentId': response.paymentId ?? '',
-          'lastAppAccessDate': todayDate,
-        }, SetOptions(merge: true));
-
-        batch.set(historyRef, {
-          'paymentId': response.paymentId ?? '',
-          'orderId': response.orderId ?? '',
-          'planName': 'App Access Pass (₹99)',
-          'billingCycle': 'ACCESS_PASS',
-          'amount': 99.0,
-          'currency': 'INR',
-          'paymentMethod': 'Razorpay',
-          'status': 'Success',
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-
-        await batch.commit();
+        // The server checks the Razorpay signature and marks the pass as paid.
+        await RazorpayService.instance.verifyPayment(response);
       } catch (e) {
-        debugPrint("Error saving entry pass to Firestore: $e");
+        debugPrint("Error verifying entry pass payment: $e");
+        if (!mounted) return;
+        setState(() => _isProcessingPayment = false);
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Payment received'),
+            content: Text(
+              'We could not confirm your payment yet. If money was deducted, '
+              'your access will be activated shortly. Payment ID: '
+              '${response.paymentId ?? ''}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
       }
     }
 

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -241,66 +242,23 @@ class _SignUpScreenState extends State<SignUpScreen>
     try {
       final formattedPhone = '+91$phone';
 
-      // 1. Check if phone exists in 'users'
-      final existingPhoneQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('phone', isEqualTo: formattedPhone)
-          .where('role', isEqualTo: 'client')
-          .limit(1)
-          .get();
-
-      // 2. Check if email exists in 'users'
-      var existingEmailQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .where('role', isEqualTo: 'client')
-          .limit(1)
-          .get();
-
-      // 3. Check if phone exists in 'pending_users'
-      final pendingPhoneDoc = await FirebaseFirestore.instance
-          .collection('pending_users')
-          .doc(formattedPhone)
-          .get();
-
-      // 4. Check if email exists in 'pending_users'
-      var pendingEmailQuery = await FirebaseFirestore.instance
-          .collection('pending_users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
+      // Ask the server if this phone/email is already registered
+      // (the app can no longer read the users collection directly).
+      final lookup = await FirebaseFunctions.instance
+          .httpsCallable('lookupAccount')
+          .call(<String, dynamic>{'phone': formattedPhone, 'email': email});
+      final Map<String, dynamic> found =
+          Map<String, dynamic>.from(lookup.data as Map);
 
       if (!mounted) return;
 
-      if (existingPhoneQuery.docs.isNotEmpty || pendingPhoneDoc.exists) {
+      if (found['userByPhone'] == true || found['pendingByPhone'] == true) {
         setState(() => _isLoading = false);
         _showModernSnackBar('err_phone_registered'.tr(), isError: false);
         return;
       }
 
-      bool emailExists = existingEmailQuery.docs.isNotEmpty || pendingEmailQuery.docs.isNotEmpty;
-      
-      // Fallback for old uppercase data during testing
-      if (!emailExists) {
-        final allUsers = await FirebaseFirestore.instance.collection('users').where('role', isEqualTo: 'client').get();
-        for (var doc in allUsers.docs) {
-          if ((doc.data()['email'] as String?)?.toLowerCase() == email) {
-            emailExists = true;
-            break;
-          }
-        }
-        if (!emailExists) {
-          final allPending = await FirebaseFirestore.instance.collection('pending_users').get();
-          for (var doc in allPending.docs) {
-            if ((doc.data()['email'] as String?)?.toLowerCase() == email) {
-              emailExists = true;
-              break;
-            }
-          }
-        }
-      }
-
-      if (emailExists) {
+      if (found['userByEmail'] == true || found['pendingByEmail'] == true) {
         setState(() => _isLoading = false);
         _showModernSnackBar('Email is already registered. Please sign in.', isError: false);
         return;

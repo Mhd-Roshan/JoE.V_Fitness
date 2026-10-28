@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -259,21 +260,15 @@ class _LoginScreenState extends State<LoginScreen>
       final formattedPhone =
           '+91${cleanPhone.substring(cleanPhone.length - 10)}';
 
-      final userQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('phone', isEqualTo: formattedPhone)
-          .where('role', isEqualTo: 'client')
-          .limit(1)
-          .get();
-
-      final pendingQuery = await FirebaseFirestore.instance
-          .collection('pending_users')
-          .doc(formattedPhone)
-          .get();
+      final lookup = await FirebaseFunctions.instance
+          .httpsCallable('lookupAccount')
+          .call(<String, dynamic>{'phone': formattedPhone});
+      final Map<String, dynamic> found =
+          Map<String, dynamic>.from(lookup.data as Map);
 
       if (!mounted) return;
 
-      if (userQuery.docs.isEmpty && !pendingQuery.exists) {
+      if (found['userByPhone'] != true && found['pendingByPhone'] != true) {
         setState(() => _isLoading = false);
         _showNoAccountPrompt();
         return;
@@ -324,48 +319,32 @@ class _LoginScreenState extends State<LoginScreen>
 
         final emailToCheck = user.email?.toLowerCase() ?? '';
 
-        // Check if this email already exists under a Phone UID
-        var existingUserByEmail = await FirebaseFirestore.instance
-            .collection('users')
-            .where('email', isEqualTo: emailToCheck)
-            .where('role', isEqualTo: 'client')
-            .limit(1)
-            .get();
+        // Ask the server whether this email already belongs to another account.
+        final lookup = await FirebaseFunctions.instance
+            .httpsCallable('lookupAccount')
+            .call(<String, dynamic>{'email': emailToCheck});
+        final Map<String, dynamic> found =
+            Map<String, dynamic>.from(lookup.data as Map);
 
-        DocumentSnapshot? conflictingDoc;
-        
-        if (existingUserByEmail.docs.isNotEmpty) {
-           final firstDoc = existingUserByEmail.docs.first;
-           if (firstDoc.id != user.uid) {
-             conflictingDoc = firstDoc;
-           }
-        } else {
-           // Fallback for old uppercase data during testing
-           final allUsers = await FirebaseFirestore.instance
-                .collection('users')
-                .where('role', isEqualTo: 'client')
-                .get();
-           for (var doc in allUsers.docs) {
-              final dbEmail = (doc.data()['email'] as String?)?.toLowerCase() ?? '';
-              if (dbEmail == emailToCheck && doc.id != user.uid) {
-                 conflictingDoc = doc;
-                 break;
-              }
-           }
+        Map<String, dynamic>? conflictInfo;
+        if (found['userByEmail'] == true && found['userByEmailInfo'] is Map) {
+          final info =
+              Map<String, dynamic>.from(found['userByEmailInfo'] as Map);
+          if (info['uid'] != user.uid) {
+            conflictInfo = info;
+          }
         }
 
-        if (conflictingDoc != null) {
-          final data = conflictingDoc.data() as Map<String, dynamic>;
-          final provider = data['authProvider'] ?? 'phone';
-          
+        if (conflictInfo != null) {
+          final provider = conflictInfo['authProvider'] ?? 'phone';
+
           if (provider == 'phone') {
+            // Clean up the empty Google doc first (needs the signed-in session)
+            if (userDoc.exists) {
+              await userDocRef.delete();
+            }
             await user.delete();
             await FirebaseAuth.instance.signOut();
-            
-            // Clean up the empty Google doc if it exists
-            if (userDoc.exists) {
-               await userDocRef.delete();
-            }
 
             if (!mounted) return;
             setState(() => _isLoading = false);
@@ -374,7 +353,7 @@ class _LoginScreenState extends State<LoginScreen>
               context,
               MaterialPageRoute(
                 builder: (context) => OtpScreen(
-                  phone: data['phone'] ?? '',
+                  phone: conflictInfo!['phone'] ?? '',
                   isSignUp: false,
                   credentialToLink: credential,
                 ),
@@ -382,42 +361,28 @@ class _LoginScreenState extends State<LoginScreen>
             );
             return;
           } else {
-            // It's an orphaned Google Auth doc from testing. We should delete it so we can recreate it under the new UID.
-            await FirebaseFirestore.instance.collection('users').doc(conflictingDoc.id).delete();
+            // It's an orphaned Google Auth doc from testing. The server removes
+            // it so we can recreate it under the new UID.
+            await FirebaseFunctions.instance
+                .httpsCallable('removeStaleGoogleDoc')
+                .call(<String, dynamic>{'docId': conflictInfo['uid']});
           }
         }
 
-        if (!userDoc.exists) {
-
-          // Check if there is a pending user with this email
-          var pendingUserQuery = await FirebaseFirestore.instance
-              .collection('pending_users')
-              .where('email', isEqualTo: emailToCheck)
-              .limit(1)
-              .get();
-
+        if (!userDoc.exists || userDoc.data()?['role'] == null) {
           String name = user.displayName ?? '';
           String phone = user.phoneNumber ?? '';
 
-          if (pendingUserQuery.docs.isNotEmpty) {
-             final pendingData = pendingUserQuery.docs.first.data();
-             name = pendingData['name'] ?? name;
-             phone = pendingData['phone'] ?? phone;
-             // delete pending doc
-             await FirebaseFirestore.instance.collection('pending_users').doc(pendingUserQuery.docs.first.id).delete();
-          } else {
-             // Fallback for old uppercase pending data
-             final allPending = await FirebaseFirestore.instance.collection('pending_users').get();
-             for (var doc in allPending.docs) {
-                final dbEmail = (doc.data()['email'] as String?)?.toLowerCase() ?? '';
-                if (dbEmail == emailToCheck) {
-                   final pendingData = doc.data();
-                   name = pendingData['name'] ?? name;
-                   phone = pendingData['phone'] ?? phone;
-                   await FirebaseFirestore.instance.collection('pending_users').doc(doc.id).delete();
-                   break;
-                }
-             }
+          // The server returns (and removes) the details saved at sign up.
+          try {
+            final pending = await FirebaseFunctions.instance
+                .httpsCallable('consumePending')
+                .call();
+            final p = Map<String, dynamic>.from(pending.data as Map);
+            if ((p['name'] ?? '').toString().isNotEmpty) name = p['name'];
+            if ((p['phone'] ?? '').toString().isNotEmpty) phone = p['phone'];
+          } catch (e) {
+            debugPrint('consumePending failed: $e');
           }
 
           await userDocRef.set({
@@ -428,7 +393,7 @@ class _LoginScreenState extends State<LoginScreen>
             'phone': phone,
             'assessmentCompleted': false,
             'createdAt': FieldValue.serverTimestamp(),
-          });
+          }, SetOptions(merge: true));
         }
         
         if (!mounted) return;
